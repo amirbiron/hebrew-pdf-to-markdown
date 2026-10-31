@@ -1,0 +1,5 @@
+# תלויות של מערך הבדיקה והטסטים בלבד, לא של הקורא.
+-r requirements.txt
+# אלגוריתם התצוגה של Unicode לבדיקת התצוגה (harness/display_check.py): מימוש עצמאי
+# שלא חולק קוד עם hebrew_pdf. רישיון: LGPL-3.0 (עוטף את unicode-bidi, MIT או Apache-2.0).
+python-bidi==0.6.12

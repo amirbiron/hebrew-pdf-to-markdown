@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BIDI = ("\u200e", "\u200f", "\u202a", "\u202b", "\u202c", "\u202d", "\u202e",
         "\u2066", "\u2067", "\u2068", "\u2069")
-SOURCE_DIRS = ("prototype", "harness", "tests")
+SOURCE_DIRS = ("hebrew_pdf", "prototype", "harness", "tests")
 
 
 class NoBidiControlsTest(unittest.TestCase):
