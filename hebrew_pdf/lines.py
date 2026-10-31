@@ -204,45 +204,50 @@ def read_document(pdf) -> list[PageText]:
     for pdf_page, found, spaced, lines in zip(pdf_pages, pages, spaced_pages, line_pages):
         ratios = [g.ratio for line in lines for g in line.gaps]
         word_gap = usual_word_gap(ratios) if len(ratios) >= MIN_PAGE_GAPS else document_gap
-        rules = horizontal_rules(pdf_page)
+        rules, verticals = page_rules(pdf_page)
         layout = page_layout(lines, word_gap, rules)
         page_lines = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts)
                       for i, (line, s) in enumerate(zip(lines, spaced))]
-        merged = _merged_rows(page_lines, layout.tables, lines, rules)
+        merged = _merged_rows(page_lines, layout.tables, lines, rules, verticals)
         width, height = pdf_page.get_size()
         out.append(PageText(page_lines, found.skipped, found.unknown_brackets, [row.cells for row in merged],
                             [row.source for row in merged], rtl, width, height))
     return out
 
 
-def horizontal_rules(page) -> list[tuple[float, float, float]]:
-    """קווים אופקיים שמצוירים בעמוד (קווי מסגרת של טבלה): (שמאל, ימין, y).
+def page_rules(page) -> tuple[list[tuple[float, float, float]], list[tuple[float, float, float]]]:
+    """קווים שמצוירים בעמוד (קווי מסגרת של טבלה): (אופקיים, אנכיים). אופקי: (שמאל, ימין, y);
+    אנכי: (x, תחתית, ראש).
 
-    קו הוא אובייקט ציור (FPDF_PAGEOBJ_PATH) דק ורחב: גובה עד 2 נקודות, ורוחב פי 10 מהגובה
-    לפחות. התיבה מ-PdfObject.get_bounds (pypdfium2/_helpers/pageobjects.py), שזורקת
-    PdfiumError כשאין לאובייקט מיקום; אובייקט כזה לא יכול להיות קו, ולכן מדולג.
+    קו הוא אובייקט ציור (FPDF_PAGEOBJ_PATH) דק וארוך: עובי עד 2 נקודות, ואורך פי 10 מהעובי
+    לפחות; אופקי כשהעובי הוא הגובה, ואנכי כשהעובי הוא הרוחב. התיבה מ-PdfObject.get_bounds
+    (pypdfium2/_helpers/pageobjects.py), שזורקת PdfiumError כשאין לאובייקט מיקום; אובייקט כזה לא
+    יכול להיות קו, ולכן מדולג.
     """
-    rules = []
+    horizontal, vertical = [], []
     for obj in page.get_objects(filter=[pdfium_raw.FPDF_PAGEOBJ_PATH]):
         try:
             left, bottom, right, top = obj.get_bounds()
         except PdfiumError:
             continue  # אובייקט בלי מיקום על הדף: לא קו שאפשר להשתמש בו
-        height = top - bottom
-        if height <= 2.0 and right - left >= 10 * max(height, 0.1):
-            rules.append((left, right, (top + bottom) / 2))
-    return rules
+        width, height = right - left, top - bottom
+        if height <= 2.0 and width >= 10 * max(height, 0.1):
+            horizontal.append((left, right, (top + bottom) / 2))
+        elif width <= 2.0 and height >= 10 * max(width, 0.1):
+            vertical.append(((left + right) / 2, bottom, top))
+    return horizontal, vertical
 
 
 def table_rows(lines: list[Line], table_of: list[int | None], geometry: list[PageLine],
-               rules: list[tuple[float, float, float]]) -> list[tuple[str, ...]]:
+               rules: list[tuple[float, float, float]],
+               verticals: list[tuple[float, float, float]] = ()) -> list[tuple[str, ...]]:
     """השורות של העמוד כתאים, כששורה של טבלה שנשברה לכמה שורות בעמוד מתאחדת לשורה אחת.
 
     שורה בטבלה היא המשך של השורה שמעליה, כשיש לשתיהן אותן עמודות ולא מתחילה בה שורת טבלה
     חדשה (_new_rows). בכל עמודה, הטקסטים מתחברים ברווח, חוץ מאחרי מקף או לוכסן שצמודים למילה
     (join_lines). שורה מחוץ לטבלה נשארת כמו שהיא (Line.cells).
     """
-    return [row.cells for row in _merged_rows(lines, table_of, geometry, rules)]
+    return [row.cells for row in _merged_rows(lines, table_of, geometry, rules, verticals)]
 
 
 @dataclass(frozen=True)
@@ -252,9 +257,10 @@ class _MergedRow:
 
 
 def _merged_rows(lines: list[Line], table_of: list[int | None], geometry: list[PageLine],
-                 rules: list[tuple[float, float, float]]) -> list[_MergedRow]:
+                 rules: list[tuple[float, float, float]],
+                 verticals: list[tuple[float, float, float]] = ()) -> list[_MergedRow]:
     """table_rows, ולכל שורה גם מאיפה היא באה (RowSource)."""
-    new_row = _new_rows(lines, table_of, geometry, rules)
+    new_row, by_content = _new_rows(lines, table_of, geometry, rules, verticals)
     rows: list[_MergedRow] = []
     current: list[list[str]] | None = None
     current_lines: list[int] = []
@@ -272,7 +278,13 @@ def _merged_rows(lines: list[Line], table_of: list[int | None], geometry: list[P
             current = None
             rows.append(_MergedRow(line.cells, RowSource((i,), None)))
             continue
-        if current is not None and table == current_table and len(cells) == len(current) and not new_row[i]:
+        # בטבלה שאינה רשת: שורה עם טקסט בכמה עמודות שכבר מלאות בשורת הטבלה הנוכחית היא שורה חדשה. כך
+        # שורת סכום בלי תווית לא נדבקת לשורה שמעליה ("143,875 452,600"), ושורת מספרים מתחת לתווית שנשברה,
+        # שהעמודות שלה עוד ריקות, נשארת איתה
+        collides = i in by_content and current is not None and sum(
+            1 for column, cell in zip(current, cells) if column and cell) >= 2
+        if current is not None and table == current_table and len(cells) == len(current) and not new_row[i] \
+                and not collides:
             for column, cell in zip(current, cells):
                 if cell:
                     column.append(cell)
@@ -286,32 +298,49 @@ def _merged_rows(lines: list[Line], table_of: list[int | None], geometry: list[P
     return rows
 
 
-def _new_rows(lines: list[Line], table_of, geometry: list[PageLine], rules) -> list[bool]:
-    """לכל שורה בטבלה: האם מתחילה בה שורת טבלה חדשה.
+def _new_rows(lines: list[Line], table_of, geometry: list[PageLine], rules, verticals=()) -> tuple[list[bool], set[int]]:
+    """לכל שורה בטבלה: האם מתחילה בה שורת טבלה חדשה; ואילו שורות בטבלה שאינה רשת, שבה גם התוכן
+    מכריע (_merged_rows: טקסט בכמה עמודות שכבר מלאות בשורת הטבלה).
 
-    כשבטבלה יש קווים אופקיים בין השורות, קו בין שתי שורות בעמוד הוא הגבול בין שורות
-    הטבלה: כך שם משתנה ארוך שנשבר לשתי שורות (MONGODB_SOCKET_TIMEOUT_M / S) נשאר בשורה
-    אחת, אף שיש טקסט בעמודה הראשונה של שורת ההמשך. "יש קווים" נבדק מהטבלה עצמה: קו
-    מפריד את רוב הזוגות שבהם יש טקסט בעמודה הראשונה של השורה השנייה. טבלה שיש בה קו רק
-    מתחת לכותרת, או בלי קווים בכלל (הדוח הכספי), נשענת על העמודה הראשונה: שורה שאין בה
-    טקסט בעמודה הראשונה (לפי סדר הקריאה) היא המשך.
+    ברשת (_grid: מצוירים בה גבולות של תאים, קו אנכי בין העמודות וקו אופקי בין השורות), קו בין שתי
+    שורות בעמוד הוא הגבול בין שורות הטבלה, ובלי קו זו אותה שורה. כך תווית שנשברה לכמה שורות, והמספרים
+    שלה בשורה משלהם ביניהן ("הוצאות מכירה, פרסום" / "ושיווק" בדוח הכספי, עמוד 14), הם שורה אחת.
+    עד סבב 5ב "יש קווים" נקבע לפי רוב הזוגות של שורות רצופות שהשנייה בהן מתחילה בעמודה הראשונה, וזה
+    נכשל בטבלה שהתוויות בה נשברות (בתוך תא אין קו): בעמוד 15 של הדוח הכספי רק 8 מתוך 19 זוגות.
+    טבלה שאינה רשת (בלי קווים, או קו רק תחת הכותרת ומעל שורת סכום) נשענת על העמודה הראשונה: שורה
+    שיש בה טקסט בעמודה הראשונה (לפי סדר הקריאה) היא שורה חדשה, ושורה בלי טקסט בה היא המשך, חוץ
+    מהמקרה של _merged_rows.
     """
     def ruled(i: int) -> bool:
         return rule_between(geometry[i - 1], geometry[i], rules)
 
     new = [True] * len(lines)
+    by_content: set[int] = set()
     by_table: dict[int, list[int]] = {}
     for i, table in enumerate(table_of):
         if table is not None and lines[i].columns is not None:
             by_table.setdefault(table, []).append(i)
     for indices in by_table.values():
-        pairs = [i for i in indices[1:] if i - 1 in indices and lines[i].columns[0]]
-        use_rules = bool(pairs) and 2 * sum(ruled(i) for i in pairs) > len(pairs)
+        use_rules = _grid(indices, geometry, rules, verticals)
+        if not use_rules:
+            by_content.update(indices)
         for i in indices[1:]:
             if i - 1 not in indices:
                 continue
             new[i] = ruled(i) if use_rules else bool(lines[i].columns[0])
-    return new
+    return new, by_content
+
+
+def _grid(indices: list[int], geometry: list[PageLine], rules, verticals) -> bool:
+    """האם הטבלה (השורות indices בעמוד) היא רשת, כלומר מצוירים בה גבולות של תאים: יש בה קו אנכי בין
+    העמודות (בתוך התחום האופקי של הטקסט שלה, וחוצה את קו הבסיס של אחת השורות שלה), וגם קו אופקי בין
+    שתי שורות רצופות שלה. בטבלה בלי קווי מסגרת אין קו אנכי, גם כשיש בה קו תחת הכותרת או מעל שורת
+    סכום; ובתוכן העניינים של MentorOS יש פס אנכי קצר ליד כל כותרת, אבל אין אף קו אופקי."""
+    left = min(geometry[i].left for i in indices)
+    right = max(geometry[i].right for i in indices)
+    vertical = any(left < x < right and any(bottom < geometry[i].baseline < top for i in indices)
+                   for x, bottom, top in verticals)
+    return vertical and any(rule_between(geometry[i - 1], geometry[i], rules) for i in indices if i - 1 in indices)
 
 
 def join_lines(texts: list[str]) -> str:

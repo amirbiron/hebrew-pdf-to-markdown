@@ -35,11 +35,12 @@ def chars(segments: list[tuple[float, str]], baseline: float, size: float = 0.0)
 
 
 def build(page: list[list[tuple[float, str]]], rtl: bool = False, rules_above: tuple[int, ...] = (),
-          sizes: tuple[float, ...] = ()):
+          sizes: tuple[float, ...] = (), verticals: tuple[float, ...] = ()):
     """השורות של עמוד (מלמעלה למטה, 15 נקודות בין שורה לשורה), אחרי חלוקה לרכיבים.
 
     rules_above: השורות שמעליהן מצויר קו אופקי לרוחב כל העמוד (קו מסגרת של טבלה).
     sizes: גודל האות של כל שורה (Char.size); בלי: 0 לכל השורות.
+    verticals: ה-x של קווים אנכיים לגובה כל העמוד (גבולות של תאים ברשת).
     """
     sizes = sizes or (0.0,) * len(page)
     spaced = [space_by_gaps(chars(segments, -15.0 * i, size)) for i, (segments, size) in enumerate(zip(page, sizes))]
@@ -48,7 +49,8 @@ def build(page: list[list[tuple[float, str]]], rtl: bool = False, rules_above: t
     layout = page_layout(lines, USUAL, rules)
     built = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts) for i, (line, s) in
              enumerate(zip(lines, spaced))]
-    return built, table_rows(built, layout.tables, lines, rules)
+    vertical = [(x, -15.0 * len(page), 15.0) for x in verticals]
+    return built, table_rows(built, layout.tables, lines, rules, vertical)
 
 
 def gap(words: float) -> float:
@@ -120,12 +122,13 @@ class TableTest(unittest.TestCase):
         self.assertEqual(rows, [("c1", "desc", "ABCDEFGH"), ("c2", "next", "KL")])
 
     def test_frame_lines_decide_where_a_row_starts(self):
-        # בשורת ההמשך יש טקסט בעמודה הראשונה, וקו בין שורות הטבלה מראה שזו אותה שורה
+        # ברשת (קווים אופקיים בין השורות וקווים אנכיים בין העמודות), שורת ההמשך שייכת לשורה שמעליה כי אין
+        # קו ביניהן, גם כשיש בה טקסט בכמה עמודות
         page = [[(0, "c1"), (60, "desc"), (200, "ABCDEFGH")],
                 [(60, "more"), (200, "IJ")],
                 [(0, "c2"), (60, "a wider one"), (200, "KL")],
                 [(0, "c3"), (60, "last"), (200, "MN")]]
-        _, rows = build(page, rules_above=(0, 2, 3))
+        _, rows = build(page, rules_above=(0, 2, 3), verticals=(50.0, 190.0))
         self.assertEqual(rows, [("c1", "desc more", "ABCDEFGH IJ"), ("c2", "a wider one", "KL"), ("c3", "last", "MN")])
 
     def test_a_single_word_as_wide_as_its_column_joins_with_a_space(self):
@@ -182,6 +185,49 @@ class TableEndTest(unittest.TestCase):
         self.assertIsNotNone(lines[1].columns)
         self.assertIsNone(lines[3].columns)
         self.assertEqual(rows, [("a1", "desc code", "N1"), ("a2", "more", "N2"), ("HEAD",)])
+
+
+class TableRowsTest(unittest.TestCase):
+    """שורה חדשה בטבלה (hebrew_pdf/lines.py, _new_rows ו-_merged_rows), לפי הדפוסים בדוח הכספי."""
+
+    def test_in_a_grid_the_frame_lines_decide(self):
+        # כמו עמודים 14 ו-15: תווית בשלוש שורות, והמספרים בשורה משלהם בין שורות התווית. יש קו רק בין
+        # שורות הטבלה, לא בתוך התא. עד סבב 5ב "יש קווים" נקבע לפי רוב הזוגות שהשורה השנייה בהם מתחילה
+        # בעמודה הראשונה, וכאן רק 2 מתוך 4 (בתוך התא אין קו): הטבלה נחשבה בלי קווים, והתווית התפרקה
+        page = [[(0, "R1"), (60, "11"), (200, "21")],
+                [(0, "lab")],
+                [(0, "two")],
+                [(60, "12"), (200, "22")],
+                [(0, "three")],
+                [(0, "R3"), (60, "13"), (200, "23")]]
+        _, rows = build(page, rules_above=(0, 1, 5), verticals=(50.0, 190.0))
+        self.assertEqual(rows, [("R1", "11", "21"), ("lab two three", "12", "22"), ("R3", "13", "23")])
+
+    def test_without_a_grid_a_line_that_fills_filled_columns_is_a_new_row(self):
+        # כמו עמוד 33: שורת סכום בלי תווית אחרי שורה מלאה. עד סבב 5ב היא נדבקה אליה ("143,875 452,600")
+        page = [[(0, "L1"), (60, "11"), (200, "21")],
+                [(0, "L2"), (60, "12"), (200, "22")],
+                [(60, "13"), (200, "23")]]
+        _, rows = build(page)
+        self.assertEqual(rows, [("L1", "11", "21"), ("L2", "12", "22"), ("", "13", "23")])
+
+    def test_without_a_grid_numbers_under_a_broken_label_stay_with_it(self):
+        # כמו עמוד 44: המספרים בשורה משלהם מתחת לתווית, בעמודות שעוד ריקות בשורת הטבלה: לא שורה חדשה
+        page = [[(0, "L1"), (60, "11"), (200, "21")],
+                [(0, "lab")],
+                [(60, "12"), (200, "22")],
+                [(0, "L3"), (60, "13"), (200, "23")]]
+        _, rows = build(page)
+        self.assertEqual(rows, [("L1", "11", "21"), ("lab", "12", "22"), ("L3", "13", "23")])
+
+    def test_short_bars_without_horizontal_lines_are_not_a_grid(self):
+        # כמו תוכן העניינים של MentorOS: פס אנכי ליד כל כותרת, בלי אף קו אופקי. ברשת, בלי קווים בין השורות,
+        # כל השורות היו מתאחדות לשורה אחת
+        page = [[(0, "2"), (200, "first")],
+                [(0, "3"), (200, "second")],
+                [(200, "more")]]
+        _, rows = build(page, verticals=(190.0,))
+        self.assertEqual(rows, [("2", "first"), ("3", "second more")])
 
 
 class RealLinesTest(unittest.TestCase):
