@@ -33,6 +33,21 @@ KNOWN_FAILURES = {
     # "מה זה MentorOS?" ו-"2" רחוק בקצה השמאלי: שני רכיבים נפרדים באותה שורה. אין
     # טקסט לוגי אחד שמוצג כך; צריך הפרדה בין רכיבים (הסבב של גבולות התאים).
     ("mentoros-overview_weasyprint.pdf", 2): 1,
+    # קובץ הטבלאות: שורות שבהן כמה תאים יושבים על אותו קו בסיס ונקראים כשורה אחת, למשל
+    # "LOCK_MAX_WAIT_SECONDS (Legacy) כמה זמן לחכות ללוק לא 0 Bot 15". כל תא צריך להיקרא
+    # בנפרד (הסבב של גבולות התאים).
+    ("env-vars_weasyprint.pdf", 17): 1,
+    ("env-vars_weasyprint.pdf", 29): 1,
+    ("env-vars_weasyprint.pdf", 34): 1,
+    ("env-vars_weasyprint.pdf", 42): 1,
+    ("env-vars_weasyprint.pdf", 48): 2,
+    ("env-vars_weasyprint.pdf", 57): 1,
+    # "אחרי עליית Gunicorn (1/0)", תא אחד, שבמקור `1`/`0` (שני קטעי קוד). בעמוד הוא מצויר
+    # "(0/1) Gunicorn": WeasyPrint הציגה כל קטע קוד כאילו הוא מבודד מהשאר, ולכן ה-/ לא נחשב
+    # מפריד בין שתי ספרות (כלל W4). נבדק: python-bidi, עם בידוד (U+2068, U+2069) סביב כל
+    # ספרה, מציג בדיוק את מה שבעמוד; בלי בידוד הוא מציג "Gunicorn (1/0)". לפי התקן, בלי
+    # בידוד, אין טקסט לוגי שמוצג כך, ולכן גם הפרדה בין תאים לא תתקן את השורה הזו.
+    ("env-vars_weasyprint.pdf", 7): 1,
 }
 
 
@@ -78,7 +93,7 @@ class WholeSetTest(unittest.TestCase):
                             cls.lines.append((path.name, number, line, old))
 
     def test_the_whole_set_is_checked(self):
-        self.assertGreater(len(self.lines), 3000)  # נמדד: 3541 שורות עם טקסט
+        self.assertGreater(len(self.lines), 5000)  # נמדד: 5531 שורות עם טקסט (3541 בלי קובץ הטבלאות)
 
     def test_prototype_output_fails_the_check(self):
         # כל שורה מוצגת בכיוון שהאב-טיפוס התכוון אליו: מימין לשמאל רק כשיש בה עברית

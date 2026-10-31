@@ -17,8 +17,8 @@
 | שורות פגומות בטבלת התיוג | 0 |
 | אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | 0 |
 | סוגריים שהצורה שלהם לא נקבעה מהציור (בכל הסט) | 0 |
-| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | 2 מתוך 3541 |
-| שורות דו-משמעיות (בכל הסט) | 46 |
+| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | 10 מתוך 5531 |
+| שורות דו-משמעיות (בכל הסט) | 308 |
 
 מרחק תווים: כמה הוספות, מחיקות או החלפות של תו בודד צריך כדי להגיע מהשורה הקרובה ביותר בעמוד לטקסט הנכון. 0 = זהה. רצף רווחים נחשב לרווח אחד.
 
@@ -85,6 +85,7 @@
 | doc-2p_weasyprint.pdf | weasyprint | 2 | 100% | 0% | 0 | 0 | 2 | 2 | 0 |
 | doc-4p_weasyprint.pdf | weasyprint | 4 | 100% | 0% | 0 | 0 | 2 | 1 | 18 |
 | doc-6p_gdocs.pdf | gdocs | 6 | 100% | 0% | 1 | 12 | 3 | 3 | 0 |
+| env-vars_weasyprint.pdf | weasyprint | 63 | 100% | 0% | 8 | 262 | 0 | 0 | 0 |
 | financial-report-q2-2025_aspose.pdf | aspose | 66 | 100% | 0% | 0 | 1 | 4 | 1 | 36 |
 | gps-book_indesign.pdf | indesign | 16 | 100% | 0% | 0 | 2 | 3 | 3 | 0 |
 | marketing-flyer_illustrator.pdf | illustrator | 1 | 100% | 0% | 0 | 0 | 4 | 0 | 26 |
@@ -106,8 +107,8 @@
 | gdocs | 2 | 2189 | 121 (5.5%) | 122 (5.6%) |
 | illustrator | 1 | 140 | 1 (0.7%) | 3 (2.1%) |
 | indesign | 1 | 972 | 0 (0.0%) | 3 (0.3%) |
-| weasyprint | 5 | 3570 | 14 (0.4%) | 18 (0.5%) |
-| סך הכול | 12 | 22640 | 319 (1.4%) | 252 (1.1%) |
+| weasyprint | 6 | 10217 | 15 (0.1%) | 885 (8.7%) |
+| סך הכול | 13 | 29287 | 320 (1.1%) | 1119 (3.8%) |
 
 ## לפי עמוד
 
@@ -132,6 +133,69 @@
 | doc-6p_gdocs.pdf | 4 | 38 | 0 | 0 | 1 | 6 | 100% | 0% |
 | doc-6p_gdocs.pdf | 5 | 36 | 0 | 0 | 0 | 0 | 100% | 0% |
 | doc-6p_gdocs.pdf | 6 | 32 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 1 | 23 | 0 | 0 | 0 | 7 | 100% | 0% |
+| env-vars_weasyprint.pdf | 2 | 34 | 0 | 0 | 0 | 8 | 100% | 0% |
+| env-vars_weasyprint.pdf | 3 | 34 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 4 | 28 | 0 | 0 | 0 | 6 | 100% | 0% |
+| env-vars_weasyprint.pdf | 5 | 31 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 6 | 36 | 0 | 0 | 0 | 2 | 100% | 0% |
+| env-vars_weasyprint.pdf | 7 | 37 | 0 | 0 | 1 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 8 | 34 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 9 | 34 | 0 | 0 | 0 | 8 | 100% | 0% |
+| env-vars_weasyprint.pdf | 10 | 32 | 0 | 0 | 0 | 5 | 100% | 0% |
+| env-vars_weasyprint.pdf | 11 | 35 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 12 | 33 | 0 | 0 | 0 | 5 | 100% | 0% |
+| env-vars_weasyprint.pdf | 13 | 33 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 14 | 34 | 0 | 0 | 0 | 7 | 100% | 0% |
+| env-vars_weasyprint.pdf | 15 | 33 | 0 | 0 | 0 | 5 | 100% | 0% |
+| env-vars_weasyprint.pdf | 16 | 35 | 0 | 0 | 0 | 6 | 100% | 0% |
+| env-vars_weasyprint.pdf | 17 | 32 | 0 | 0 | 1 | 8 | 100% | 0% |
+| env-vars_weasyprint.pdf | 18 | 30 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 19 | 34 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 20 | 32 | 0 | 0 | 0 | 5 | 100% | 0% |
+| env-vars_weasyprint.pdf | 21 | 35 | 0 | 0 | 0 | 2 | 100% | 0% |
+| env-vars_weasyprint.pdf | 22 | 30 | 0 | 0 | 0 | 9 | 100% | 0% |
+| env-vars_weasyprint.pdf | 23 | 15 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 24 | 32 | 0 | 0 | 0 | 2 | 100% | 0% |
+| env-vars_weasyprint.pdf | 25 | 34 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 26 | 32 | 0 | 0 | 0 | 8 | 100% | 0% |
+| env-vars_weasyprint.pdf | 27 | 36 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 28 | 34 | 0 | 0 | 0 | 9 | 100% | 0% |
+| env-vars_weasyprint.pdf | 29 | 34 | 0 | 0 | 1 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 30 | 36 | 0 | 0 | 0 | 7 | 100% | 0% |
+| env-vars_weasyprint.pdf | 31 | 29 | 0 | 0 | 0 | 2 | 100% | 0% |
+| env-vars_weasyprint.pdf | 32 | 35 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 33 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 34 | 34 | 0 | 0 | 1 | 6 | 100% | 0% |
+| env-vars_weasyprint.pdf | 35 | 31 | 0 | 0 | 0 | 7 | 100% | 0% |
+| env-vars_weasyprint.pdf | 36 | 36 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 37 | 34 | 0 | 0 | 0 | 6 | 100% | 0% |
+| env-vars_weasyprint.pdf | 38 | 34 | 0 | 0 | 0 | 8 | 100% | 0% |
+| env-vars_weasyprint.pdf | 39 | 34 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 40 | 29 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 41 | 29 | 0 | 0 | 0 | 5 | 100% | 0% |
+| env-vars_weasyprint.pdf | 42 | 35 | 0 | 0 | 1 | 7 | 100% | 0% |
+| env-vars_weasyprint.pdf | 43 | 33 | 0 | 0 | 0 | 5 | 100% | 0% |
+| env-vars_weasyprint.pdf | 44 | 30 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 45 | 30 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 46 | 35 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 47 | 34 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 48 | 34 | 0 | 0 | 2 | 5 | 100% | 0% |
+| env-vars_weasyprint.pdf | 49 | 32 | 0 | 0 | 0 | 6 | 100% | 0% |
+| env-vars_weasyprint.pdf | 50 | 33 | 0 | 0 | 0 | 2 | 100% | 0% |
+| env-vars_weasyprint.pdf | 51 | 18 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 52 | 29 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 53 | 31 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 54 | 24 | 0 | 0 | 0 | 2 | 100% | 0% |
+| env-vars_weasyprint.pdf | 55 | 30 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 56 | 30 | 0 | 0 | 0 | 1 | 100% | 4% |
+| env-vars_weasyprint.pdf | 57 | 33 | 0 | 0 | 1 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 58 | 34 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 59 | 33 | 0 | 0 | 0 | 5 | 100% | 0% |
+| env-vars_weasyprint.pdf | 60 | 31 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 61 | 32 | 0 | 0 | 0 | 6 | 100% | 0% |
+| env-vars_weasyprint.pdf | 62 | 26 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 63 | 13 | 0 | 0 | 0 | 0 | 100% | 0% |
 | financial-report-q2-2025_aspose.pdf | 1 | 2 | 0 | 0 | 0 | 0 | 100% | 0% |
 | financial-report-q2-2025_aspose.pdf | 2 | 8 | 0 | 0 | 0 | 0 | 100% | 0% |
 | financial-report-q2-2025_aspose.pdf | 3 | 2 | 0 | 0 | 0 | 0 | 100% | 0% |
