@@ -20,6 +20,7 @@ from pathlib import Path
 from harness import labels as labels_mod
 from harness.reader import read_pages
 from harness.textdiff import closest_line, normalize, split_lines, visible
+from hebrew_pdf.lines import PageText
 from hebrew_pdf.indirect_checks import score_final_letters, score_punct_at_start
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -27,13 +28,14 @@ DEFAULT_PDFS = ROOT / "testset" / "pdfs"
 DEFAULT_LABELS = ROOT / "testset" / "labels.md"
 DEFAULT_OUTPUT = ROOT / "testset" / "report.md"
 
-Reader = Callable[[Path], list[str]]
+Reader = Callable[[Path], list[PageText]]
 
 
 @dataclass(frozen=True)
 class PageResult:
     page: int
     line_count: int
+    skipped_chars: int
     final_letters: int | None
     punct_at_start: int | None
 
@@ -75,6 +77,10 @@ class Evaluation:
         return sum(r.distance for r in self.approved)
 
     @property
+    def skipped_chars(self) -> int:
+        return sum(p.skipped_chars for f in self.files for p in f.pages)
+
+    @property
     def total_chars(self) -> int:
         return sum(len(normalize(r.label.expected)) for r in self.approved)
 
@@ -93,11 +99,13 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages) -> E
     page_texts: dict[str, list[str]] = {}
     files: list[FileResult] = []
     for path in pdf_paths:
-        texts = reader(path)
+        read = reader(path)
+        texts = [p.text for p in read]
         page_texts[path.name] = texts
         pages = [
-            PageResult(i, sum(1 for l in split_lines(t) if normalize(l)), score_final_letters(t), score_punct_at_start(t))
-            for i, t in enumerate(texts, 1)
+            PageResult(i, sum(1 for l in split_lines(p.text) if normalize(l)), p.skipped_chars,
+                       score_final_letters(p.text), score_punct_at_start(p.text))
+            for i, p in enumerate(read, 1)
         ]
         whole = "\n".join(texts)
         files.append(FileResult(path.name, pages, score_final_letters(whole), score_punct_at_start(whole)))
@@ -165,6 +173,7 @@ def render_report(ev: Evaluation) -> str:
     add(f"| ממתינות לאישור (לא נספרות) | {len(ev.pending)} |")
     add(f"| לא ברורות (לא נספרות) | {len(ev.unclear)} |")
     add(f"| שורות פגומות בטבלת התיוג | {len(ev.problems)} |")
+    add(f"| אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | {ev.skipped_chars} |")
     add("")
     add("מרחק תווים: כמה הוספות, מחיקות או החלפות של תו בודד צריך כדי להגיע מהשורה הקרובה ביותר בעמוד לטקסט הנכון. 0 = זהה. רצף רווחים נחשב לרווח אחד.")
     add("")
@@ -216,12 +225,12 @@ def render_report(ev: Evaluation) -> str:
     add("<details>")
     add("<summary>כל העמודים</summary>")
     add("")
-    add("| קובץ | עמוד | שורות עם טקסט | אותיות סופיות | פיסוק בתחילת שורה |")
-    add("|---|---|---|---|---|")
+    add("| קובץ | עמוד | שורות עם טקסט | אותיות שדולגו | אותיות סופיות | פיסוק בתחילת שורה |")
+    add("|---|---|---|---|---|---|")
     for f in ev.files:
         for p in f.pages:
             lines = str(p.line_count) if p.line_count else "0 (אין טקסט)"
-            add(f"| {f.name} | {p.page} | {lines} | {_pct(p.final_letters)} | {_pct(p.punct_at_start)} |")
+            add(f"| {f.name} | {p.page} | {lines} | {p.skipped_chars} | {_pct(p.final_letters)} | {_pct(p.punct_at_start)} |")
     add("")
     add("</details>")
     add("")

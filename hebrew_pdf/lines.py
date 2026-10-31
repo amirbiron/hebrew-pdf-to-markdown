@@ -1,6 +1,7 @@
 """קיבוץ אותיות לשורות, ובניית הטקסט של כל שורה."""
 
 import re
+from dataclasses import dataclass
 
 from hebrew_pdf.chars import page_chars
 
@@ -33,5 +34,12 @@ def build_line(row):
     return re.sub(r" {2,}", "  ", text).strip()
 
 
-def page_text(page):
-    return "\n".join(build_line(r) for r in group_rows(page_chars(page)))
+@dataclass(frozen=True)
+class PageText:
+    text: str  # השורות של העמוד, מופרדות ב-"\n"
+    skipped_chars: int  # אותיות שדולגו כי אין להן מיקום (ראו chars.page_chars)
+
+
+def read_page(page) -> PageText:
+    found = page_chars(page)
+    return PageText("\n".join(build_line(r) for r in group_rows(found.chars)), found.skipped)
