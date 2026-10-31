@@ -16,12 +16,40 @@ BASELINE_TOLERANCE = 2.0  # נקודות PDF: אותיות שקו הבסיס ש�
 
 
 @dataclass(frozen=True)
+class Geometry:
+    """איפה טקסט נמצא בעמוד ובאיזה גודל: מה שבונה ה-Markdown צריך (markdown.py), ולא משפיע על הטקסט.
+
+    0 בכל השדות: לא ידוע (למשל Line שנבנה בטסט בלי אותיות).
+    """
+    baseline: float = 0.0  # קו הבסיס (y, ב-PDF ציר y עולה כלפי מעלה)
+    left: float = 0.0  # הקצה השמאלי של האות השמאלית
+    right: float = 0.0  # הקצה הימני של האות הימנית
+    size: float = 0.0  # החציון של גודל האות (Char.size) באותיות שיש להן גודל
+    glyph: float = 0.0  # רוחב אופייני של אות: החציון של רוחב ההתקדמות (Char.right - Char.left)
+
+    @property
+    def width(self) -> float:
+        return self.right - self.left
+
+
+def geometry_of(chars: list[Char]) -> Geometry:
+    """הגיאומטריה של אותיות (בלי הרווחים שהקורא הכניס בפערים, spacing.py)."""
+    glyphs = [c for c in chars if c.text != " "]
+    if not glyphs:
+        return Geometry()
+    sizes = [c.size for c in glyphs if c.size > 0]
+    return Geometry(glyphs[0].baseline, min(c.left for c in glyphs), max(c.right for c in glyphs),
+                    statistics.median(sizes) if sizes else 0.0, statistics.median(c.right - c.left for c in glyphs))
+
+
+@dataclass(frozen=True)
 class Component:
     """רכיב בשורה: תא, תיבה או תג, שנקרא בנפרד משאר השורה (layout.py)."""
     text: str  # הסדר הלוגי של הרכיב
     visual: str  # התווים של הרכיב כמו שהם בעמוד, משמאל לימין, עם הרווחים לפי הפערים
     rtl: bool  # כיוון הפסקה שבה הרכיב נקרא (logical_order.to_logical)
     ambiguous: bool = False
+    geometry: Geometry = Geometry()
 
 
 @dataclass(frozen=True)
@@ -40,6 +68,7 @@ class Line:
     components: tuple[Component, ...] = ()
     # בשורה של טבלה: הטקסט של כל עמודה לפי סדר הקריאה, ו-"" לעמודה שאין בה טקסט בשורה
     columns: tuple[str, ...] | None = None
+    geometry: Geometry = Geometry()
 
     @property
     def parts(self) -> tuple[Component, ...]:
@@ -57,6 +86,14 @@ class Line:
 
 
 @dataclass(frozen=True)
+class RowSource:
+    """מאיפה באה שורה של PageText.rows: השורות בעמוד (אינדקסים ב-PageText.lines) והטבלה שלה."""
+    lines: tuple[int, ...]
+    # הטבלה בעמוד (layout.PageLayout.tables: האינדקס של השורה הראשונה שלה), או None מחוץ לטבלה
+    table: int | None
+
+
+@dataclass(frozen=True)
 class PageText:
     lines: list[Line]
     skipped_chars: int  # אותיות שדולגו כי אין להן מיקום (ראו chars.page_chars)
@@ -64,6 +101,13 @@ class PageText:
     # השורות של העמוד כתאים, לפי הסדר: שורה רגילה כמו שהיא (Line.cells), ושורה של טבלה
     # שנשברה לכמה שורות בעמוד כשורה אחת (table_rows). None: כל שורה כמו שהיא
     table_rows: list[tuple[str, ...]] | None = field(default=None)
+    # לכל שורה ב-rows: מאיפה היא באה (RowSource). None: שורה לכל Line, מחוץ לטבלה
+    row_sources: list[RowSource] | None = field(default=None)
+    # כיוון הפסקה של המסמך (logical_order.document_rtl), אותו כיוון לכל העמודים
+    rtl_document: bool = True
+    # הרוחב והגובה של העמוד, בנקודות PDF (PdfPage.get_size). 0: לא ידוע
+    width: float = 0.0
+    height: float = 0.0
 
     @property
     def ambiguous_lines(self) -> int:
@@ -82,6 +126,13 @@ class PageText:
     def rows(self) -> list[tuple[str, ...]]:
         return self.table_rows if self.table_rows is not None else [line.cells for line in self.lines]
 
+    @property
+    def sources(self) -> list[RowSource]:
+        """RowSource לכל שורה ב-rows."""
+        if self.row_sources is not None:
+            return self.row_sources
+        return [RowSource((i,), None) for i in range(len(self.lines))]
+
 
 def group_rows(chars: list[Char]) -> list[list[Char]]:
     """קיבוץ אותיות לשורות לפי קו הבסיס, מלמעלה למטה (ב-PDF ציר y עולה כלפי מעלה)."""
@@ -96,7 +147,8 @@ def group_rows(chars: list[Char]) -> list[list[Char]]:
 
 def _component(chars: list[Char], rtl_document: bool) -> Component:
     reading = to_logical(chars, lambda c: c.text, rtl_document)
-    return Component("".join(reading.texts), "".join(c.text for c in chars), reading.rtl, reading.ambiguous)
+    return Component("".join(reading.texts), "".join(c.text for c in chars), reading.rtl, reading.ambiguous,
+                     geometry_of(chars))
 
 
 def build_line(row: list[Char], rtl_document: bool) -> Line:
@@ -109,15 +161,16 @@ def build_line(row: list[Char], rtl_document: bool) -> Line:
 
 
 @dataclass(frozen=True)
-class _Piece:
-    """הטקסט של תא בשורה אחת בעמוד, עם מה שצריך כדי לחבר אותו לשורה הבאה של אותו תא."""
+class Piece:
+    """הטקסט של תא (או של פסקה, markdown.py) בשורה אחת בעמוד, עם מה שצריך כדי לחבר אותו
+    לשורה הבאה של אותו תא (join_pieces)."""
     text: str
     width: float  # מהקצה השמאלי לימני של הטקסט בתא
     glyph: float  # רוחב אופייני של אות בתא (החציון)
 
 
 def _line(line: PageLine, boundaries: set[int], columns, rtl_document: bool, counts: SpaceCounts):
-    """השורה מהרכיבים שלה, ובטבלה גם החלק של כל תא בשורה (_Piece), לפי סדר הקריאה.
+    """השורה מהרכיבים שלה, ובטבלה גם החלק של כל תא בשורה (Piece), לפי סדר הקריאה.
 
     הרכיבים בסדר הקריאה: מימין לשמאל במסמך עברי, אחרת משמאל לימין.
     columns: גבולות העמודות כשהשורה בטבלה (layout.PageLayout.columns), אחרת None.
@@ -140,16 +193,13 @@ def _line(line: PageLine, boundaries: set[int], columns, rtl_document: bool, cou
         cells = tuple(piece.text for piece in pieces)
     rtl = rtl_document or any(c.rtl for c in components)
     built_line = Line(" ".join(c.text for c in components), "".join(c.text for c in line.chars), rtl,
-                      any(c.ambiguous for c in components), counts, components, cells)
+                      any(c.ambiguous for c in components), counts, components, cells, geometry_of(line.chars))
     return built_line, pieces
 
 
-def _piece(texts: list[str], chars: list[Char]) -> "_Piece":
-    glyphs = [c for c in chars if c.text != " "]
-    if not glyphs:
-        return _Piece("", 0.0, 0.0)
-    width = max(c.right for c in glyphs) - min(c.left for c in glyphs)
-    return _Piece(" ".join(texts), width, statistics.median(c.right - c.left for c in glyphs))
+def _piece(texts: list[str], chars: list[Char]) -> Piece:
+    geometry = geometry_of(chars)
+    return Piece(" ".join(texts), geometry.width, geometry.glyph)
 
 
 def read_document(pdf) -> list[PageText]:
@@ -174,8 +224,10 @@ def read_document(pdf) -> list[PageText]:
         built = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts)
                  for i, (line, s) in enumerate(zip(lines, spaced))]
         page_lines = [b[0] for b in built]
-        out.append(PageText(page_lines, found.skipped, found.unknown_brackets,
-                            table_rows(page_lines, [b[1] for b in built], layout.tables, lines, horizontal_rules(pdf_page))))
+        merged = _merged_rows(page_lines, [b[1] for b in built], layout.tables, lines, horizontal_rules(pdf_page))
+        width, height = pdf_page.get_size()
+        out.append(PageText(page_lines, found.skipped, found.unknown_brackets, [row.cells for row in merged],
+                            [row.source for row in merged], rtl, width, height))
     return out
 
 
@@ -198,7 +250,7 @@ def horizontal_rules(page) -> list[tuple[float, float, float]]:
     return rules
 
 
-def table_rows(lines: list[Line], pieces: list[list[_Piece] | None], table_of: list[int | None],
+def table_rows(lines: list[Line], pieces: list[list[Piece] | None], table_of: list[int | None],
                geometry: list[PageLine], rules: list[tuple[float, float, float]]) -> list[tuple[str, ...]]:
     """השורות של העמוד כתאים, כששורה של טבלה שנשברה לכמה שורות בעמוד מתאחדת לשורה אחת.
 
@@ -206,6 +258,18 @@ def table_rows(lines: list[Line], pieces: list[list[_Piece] | None], table_of: l
     חדשה (_new_rows). בכל עמודה, הטקסטים מתחברים ברווח, אלא אם השבירה הייתה בתוך מילה
     (_breaks_inside_a_word). שורה מחוץ לטבלה נשארת כמו שהיא (Line.cells).
     """
+    return [row.cells for row in _merged_rows(lines, pieces, table_of, geometry, rules)]
+
+
+@dataclass(frozen=True)
+class _MergedRow:
+    cells: tuple[str, ...]
+    source: RowSource
+
+
+def _merged_rows(lines: list[Line], pieces: list[list[Piece] | None], table_of: list[int | None],
+                 geometry: list[PageLine], rules: list[tuple[float, float, float]]) -> list[_MergedRow]:
+    """table_rows, ולכל שורה גם מאיפה היא באה (RowSource)."""
     new_row = _new_rows(pieces, table_of, geometry, rules)
     widths: dict[tuple[int, int, int], float] = {}  # (טבלה, מספר עמודות, עמודה) -> הרוחב הגדול ביותר
     for line_pieces, table in zip(pieces, table_of):
@@ -213,28 +277,32 @@ def table_rows(lines: list[Line], pieces: list[list[_Piece] | None], table_of: l
             for k, piece in enumerate(line_pieces):
                 key = (table, len(line_pieces), k)
                 widths[key] = max(widths.get(key, 0.0), piece.width)
-    rows: list[tuple[str, ...]] = []
-    current: list[list[_Piece]] | None = None
+    rows: list[_MergedRow] = []
+    current: list[list[Piece]] | None = None
+    current_lines: list[int] = []
     current_table = None
 
     def flush():
         if current is not None:
-            rows.append(tuple(_joined(column, widths[(current_table, len(current), k)])
-                              for k, column in enumerate(current)))
+            rows.append(_MergedRow(tuple(join_pieces(column, widths[(current_table, len(current), k)])
+                                         for k, column in enumerate(current)),
+                                   RowSource(tuple(current_lines), current_table)))
 
     for i, (line, line_pieces, table) in enumerate(zip(lines, pieces, table_of)):
         if line_pieces is None:
             flush()
             current = None
-            rows.append(line.cells)
+            rows.append(_MergedRow(line.cells, RowSource((i,), None)))
             continue
         if current is not None and table == current_table and len(line_pieces) == len(current) and not new_row[i]:
             for column, piece in zip(current, line_pieces):
                 if piece.text:
                     column.append(piece)
+            current_lines.append(i)
             continue
         flush()
         current = [[piece] if piece.text else [] for piece in line_pieces]
+        current_lines = [i]
         current_table = table
     flush()
     return rows
@@ -270,7 +338,9 @@ def _new_rows(pieces, table_of, geometry: list[PageLine], rules) -> list[bool]:
     return new
 
 
-def _joined(column: list[_Piece], column_width: float) -> str:
+def join_pieces(column: list[Piece], column_width: float) -> str:
+    """השורות של תא אחד (או של פסקה) כטקסט אחד: ברווח, או בלי רווח כשהשבירה הייתה בתוך מילה
+    (_breaks_inside_a_word). column_width: הרוחב שהטקסט נשבר בו (בטבלה: הטקסט הרחב בעמודה)."""
     text = ""
     for i, piece in enumerate(column):
         if i == 0:
@@ -280,7 +350,7 @@ def _joined(column: list[_Piece], column_width: float) -> str:
     return text
 
 
-def _breaks_inside_a_word(before: _Piece, column_width: float) -> bool:
+def _breaks_inside_a_word(before: Piece, column_width: float) -> bool:
     """האם השבירה בסוף before, בתוך תא, לא הייתה ברווח (ואז לא נוסף רווח בחיבור).
 
     שבירת שורה בטקסט היא ברווח, חוץ משני מקרים שבהם היא בתוך מילה:

@@ -8,11 +8,12 @@ from harness.labels import (
     STATUS_APPROVED,
     STATUS_PENDING,
     LabelsFileError,
-    escape_cell,
     parse_labels,
     split_cells,
     split_row,
 )
+
+from hebrew_pdf.markdown import escape_text as escape_cell
 
 ROOT = Path(__file__).resolve().parent.parent
 KNOWN = frozenset({"a.pdf", "b.pdf"})
