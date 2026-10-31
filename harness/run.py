@@ -37,6 +37,7 @@ class PageResult:
     page: int
     line_count: int
     skipped_chars: int
+    unknown_brackets: int  # סוגריים שהצורה שלהם לא נקבעה מהציור (hebrew_pdf/bracket_shapes.py)
     display_failures: int  # שורות שלא עוברות את בדיקת התצוגה (harness/display_check.py)
     ambiguous_lines: int  # שורות שיותר מקריאה אחת שלהן נראית כמו העמוד
     final_letters: int | None
@@ -92,6 +93,10 @@ class Evaluation:
         return sum(p.skipped_chars for f in self.files for p in f.pages)
 
     @property
+    def unknown_brackets(self) -> int:
+        return sum(p.unknown_brackets for f in self.files for p in f.pages)
+
+    @property
     def line_count(self) -> int:
         return sum(p.line_count for f in self.files for p in f.pages)
 
@@ -126,7 +131,7 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages) -> E
         texts = [p.text for p in read]
         page_texts[path.name] = texts
         pages = [
-            PageResult(i, sum(1 for l in split_lines(p.text) if normalize(l)), p.skipped_chars,
+            PageResult(i, sum(1 for l in split_lines(p.text) if normalize(l)), p.skipped_chars, p.unknown_brackets,
                        sum(1 for line in p.lines if normalize(line.visual) and not displays_like_page(line)),
                        p.ambiguous_lines, score_final_letters(p.text), score_punct_at_start(p.text))
             for i, p in enumerate(read, 1)
@@ -198,6 +203,7 @@ def render_report(ev: Evaluation) -> str:
     add(f"| לא ברורות (לא נספרות) | {len(ev.unclear)} |")
     add(f"| שורות פגומות בטבלת התיוג | {len(ev.problems)} |")
     add(f"| אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | {ev.skipped_chars} |")
+    add(f"| סוגריים שהצורה שלהם לא נקבעה מהציור (בכל הסט) | {ev.unknown_brackets} |")
     add(f"| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | {ev.display_failures} מתוך {ev.line_count} |")
     add(f"| שורות דו-משמעיות (בכל הסט) | {ev.ambiguous_lines} |")
     add("")
@@ -253,12 +259,12 @@ def render_report(ev: Evaluation) -> str:
     add("<details>")
     add("<summary>כל העמודים</summary>")
     add("")
-    add("| קובץ | עמוד | שורות עם טקסט | אותיות שדולגו | בדיקת תצוגה נכשלה | דו-משמעיות | אותיות סופיות | פיסוק בתחילת שורה |")
-    add("|---|---|---|---|---|---|---|---|")
+    add("| קובץ | עמוד | שורות עם טקסט | אותיות שדולגו | סוגריים בלי צורה | בדיקת תצוגה נכשלה | דו-משמעיות | אותיות סופיות | פיסוק בתחילת שורה |")
+    add("|---|---|---|---|---|---|---|---|---|")
     for f in ev.files:
         for p in f.pages:
             lines = str(p.line_count) if p.line_count else "0 (אין טקסט)"
-            add(f"| {f.name} | {p.page} | {lines} | {p.skipped_chars} | {p.display_failures} | {p.ambiguous_lines} "
+            add(f"| {f.name} | {p.page} | {lines} | {p.skipped_chars} | {p.unknown_brackets} | {p.display_failures} | {p.ambiguous_lines} "
                 f"| {_pct(p.final_letters)} | {_pct(p.punct_at_start)} |")
     add("")
     add("</details>")

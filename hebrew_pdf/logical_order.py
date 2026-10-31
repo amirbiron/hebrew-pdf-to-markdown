@@ -13,7 +13,10 @@
    (CS, ES), סימן שצמוד למספר כמו % (ET), וניטרלי (רווח, סוגריים, חץ, מקף ארוך).
    כללי UAX #9 קובעים לאיזה כיוון שייך כל תו חלש או ניטרלי, ומזה הרמה שלו (I2).
 2. ההיפוך של L2: קוראים את V מימין לשמאל, וכל רצף ברמה 2 נשאר משמאל לימין.
-3. אימות: מציגים את התוצאה באלגוריתם התצוגה עצמו (display_order), ובודקים שיוצא V.
+   וההיפוך של L4: סוגר שנשאר ברמה 1 מוצג בשיקוף, ולכן התו הלוגי שלו הוא ההפוך
+   לצורה שבעמוד. (בעמוד, התו של סוגר הוא הצורה המצוירת; ראו bracket_shapes.py.)
+3. אימות: מציגים את התוצאה באלגוריתם התצוגה עצמו (display_order), ובודקים שיוצא V,
+   כולל הצורה של כל סוגר.
 
 למה צריך אימות. הכללים נכתבו לטקסט לוגי, ורובם לא תלויים בכיוון הקריאה. כלל אחד
 כן: W7 ("מספר שלפניו, בסדר הלוגי, מילה באנגלית, שייך לה"). מספר שבעמוד צמוד, דרך
@@ -28,12 +31,15 @@
   התווים לבדם לא מכריעים. דוגמה מהסט: "1 Onboarding" ו-"Onboarding 1" (שורה 9)
   מוצגים זהה לגמרי.
 
+אותה שאלה בדיוק עולה בזוג סוגריים שיש בתוכו רק אנגלית (כלל N0): "Meta (OAuth)"
+ו-"(OAuth) Meta" מוצגים זהה בשורה עברית. גם כאן נבדקות שתי הקריאות, וברירת המחדל
+היא שהסוגריים שייכים לאנגלית שמשמאלם.
+
 מקור הכללים: https://www.unicode.org/reports/tr9/ (גרסה 52, Unicode 18.0.0).
 
 מה לא ממומש, ולמה:
-- L4 (שיקוף): התו של הסוגר נשאר כמו שהוא בקובץ. בקבצים התו הזה לא אמין: יש יוצרים
-  ששומרים את הצורה שנראית, יש ששומרים את התו הלוגי, ויש ששומרים את שני הצדדים של
-  אותו זוג כאותו תו.
+- L4 (שיקוף) רק לסוגריים ( ) [ ] { }. תווים משתקפים אחרים (למשל < >) נשארים כמו
+  שהם בקובץ: לא בדקנו את הצורה המצוירת שלהם, ובסט יש 8 כאלה.
 - X1-X10 (הטבעות ובידודים מפורשים): אין תווים כאלה בסט הבדיקה, ואין להם מיקום
   משלהם בעמוד. כל השורה היא פסקה אחת ברמה 1 בלי הטבעות, ולכן sos ו-eos הם R (X10).
 - זוגות סוגריים (BD16) רק עבור ( ) [ ] { }, לפי BidiBrackets.txt (גרסה 18.0.0:
@@ -259,12 +265,30 @@ def display_order(levels: Sequence[int]) -> list[int]:
     return order
 
 
+def drawn(logical_texts: Sequence[str]) -> tuple[list[int], list[str]]:
+    """טקסט לוגי כמו שהוא מצויר בעמוד, משמאל לימין: הסדר (אינדקסים בטקסט הלוגי, L2),
+    והטקסט שמצויר בכל מקום, כשסוגר ברמה מימין לשמאל מצויר בצורה ההפוכה (L4)."""
+    levels = display_levels(logical_texts)
+    order = display_order(levels)
+    return order, [_mirrored(logical_texts[i]) if levels[i] == RTL_LEVEL else logical_texts[i] for i in order]
+
+
 # ---------- הכיוון ההפוך: מהעמוד לסדר לוגי ----------
 
 @dataclass(frozen=True)
 class Reading(Generic[T]):
     logical: list[T]
+    texts: list[str]  # הטקסט הלוגי של כל איבר: סוגר ברמה 1 הפוך לצורה שבעמוד (L4)
     ambiguous: bool  # היו כמה קריאות תקינות, וברירת המחדל הכריעה
+
+
+def _mirrored(text: str) -> str:
+    if text and text[0] in _BRACKET_PAIRS:
+        return _BRACKET_PAIRS[text[0]] + text[1:]
+    for opening, closing in _BRACKET_PAIRS.items():
+        if text and text[0] == closing:
+            return opening + text[1:]
+    return text
 
 
 def _numbers(weak: list[str]) -> list[tuple[int, int]]:
@@ -280,10 +304,29 @@ def _numbers(weak: list[str]) -> list[tuple[int, int]]:
             if "L" in (neighbor(start - 1, -1), neighbor(end, 1))]
 
 
-def _visual_levels(weak: list[str], promoted: set[tuple[int, int]]) -> list[int]:
+def _visual_pairs(texts: Sequence[str], weak: list[str]) -> tuple[dict, list]:
+    """זוגות הסוגריים בעמוד, לפי הצורה (BD16 על הסדר שבעמוד: "(" נפתח ימינה).
+
+    מחזירה זוגות שהכיוון שלהם קבוע (יש בתוכם R, EN או AN: כיוון הפסקה, N0 סעיף 2),
+    וזוגות שיש בתוכם רק L: שם N0 תלוי במה שבא לפני הסוגר הפותח בסדר הלוגי, וזה
+    בדיוק מה שמחפשים. זוג בלי שום תו חזק בתוכו לא מקבל כיוון (N0 סעיף 4).
+    """
+    fixed, open_question = {}, []
+    for left, right in _bracket_pairs(texts, weak):
+        inside = {_as_strong(kind) for kind in weak[left + 1:right]}
+        if "R" in inside:
+            fixed[(left, right)] = "R"
+        elif "L" in inside:
+            open_question.append((left, right))
+    return fixed, open_question
+
+
+def _visual_levels(weak: list[str], promoted: set, pair_directions: dict) -> list[int]:
     t = list(weak)
     for start, end in promoted:
         t[start:end] = ["L"] * (end - start)
+    for (left, right), direction in pair_directions.items():
+        t[left] = t[right] = direction
     return _levels(_neutral_rules(t), weak, trailing_whitespace="start")
 
 
@@ -304,17 +347,20 @@ def _invert_l2(visual: Sequence[T], levels: list[int]) -> list[T]:
     return logical
 
 
-def _displays_as_visual(logical_ids: list[int], texts_by_id: Sequence[str]) -> bool:
-    """האם התצוגה של הקריאה מחזירה בדיוק את הסדר שבעמוד. רק רווחים בקצות השורה
-    לא נספרים: כלל L1 מזיז אותם, והם יורדים מהפלט בכל מקרה."""
+def _displays_as_visual(logical_ids: list[int], logical_texts: list[str], texts_by_id: Sequence[str]) -> bool:
+    """האם התצוגה של הקריאה מחזירה בדיוק את מה שבעמוד: אותו סדר, ואותה צורה לכל
+    סוגר אחרי שיקוף (L4). רק רווחים בקצות השורה לא נספרים: כלל L1 מזיז אותם,
+    והם יורדים מהפלט בכל מקרה."""
     def inner(ids: list[int]) -> list[int]:
         spaces = [bidi_class(texts_by_id[i]) == "WS" for i in ids]
         start = spaces.index(False) if False in spaces else len(ids)
         end = len(ids) - spaces[::-1].index(False) if False in spaces else start
         return ids[start:end]
-    texts = [texts_by_id[i] for i in logical_ids]
-    shown = [logical_ids[i] for i in display_order(display_levels(texts))]
-    return inner(shown) == inner(sorted(shown))
+    order, texts = drawn(logical_texts)
+    shown = [logical_ids[i] for i in order]
+    if inner(shown) != inner(sorted(shown)):
+        return False
+    return all(text == texts_by_id[logical_ids[i]] for i, text in zip(order, texts))
 
 
 def _punctuation_errors(text: str) -> int:
@@ -334,29 +380,37 @@ def to_logical(visual: Sequence[T], text_of: Callable[[T], str]) -> Reading[T]:
     texts = [text_of(item) for item in visual]
     kinds = [bidi_class(text) for text in texts]
     if not is_rtl(kinds):
-        return Reading(list(visual), ambiguous=False)
+        return Reading(list(visual), texts, ambiguous=False)
     weak = _weak_rules(kinds)
     numbers = _numbers(weak)
-    # ברירת המחדל: W7 כשקוראים את V משמאל לימין (המספר שייך לאנגלית שמשמאלו)
-    default = {number for number in numbers if _strong_before(weak, number[0], ("R", "L")) == "L"}
+    fixed_pairs, open_pairs = _visual_pairs(texts, weak)
+    # ברירת המחדל: מספר או זוג סוגריים שייכים לאנגלית שמשמאלם (W7 ו-N0 כשקוראים
+    # את V משמאל לימין)
+    default = {point for point in numbers + open_pairs if _strong_before(weak, point[0], ("R", "L")) == "L"}
 
     candidates = {}  # קריאות שונות בלבד: היפוך של מספר שצמוד לאות בלי ניטרלים לא משנה כלום
-    for flipped in _flip_sets(numbers):
-        promoted = default.symmetric_difference(flipped)
-        ids = tuple(_invert_l2(list(range(len(visual))), _visual_levels(weak, promoted)))
+    for flipped in _flip_sets(numbers + open_pairs):
+        chosen = default.symmetric_difference(flipped)
+        promoted = {number for number in numbers if number in chosen}
+        directions = dict(fixed_pairs)
+        directions.update({pair: "L" if pair in chosen else "R" for pair in open_pairs})
+        levels = _visual_levels(weak, promoted, directions)
+        ids = tuple(_invert_l2(list(range(len(visual))), levels))
         if ids in candidates:
             continue
-        valid = _displays_as_visual(list(ids), texts)
-        errors = _punctuation_errors(re.sub(" +", " ", "".join(texts[i] for i in ids)))
-        candidates[ids] = (not valid, errors, len(flipped))
-    ranked = sorted(candidates.items(), key=lambda item: item[1])
-    best_ids, (invalid, errors, _flips) = ranked[0]
+        logical_texts = [_mirrored(texts[i]) if levels[i] == RTL_LEVEL else texts[i] for i in ids]
+        valid = _displays_as_visual(list(ids), logical_texts, texts)
+        errors = _punctuation_errors(re.sub(" +", " ", "".join(logical_texts)))
+        candidates[ids] = (not valid, errors, len(flipped), logical_texts)
+    ranked = sorted(candidates.items(), key=lambda item: item[1][:3])
+    best_ids, (invalid, errors, _flips, best_texts) = ranked[0]
     ties = [ids for ids, rank in ranked if rank[:2] == (invalid, errors)]
-    return Reading([visual[i] for i in best_ids], ambiguous=not invalid and len(ties) > 1)
+    return Reading([visual[i] for i in best_ids], best_texts, ambiguous=not invalid and len(ties) > 1)
 
 
 def _flip_sets(numbers: list[tuple[int, int]]):
-    """כל קבוצות המספרים שאפשר להפוך בהן את ברירת המחדל, מהקטנה לגדולה."""
+    """כל הקבוצות של נקודות פתוחות (מספרים וזוגות סוגריים) שאפשר להפוך בהן את ברירת
+    המחדל, מהקטנה לגדולה."""
     largest = len(numbers) if len(numbers) <= _FULL_SEARCH_LIMIT else 2
     for size in range(largest + 1):
         for flipped in itertools.combinations(numbers, size):

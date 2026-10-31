@@ -21,6 +21,7 @@ class Line:
 class PageText:
     lines: list[Line]
     skipped_chars: int  # אותיות שדולגו כי אין להן מיקום (ראו chars.page_chars)
+    unknown_brackets: int = 0  # סוגריים שהצורה שלהם לא נקבעה מהציור (bracket_shapes.py)
 
     @property
     def ambiguous_lines(self) -> int:
@@ -49,10 +50,10 @@ def build_line(row: list[Char]) -> Line:
     reading = to_logical(visual, lambda c: c.text)
     # רק התו רווח יורד מהקצוות, כמו שרק הוא מאוחד. strip() בלי ארגומנט מוחק גם את
     # U+001C עד U+001F, שבקבצים הם אותיות שמופו בטעות (ה-? של "ומה איתך?" בפלאייר).
-    text = re.sub(r" {2,}", "  ", "".join(c.text for c in reading.logical)).strip(" ")
+    text = re.sub(r" {2,}", "  ", "".join(reading.texts)).strip(" ")
     return Line(text, "".join(c.text for c in visual), reading.ambiguous)
 
 
 def read_page(page) -> PageText:
     found = page_chars(page)
-    return PageText([build_line(r) for r in group_rows(found.chars)], found.skipped)
+    return PageText([build_line(r) for r in group_rows(found.chars)], found.skipped, found.unknown_brackets)

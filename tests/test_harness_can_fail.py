@@ -23,7 +23,7 @@ _LATIN_OR_DIGIT_RUN = re.compile(r"[A-Za-z0-9]+")
 
 def reversed_ltr_reader(pdf_path: Path) -> list[PageText]:
     return [PageText([Line(_LATIN_OR_DIGIT_RUN.sub(lambda m: m.group(0)[::-1], line.text), line.visual, line.ambiguous)
-                      for line in p.lines], p.skipped_chars)
+                      for line in p.lines], p.skipped_chars, p.unknown_brackets)
             for p in read_pages(pdf_path)]
 
 

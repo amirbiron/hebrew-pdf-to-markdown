@@ -12,9 +12,11 @@
 שלושה דברים שהבדיקה לא בודקת, בכוונה:
 - כיוון הפסקה. שורה עם עברית מוצגת בפסקה מימין לשמאל ושורה בלי עברית משמאל לימין,
   לפי אותו כלל של הקורא (logical_order.is_rtl). זו החלטה פתוחה במסמך האפיון.
-- שיקוף של סוגריים. python-bidi לא מיישם את כלל L4 (מקור: unicode-bidi, src/lib.rs,
-  "This does not apply [Rule L3] or [Rule L4]"), כלומר התו נשאר התו. וגם בעמוד התו
-  של הסוגר לא בהכרח מתאר את הצורה שרואים (ראו הדוח של הסבב).
+- לאיזה צד פונה סוגר. python-bidi לא מיישם את כלל L4 (מקור: unicode-bidi, src/lib.rs,
+  "This does not apply [Rule L3] or [Rule L4]"), כלומר מציג את התו הלוגי בלי שיקוף,
+  ואילו בעמוד (Line.visual) התו של סוגר הוא הצורה המצוירת (hebrew_pdf/bracket_shapes.py).
+  לכן בהשוואה "(" ו-")" נחשבים אותו תו, וכך גם "[" ו-"]" ו-"{" ו-"}": נבדק המקום של
+  כל סוגר, לא הכיוון שלו. הכיוון נבדק מול התיוג, והקורא עצמו מאמת אותו בזמן הבנייה.
 - סדר אחד מתוך כמה שנראים זהים. כשלשני סדרים לוגיים יש אותה תצוגה ("1 Onboarding"
   ו-"Onboarding 1"), שניהם עוברים. הבדיקה הכרחית, לא מספיקה.
 
@@ -32,6 +34,7 @@ from hebrew_pdf.lines import Line
 from hebrew_pdf.logical_order import bidi_class, is_rtl
 
 _SEGMENT_SEPARATOR = "\x1f"
+_ANY_DIRECTION = str.maketrans({")": "(", "]": "[", "}": "{"})
 
 
 def _paragraph_breaks_as_separators(text: str) -> str:
@@ -45,4 +48,5 @@ def displayed(text: str, rtl: bool) -> str:
 
 def displays_like_page(line: Line) -> bool:
     rtl = is_rtl([bidi_class(ch) for ch in line.visual])
-    return normalize(displayed(line.text, rtl)) == normalize(_paragraph_breaks_as_separators(line.visual))
+    shown = normalize(displayed(line.text, rtl)).translate(_ANY_DIRECTION)
+    return shown == normalize(_paragraph_breaks_as_separators(line.visual)).translate(_ANY_DIRECTION)
