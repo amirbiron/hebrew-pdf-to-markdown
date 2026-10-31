@@ -8,6 +8,7 @@
 שאושרו ביד נספרות.
 """
 
+import dataclasses
 import re
 import tempfile
 import unittest
@@ -16,13 +17,13 @@ from pathlib import Path
 from harness.labels import STATUSES, STATUS_APPROVED
 from harness.reader import read_pages
 from harness.run import DEFAULT_LABELS, DEFAULT_PDFS, evaluate, render_report
-from hebrew_pdf.lines import Line, PageText
+from hebrew_pdf.lines import PageText
 
 _LATIN_OR_DIGIT_RUN = re.compile(r"[A-Za-z0-9]+")
 
 
 def reversed_ltr_reader(pdf_path: Path) -> list[PageText]:
-    return [PageText([Line(_LATIN_OR_DIGIT_RUN.sub(lambda m: m.group(0)[::-1], line.text), line.visual, line.ambiguous)
+    return [PageText([dataclasses.replace(line, text=_LATIN_OR_DIGIT_RUN.sub(lambda m: m.group(0)[::-1], line.text))
                       for line in p.lines], p.skipped_chars, p.unknown_brackets)
             for p in read_pages(pdf_path)]
 

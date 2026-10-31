@@ -9,16 +9,16 @@
 | | |
 |---|---|
 | שורות מאושרות שנספרו | 40 |
-| זהות לתיוג | 19 מתוך 40 |
-| מרחק תווים כולל | 160 |
-| שיעור שגיאת תווים (מרחק חלקי מספר התווים בטקסט הנכון) | 9.0% |
+| זהות לתיוג | 20 מתוך 40 |
+| מרחק תווים כולל | 158 |
+| שיעור שגיאת תווים (מרחק חלקי מספר התווים בטקסט הנכון) | 8.8% |
 | ממתינות לאישור (לא נספרות) | 0 |
 | לא ברורות (לא נספרות) | 0 |
 | שורות פגומות בטבלת התיוג | 0 |
 | אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | 0 |
 | סוגריים שהצורה שלהם לא נקבעה מהציור (בכל הסט) | 0 |
 | שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | 2 מתוך 3541 |
-| שורות דו-משמעיות (בכל הסט) | 45 |
+| שורות דו-משמעיות (בכל הסט) | 46 |
 
 מרחק תווים: כמה הוספות, מחיקות או החלפות של תו בודד צריך כדי להגיע מהשורה הקרובה ביותר בעמוד לטקסט הנכון. 0 = זהה. רצף רווחים נחשב לרווח אחד.
 
@@ -45,7 +45,7 @@
 | 13 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | הופקה ב-11/05/2026 · בתוקף עד 25/05/2026 |  |
 | 14 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | טלפון: 0543978620 |  |
 | 15 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | amirbiron@gmail.com |  |
-| 16 | price-quote_weasyprint.pdf | 1 | ✗ | 2 | https://amirbiron.github.io/Automation-made-easy/ | /https://amirbiron.github.io/Automation-made-easy |
+| 16 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | https://amirbiron.github.io/Automation-made-easy/ |  |
 | 17 | price-quote_weasyprint.pdf | 2 | ✗ | 5 | סה"כ לתשלום | תנאי תשלום |
 | 18 | price-quote_weasyprint.pdf | 4 | ✓ זהה | 0 | תקלות שמקורן בצד שלישי (Meta, Telegram, Google, ספקי תשתית), שאינן בשליטת החברה. |  |
 | 19 | social-publisher-setup_weasyprint.pdf | 1 | ✓ זהה | 0 | כל מה שצריך להכין לפני שמתחילים — Meta, Google Drive ו-Sheets |  |
@@ -88,10 +88,10 @@
 | financial-report-q2-2025_aspose.pdf | aspose | 66 | 100% | 0% | 0 | 1 | 4 | 0 | 39 |
 | gps-book_indesign.pdf | indesign | 16 | 100% | 0% | 0 | 2 | 3 | 3 | 0 |
 | marketing-flyer_illustrator.pdf | illustrator | 1 | 100% | 0% | 0 | 0 | 4 | 0 | 28 |
-| mentoros-overview_weasyprint.pdf | weasyprint | 8 | 100% | 0% | 1 | 3 | 5 | 2 | 30 |
+| mentoros-overview_weasyprint.pdf | weasyprint | 8 | 100% | 0% | 1 | 4 | 5 | 2 | 30 |
 | optimization_chrome.pdf | chrome | 1 | 100% | 0% | 0 | 0 | 2 | 1 | 2 |
 | presentation_canva.pdf | canva | 24 | 100% | 0% | 0 | 23 | 3 | 1 | 25 |
-| price-quote_weasyprint.pdf | weasyprint | 7 | 100% | 0% | 0 | 1 | 7 | 4 | 13 |
+| price-quote_weasyprint.pdf | weasyprint | 7 | 100% | 0% | 0 | 1 | 7 | 5 | 11 |
 | social-publisher-setup_weasyprint.pdf | weasyprint | 2 | 100% | 0% | 0 | 3 | 2 | 2 | 0 |
 
 ## לפי עמוד
@@ -200,7 +200,7 @@
 | gps-book_indesign.pdf | 15 | 3 | 0 | 0 | 0 | 0 | 100% | — |
 | gps-book_indesign.pdf | 16 | 5 | 0 | 0 | 0 | 1 | 100% | 0% |
 | marketing-flyer_illustrator.pdf | 1 | 65 | 0 | 0 | 0 | 0 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 1 | 9 | 0 | 0 | 0 | 0 | 100% | 0% |
+| mentoros-overview_weasyprint.pdf | 1 | 9 | 0 | 0 | 0 | 1 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 2 | 15 | 0 | 0 | 1 | 1 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 3 | 19 | 0 | 0 | 0 | 1 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 4 | 19 | 0 | 0 | 0 | 0 | 100% | 0% |
