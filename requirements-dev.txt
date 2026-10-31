@@ -3,13 +3,13 @@
 # אלגוריתם התצוגה של Unicode לבדיקת התצוגה (harness/display_check.py): מימוש עצמאי
 # שלא חולק קוד עם hebrew_pdf. רישיון: LGPL-3.0 (עוטף את unicode-bidi, MIT או Apache-2.0).
 python-bidi==0.6.12
-# בניית קובץ הטבלאות ודף התשובות שלו מחדש (tools/build_table_pdf.py), לא נדרש להרצת מערך הבדיקה.
-# הגרסאות שבנו את testset/pdfs/env-vars_weasyprint.pdf: WeasyPrint 70.0 לפי שדה ה-Producer בקובץ.
-# נבדק: עם שתי הגרסאות האלה דף התשובות יוצא זהה בייט-בייט, והטקסט של כל 63 העמודים זהה.
-# WeasyPrint טוענת גם ספריות מערכת (Pango, HarfBuzz, Fontconfig; weasyprint/text/ffi.py), והעמוד
-# משתמש בגופן DejaVu Sans שמותקן במערכת.
+# בניית הקבצים שנבנו ממקור ידוע ודפי התשובות שלהם מחדש (tools/build_table_pdf.py), לא נדרש להרצת מערך הבדיקה.
+# הגרסה שבנתה את testset/pdfs/env-vars_weasyprint.pdf ו-spec_weasyprint.pdf: WeasyPrint 70.0 (שדה ה-Producer בקובץ). WeasyPrint טוענת גם
+# ספריות מערכת (Pango, HarfBuzz, Fontconfig; weasyprint/text/ffi.py), והעמוד משתמש בגופן DejaVu Sans שמותקן
+# במערכת. testset/pdfs/spec_chrome.pdf נבנה ב-Chrome for Testing 153, שאינו חבילת פייתון.
+# ה-HTML עצמו נבנה ב-cmarkgfm (למטה); python-markdown, שבנה אותו עד סבב 5, כבר לא בשימוש.
 weasyprint==70.0
-markdown==3.11.2
-# מפרסר GFM לבדיקה של ה-Markdown שהחבילה בונה (harness/markdown_check.py): קישור לפייתון של cmark-gfm,
+# מפרסר GFM לבדיקה של ה-Markdown שהחבילה בונה (harness/markdown_check.py), ולבניית ה-HTML של הקבצים שנבנו ממקור
+# ידוע (tools/build_table_pdf.py): קישור לפייתון של cmark-gfm,
 # הספרייה ש-GitHub מציג בה Markdown. רישיון: MIT (כולל רכיבים ב-third_party ברישיונות משלהם, לפי METADATA).
 cmarkgfm==2025.10.22

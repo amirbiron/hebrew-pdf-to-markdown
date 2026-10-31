@@ -14,22 +14,22 @@ autolink, tagfilter, strikethrough ו-tasklist (cmarkgfm/cmark.py). בלי CMARK
    שהפכו לרשימה ועוד הפריטים שהסימן שלהם נשאר טקסט ("א."), כדי שהניכוי לא יסתיר טקסט.
 2. טבלאות בסיבוב מלא (tables): התאים כמו שהמפרסר מוציא אותם מה-HTML, מול דף התשובות
    (harness/tables.py). כך נבדקים גם הבנייה וגם ההגנה על התווים.
-3. כותרות (headings): הכותרות שהמפרסר מוציא (h1 עד h6) מול הכותרות במקור (# בתחילת שורה),
-   באותה רמה ובאותו סדר.
+3. מבנה (match_blocks): הכותרות, פריטי הרשימה והפסקאות שהמפרסר מוציא, מול אלה שבדף התשובות, שנגזרו
+   מה-HTML שממנו נבנה ה-PDF (harness/html_structure.py, אותו פירוק בשני הצדדים): כמה זהים, באותו סדר,
+   עם אותו טקסט ובאותה רמה (כותרת: h1 עד h6; פריט: עומק הקינון).
 
 ועוד ספירה אחת, להחלטה הפתוחה על תו כיוון: כמה פסקאות, כותרות ופריטים במסמך עברי מתחילים
 באות חזקה שאינה עברית (hebrew_pdf.markdown.first_strong), ותאים של טבלה בנפרד.
 """
 
-import re
 import unicodedata
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from html.parser import HTMLParser
 
 import cmarkgfm
 
+from harness.html_structure import HtmlBlock, ParsedHtml, parse
 from hebrew_pdf.lines import PageText
 from hebrew_pdf.markdown import Markdown, first_strong
 
@@ -44,66 +44,6 @@ def visible_chars(text: str) -> Counter:
     """האותיות של טקסט בלי רווחים: קטגוריה Zs ב-Unicode, וטאב ושורה חדשה. לא str.isspace(), שמחשיב
     גם את U+001C עד U+001F, ובקבצים אלה אותיות שמופו בטעות (harness/textdiff.py)."""
     return Counter(char for char in text if char not in _SPACES and unicodedata.category(char) != "Zs")
-
-
-class ParsedHtml(HTMLParser):
-    """הטקסט, הטבלאות, הכותרות ומספר הפריטים ב-HTML של cmark-gfm. הערות לא נספרות כטקסט."""
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self.text: list[str] = []
-        self.tables: list[list[tuple[str, ...]]] = []
-        self.headings: list[tuple[int, str]] = []
-        self.items = 0
-        self.blocks: list[tuple[str, str]] = []  # (תג, טקסט) של p, h1-h6, li: מה שמציג קובע לו כיוון
-        self._row: list[str] | None = None
-        self._cell: list[str] | None = None
-        self._heading: tuple[int, list[str]] | None = None
-        self._open: list[tuple[str, list[str]]] = []
-
-    def handle_starttag(self, tag, attrs):
-        if tag == "table":
-            self.tables.append([])
-        elif tag == "tr":
-            self._row = []
-        elif tag in ("td", "th"):
-            self._cell = []
-        elif re.fullmatch("h[1-6]", tag):
-            self._heading = (int(tag[1]), [])
-        if tag == "li":
-            self.items += 1
-        if tag in ("p", "li") or re.fullmatch("h[1-6]", tag):
-            self._open.append((tag, []))
-
-    def handle_endtag(self, tag):
-        if tag in ("td", "th") and self._cell is not None and self._row is not None:
-            self._row.append("".join(self._cell))
-            self._cell = None
-        elif tag == "tr" and self._row is not None:
-            self.tables[-1].append(tuple(self._row))
-            self._row = None
-        elif re.fullmatch("h[1-6]", tag) and self._heading is not None:
-            self.headings.append((self._heading[0], "".join(self._heading[1])))
-            self._heading = None
-        if self._open and self._open[-1][0] == tag:
-            name, parts = self._open.pop()
-            self.blocks.append((name, "".join(parts)))
-
-    def handle_data(self, data):
-        self.text.append(data)
-        if self._cell is not None:
-            self._cell.append(data)
-        if self._heading is not None:
-            self._heading[1].append(data)
-        if self._open:
-            self._open[-1][1].append(data)
-
-
-def parse(html: str) -> ParsedHtml:
-    parser = ParsedHtml()
-    parser.feed(html)
-    parser.close()
-    return parser
 
 
 @dataclass(frozen=True)
@@ -139,39 +79,29 @@ def completeness(pages: Sequence[PageText], markdown: Markdown, parsed: ParsedHt
                         len(markdown.markers), parsed.items, expected_items)
 
 
-def source_headings(source: str) -> list[tuple[int, str]]:
-    """הכותרות במקור Markdown: # בתחילת שורה, מחוץ לבלוק קוד."""
-    out = []
-    fenced = False
-    for line in source.split("\n"):
-        if line.startswith("```"):
-            fenced = not fenced
-            continue
-        found = re.fullmatch(r"(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*", line)
-        if found and not fenced:
-            out.append((len(found.group(1)), _norm(found.group(2))))
-    return out
-
-
-def _norm(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip()
-
-
 @dataclass(frozen=True)
-class HeadingMatch:
-    source: int  # כותרות במקור
-    output: int  # כותרות בפלט
-    in_order: int  # כותרות של המקור שנמצאות בפלט באותו סדר, באותה רמה ובאותו טקסט
-    in_order_any_level: int  # כנ"ל, בלי תנאי על הרמה
-    missing: tuple[tuple[int, str], ...] = field(default=())  # של המקור, שלא נמצאו באותו סדר
+class BlockMatch:
+    """בלוקים מסוג אחד (כותרות, פריטים או פסקאות) בדף התשובות, מול הבלוקים מאותו סוג שהמפרסר מוציא."""
+    kind: str
+    source: int  # בדף התשובות
+    output: int  # בפלט
+    in_order: int  # של דף התשובות, שנמצאים בפלט באותו סדר, עם אותו טקסט ובאותה רמה
+    in_order_any_level: int  # כנ"ל, בלי תנאי על הרמה (בפסקאות אין רמה, ושני המספרים שווים)
+    missing: tuple[tuple[int, str], ...] = field(default=())  # (רמה, טקסט) של דף התשובות שלא נמצאו באותו סדר
 
 
-def match_headings(source: list[tuple[int, str]], output: list[tuple[int, str]]) -> HeadingMatch:
-    output = [(level, _norm(text)) for level, text in output]
-    exact = _lcs(source, output, lambda a, b: a == b)
-    any_level = _lcs(source, output, lambda a, b: a[1] == b[1])
-    return HeadingMatch(len(source), len(output), len(exact), len(any_level),
-                        tuple(h for k, h in enumerate(source) if k not in exact))
+def match_blocks(kind: str, truth: Sequence[HtmlBlock], output: Sequence[HtmlBlock]) -> BlockMatch:
+    """הבלוקים מסוג kind באותו סדר: התת-סדרה המשותפת הארוכה ביותר, בלי לדלג על מה שלא תואם.
+
+    הטקסט בשני הצדדים הוא מה שמוצג (html_structure.visible_text), ולכן השוואה מדויקת. "באותו סדר" ולא
+    "קיים בפלט": בלוק שהגיע למקום אחר במסמך הוא בלוק שהקורא שיבץ לא נכון. הרמה: של כותרת (h1 עד h6)
+    ושל פריט (עומק הקינון). ציטוט (quote) לא נבדק: הבונה לא מוציא ציטוטים, ופסקה בציטוט נמדדת כפסקה."""
+    source = [(block.level, block.text) for block in truth if block.kind == kind]
+    found = [(block.level, block.text) for block in output if block.kind == kind]
+    exact = _lcs(source, found, lambda a, b: a == b)
+    any_level = _lcs(source, found, lambda a, b: a[1] == b[1])
+    return BlockMatch(kind, len(source), len(found), len(exact), len(any_level),
+                      tuple(item for k, item in enumerate(source) if k not in exact))
 
 
 def _lcs(a, b, same) -> set[int]:

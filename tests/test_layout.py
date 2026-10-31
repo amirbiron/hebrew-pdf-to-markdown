@@ -169,10 +169,10 @@ class RealLinesTest(unittest.TestCase):
         self.assertIn(("הכנסות ממכירות", "", "366,343", "300,306*", "178,881", "145,921*", "633,833*"), cells)
 
     def test_table_row_broken_over_three_lines(self):
-        # בעמוד שם המשתנה נשבר באמצע (MONGODB_SOCKET_TIMEOUT_M / S) והתיאור בשתי שורות
-        rows = [tuple(normalize(c) for c in row) for row in read_pages(DEFAULT_PDFS / "env-vars_weasyprint.pdf")[1].rows]
-        self.assertIn(("MONGODB_SOCKET_TIMEOUT_MS", "זמן קצוב לקריאת/כתיבת שקע (socketTimeoutMS)", "לא", "45000",
-                       "45000", "Bot/WebApp"), rows)
+        # בעמוד עמודת הרכיב נשברת אחרי הלוכסנים ל-"Bot/WebApp/", "MCP/" ו-"Webserver", והתיאור בשתי שורות
+        rows = [tuple(normalize(c) for c in row) for row in read_pages(DEFAULT_PDFS / "env-vars_weasyprint.pdf")[0].rows]
+        self.assertIn(("MONGODB_HEARTBEAT_FREQUENCY_MS", "תדירות בדיקת החיים של הדרייבר מול שרתי מונגו (heartbeatFrequencyMS)",
+                       "לא", "10000", "20000", "Bot/WebApp/MCP/Webserver"), rows)
 
     def test_the_table_file_is_a_hebrew_document(self):
         # רוב האותיות בו לטיניות (שמות משתנים), אבל רוב השורות עבריות

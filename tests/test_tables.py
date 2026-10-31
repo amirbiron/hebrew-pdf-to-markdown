@@ -16,11 +16,12 @@ import pypdfium2 as pdfium
 
 from harness.reader import read_pages
 from harness.run import DEFAULT_PDFS, DEFAULT_TRUTH
-from harness.tables import TruthFileError, TruthTable, load_truth, pdf_name, score_tables
+from harness.html_structure import HtmlBlock
+from harness.tables import TruthFileError, TruthTable, load_blocks, load_truth, pdf_names, score_tables
 from prototype import hebrew_pdf_prototype as prototype
 from tests.test_harness_can_fail import reversed_ltr_reader
 
-TRUTH = DEFAULT_TRUTH / "env-vars_weasyprint.truth.json"
+TRUTH = DEFAULT_TRUTH / "env-vars.truth.json"
 HEADER = ("משתנה", "תיאור", "ברירת מחדל")
 
 
@@ -36,23 +37,41 @@ class LoadTruthTest(unittest.TestCase):
             return load_truth(path)
 
     def test_valid(self):
-        tables = self.load({"tables": [{"section": "ס", "rows": [["א", "ב"], ["X", ""]]}]})
-        self.assertEqual(tables, [TruthTable("ס", ("א", "ב"), (("X", ""),))])
+        blocks = [{"kind": "heading", "level": 2, "text": "ס"}, {"kind": "paragraph", "text": "פסקה", "quote": 1},
+                  {"kind": "table", "rows": [["א", "ב"], ["X", ""]]}, {"kind": "item", "level": 1, "text": "פריט"}]
+        self.assertEqual(self.load({"blocks": blocks}), [TruthTable("ס", ("א", "ב"), (("X", ""),))])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "x.truth.json"
+            path.write_text(json.dumps({"blocks": blocks}), encoding="utf-8")
+            self.assertEqual(load_blocks(path), [HtmlBlock("heading", "ס", 2), HtmlBlock("paragraph", "פסקה", quote=1),
+                                                 HtmlBlock("table", rows=(("א", "ב"), ("X", ""))),
+                                                 HtmlBlock("item", "פריט", 1)])
 
     def test_bad_structures_stop_with_a_reason(self):
-        good_rows = [["א", "ב"], ["X", "1"]]
+        good = {"kind": "table", "rows": [["א", "ב"], ["X", "1"]]}
+
+        def blocks(*items):
+            return json.dumps({"blocks": list(items)})
+
         cases = {
             "not json": "JSON",
-            json.dumps([1, 2]): "tables",
-            json.dumps({"tables": []}): "tables",
-            json.dumps({"tables": ["x"]}): "לא אובייקט",
-            json.dumps({"tables": [{"section": 3, "rows": good_rows}]}): "section",
-            json.dumps({"tables": [{"rows": "x"}]}): "rows",
-            json.dumps({"tables": [{"rows": [["א"], [1]]}]}): "לא רשימה של טקסטים",
-            json.dumps({"tables": [{"rows": [[], ["X"]]}]}): "שורת הכותרת ריקה",
-            json.dumps({"tables": [{"rows": [["א", "ב"], ["X"]]}]}): "1 תאים במקום 2",
-            json.dumps({"tables": [{"rows": [["א"], ["  "]]}]}): "התא הראשון ריק",
-            json.dumps({"tables": [{"rows": good_rows}, {"rows": good_rows}]}): "כבר מופיע בטבלה 1",
+            json.dumps([1, 2]): "blocks",
+            json.dumps({"blocks": []}): "blocks",
+            json.dumps({"tables": [good]}): "blocks",  # הפורמט הקודם
+            blocks("x"): "לא אובייקט",
+            blocks({"kind": ["table"]}): "kind",  # לא hashable: בדיקת הטיפוס לפני השייכות
+            blocks({"kind": "list"}): "kind",
+            blocks({"kind": "heading", "level": 7, "text": "x"}): "level",
+            blocks({"kind": "heading", "level": True, "text": "x"}): "level",
+            blocks({"kind": "item", "level": -1, "text": "x"}): "level",
+            blocks({"kind": "paragraph", "text": 3}): "text",
+            blocks({"kind": "paragraph", "text": "x", "quote": "1"}): "quote",
+            blocks({"kind": "table", "rows": "x"}): "rows",
+            blocks({"kind": "table", "rows": [["א"], [1]]}): "לא רשימה של טקסטים",
+            blocks({"kind": "table", "rows": [[], ["X"]]}): "שורת הכותרת ריקה",
+            blocks({"kind": "table", "rows": [["א", "ב"], ["X"]]}): "1 תאים במקום 2",
+            blocks({"kind": "table", "rows": [["א"], ["  "]]}): "התא הראשון ריק",
+            blocks({"kind": "paragraph", "text": "בלי טבלה"}): "אין בו טבלאות",
         }
         for data, message in cases.items():
             with self.subTest(data=data):
@@ -60,8 +79,10 @@ class LoadTruthTest(unittest.TestCase):
                     self.load(data)
                 self.assertIn(message, str(caught.exception))
 
-    def test_pdf_name(self):
-        self.assertEqual(pdf_name(TRUTH), "env-vars_weasyprint.pdf")
+    def test_a_truth_file_belongs_to_every_pdf_of_its_source(self):
+        pdfs = ["spec_weasyprint.pdf", "spec_chrome.pdf", "spec-other_weasyprint.pdf", "spec.pdf", "env-vars_weasyprint.pdf"]
+        self.assertEqual(pdf_names(Path("spec.truth.json"), pdfs), ["spec_weasyprint.pdf", "spec_chrome.pdf"])
+        self.assertEqual(pdf_names(TRUTH, pdfs), ["env-vars_weasyprint.pdf"])
 
 
 class ScoreTest(unittest.TestCase):
@@ -99,6 +120,14 @@ class ScoreTest(unittest.TestCase):
         output = [("A_VAR",), ("A_VAR", "תיאור", "10"), ("A_VAR", "תיאור")]
         self.assertEqual(score_tables("x.pdf", truth, output).identical_rows, 1)
 
+    def test_a_first_cell_repeated_in_the_truth_uses_each_output_line_once(self):
+        # במסמך האפיון "pdf_oxide טקסט" פותח שורה בשתי טבלאות שונות
+        truth = [table(("pdf_oxide", "א", "1")), table(("pdf_oxide", "ב", "2"))]
+        both = score_tables("x.pdf", truth, [("pdf_oxide", "ב", "2"), ("pdf_oxide", "א", "1")])
+        self.assertEqual((both.aligned, both.identical_rows), (2, 2))
+        one = score_tables("x.pdf", truth, [("pdf_oxide", "א", "1")])
+        self.assertEqual((one.aligned, one.identical_rows, one.identical_cells), (1, 1, 3))
+
     def test_cell_broken_over_two_lines_is_not_whole(self):
         truth = [table(("A_VAR", "תיאור ארוך שנשבר", "10"))]
         score = score_tables("x.pdf", truth, [("A_VAR", "תיאור ארוך", "10"), ("שנשבר",)])
@@ -129,14 +158,16 @@ class RepoTruthFileTest(unittest.TestCase):
 
     def test_every_truth_file_has_its_pdf(self):
         truth_files = sorted(DEFAULT_TRUTH.glob("*.truth.json"))
-        self.assertTrue(truth_files)
-        for path in truth_files:
-            self.assertTrue((DEFAULT_PDFS / pdf_name(path)).exists(), path.name)
+        pdfs = [path.name for path in DEFAULT_PDFS.glob("*.pdf")]
+        self.assertEqual({path.name: sorted(pdf_names(path, pdfs)) for path in truth_files},
+                         {"env-vars.truth.json": ["env-vars_weasyprint.pdf"],
+                          "spec.truth.json": ["spec_chrome.pdf", "spec_weasyprint.pdf"]})
 
 
 class FirstMeasurementTest(unittest.TestCase):
-    """המדידה הראשונה, לפני כל טיפול בטבלאות (testset/ground_truth/README.md): "מבין 1,820
-    התאים שנבדקו ... 55% נמצאו שלמים בשורה אחת של הפלט. עמודת התיאור: 6%"."""
+    """המדידה הראשונה, לפני כל טיפול בטבלאות (testset/ground_truth/README.md), על הקובץ שבריפו: "מבין
+    1,820 התאים שנבדקו ... 67% נמצאו שלמים בשורה אחת של הפלט. עמודת התיאור: 18%". (על הקובץ הקודם, עד
+    סבב 5ב: 55% ו-6%.)"""
 
     @classmethod
     def setUpClass(cls):
@@ -147,9 +178,9 @@ class FirstMeasurementTest(unittest.TestCase):
 
     def test_the_documented_numbers(self):
         self.assertEqual(self.prototype.whole_counted, 1820)
-        self.assertEqual(round(100 * self.prototype.whole / self.prototype.whole_counted), 55)
+        self.assertEqual(round(100 * self.prototype.whole / self.prototype.whole_counted), 67)
         description = next(c for c in self.prototype.columns if c.name == "תיאור")
-        self.assertEqual(round(100 * description.whole / description.whole_counted), 6)
+        self.assertEqual(round(100 * description.whole / description.whole_counted), 18)
 
     def test_a_broken_reader_scores_lower(self):
         # המדידה רגישה לקורא: קורא שהופך כל רצף לטיני וספרות מאבד תאים שלמים

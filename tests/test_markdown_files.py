@@ -3,7 +3,7 @@
 שלושה חלקים:
 - המידע שנוסף לקורא: גודל האות (Char.size), הגיאומטריה של שורה, ומאיפה באה כל שורה של
   PageText.rows (RowSource). הוא לא משנה את הטקסט: הדוח של מערך הבדיקה זהה לפניו ואחריו.
-- הבדיקות של harness/markdown_check.py על כל 13 הקבצים: שלמות, והתאים בסיבוב מלא.
+- הבדיקות של harness/markdown_check.py על כל הקבצים בסט: שלמות, והתאים בסיבוב מלא.
 - הבדיקות האלה מסוגלות להיכשל: אות שנמחקה מה-Markdown, ובנייה בלי הגנה על התווים.
 """
 
@@ -64,11 +64,12 @@ class RowSourceTest(unittest.TestCase):
             covered = sorted(i for source in page.sources for i in source.lines)
             self.assertEqual(covered, list(range(len(page.lines))))
 
-    def test_a_table_row_broken_over_two_lines(self):
+    def test_a_table_row_broken_over_three_lines(self):
+        # עמודת הרכיב נשברת בעמוד אחרי הלוכסנים: "Bot/WebApp/", "MCP/", "Webserver"
         found = [source for page in self.pages for cells, source in zip(page.rows, page.sources)
-                 if cells and cells[0] == "MONGODB_SOCKET_TIMEOUT_MS"]
+                 if cells and cells[0] == "MONGODB_HEARTBEAT_FREQUENCY_MS"]
         self.assertEqual(len(found), 1)
-        self.assertEqual(len(found[0].lines), 2)
+        self.assertEqual(len(found[0].lines), 3)
         self.assertIsNotNone(found[0].table)
 
     def test_line_geometry(self):
@@ -87,7 +88,7 @@ class AllFilesTest(unittest.TestCase):
         cls.files = {path.name: read_pages(path) for path in sorted(DEFAULT_PDFS.glob("*.pdf"))}
 
     def test_every_file_is_complete(self):
-        self.assertEqual(len(self.files), 13)
+        self.assertEqual(len(self.files), 15)  # 12 אמיתיים, קובץ הטבלאות, ומסמך האפיון משתי תוכנות
         for name, pages in self.files.items():
             with self.subTest(file=name):
                 built = build_markdown(pages)
@@ -104,7 +105,7 @@ class AllFilesTest(unittest.TestCase):
 
     def test_the_round_trip_loses_no_table_cell(self):
         # התאים שהמפרסר מוציא מה-Markdown זהים לדף התשובות בדיוק כמו התאים של הקורא
-        truth = load_truth(DEFAULT_TRUTH / "env-vars_weasyprint.truth.json")
+        truth = load_truth(DEFAULT_TRUTH / "env-vars.truth.json")
         pages = self.files[TABLE_FILE.name]
         reader = score_tables(TABLE_FILE.name, truth, [row for page in pages for row in page.rows])
         parsed = mc.parse(mc.to_html(build_markdown(pages).text))
@@ -116,7 +117,7 @@ class ChecksCanFailTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.pages = read_pages(TABLE_FILE)
-        cls.truth = load_truth(DEFAULT_TRUTH / "env-vars_weasyprint.truth.json")
+        cls.truth = load_truth(DEFAULT_TRUTH / "env-vars.truth.json")
 
     def test_a_deleted_letter_is_missing(self):
         built = build_markdown(self.pages)
