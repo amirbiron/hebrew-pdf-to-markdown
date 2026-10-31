@@ -22,9 +22,21 @@ from hebrew_pdf.lines import PageText
 _LATIN_OR_DIGIT_RUN = re.compile(r"[A-Za-z0-9]+")
 
 
+def _reverse_runs(text: str) -> str:
+    return _LATIN_OR_DIGIT_RUN.sub(lambda m: m.group(0)[::-1], text)
+
+
+def _broken(line):
+    """אותה שורה, עם הקלקול בכל מקום שבו יש טקסט לוגי: השורה, כל רכיב, וכל עמודה."""
+    return dataclasses.replace(
+        line, text=_reverse_runs(line.text),
+        components=tuple(dataclasses.replace(c, text=_reverse_runs(c.text)) for c in line.components),
+        columns=None if line.columns is None else tuple(_reverse_runs(c) for c in line.columns))
+
+
 def reversed_ltr_reader(pdf_path: Path) -> list[PageText]:
-    return [PageText([dataclasses.replace(line, text=_LATIN_OR_DIGIT_RUN.sub(lambda m: m.group(0)[::-1], line.text))
-                      for line in p.lines], p.skipped_chars, p.unknown_brackets)
+    return [PageText([_broken(line) for line in p.lines], p.skipped_chars, p.unknown_brackets,
+                     [tuple(_reverse_runs(cell) for cell in row) for row in p.rows])
             for p in read_pages(pdf_path)]
 
 

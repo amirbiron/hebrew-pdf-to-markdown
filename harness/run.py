@@ -177,7 +177,7 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
         elif label.status == labels_mod.STATUS_UNCLEAR:
             unclear.append(label)
         else:
-            distance, closest = closest_line(join_cells(label.expected), [join_cells(line.cells) for line in lines])
+            distance, closest = closest_line(join_cells(label.expected), _candidates(label, lines))
             approved.append(LabelResult(label, distance, closest))
 
     tables: list[TableScore] = []
@@ -186,12 +186,22 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
             name = pdf_name(truth_path)
             if name not in read_files:
                 raise TruthFileError(f"{truth_path.name}: אין קובץ {name} בתיקיית ה-PDF ({pdf_dir})")
-            output = [line.cells for page in read_files[name] for line in page.lines]
+            output = [row for page in read_files[name] for row in page.rows]
             tables.append(score_tables(name, load_truth(truth_path), output))
 
     reader_name = f"{reader.__module__}.{reader.__qualname__}"
     return Evaluation(reader_name, files, approved, pending, unclear, sorted(problems, key=lambda p: p.source_line),
                       orders, tables)
+
+
+def _candidates(label: labels_mod.Label, lines: list) -> list[str]:
+    """השורות בעמוד שמולן נמדד תיוג: כל שורה, עם התאים שלה. תיוג של תא אחד נמדד גם מול כל
+    תא בנפרד, לפי "שורה אחת" ב-testset/labels.md: כשבשורה בעמוד יש כמה עמודות או תיבות,
+    השורה המתויגת היא רק החלק של העמודה האחת."""
+    candidates = [join_cells(line.cells) for line in lines]
+    if len(label.expected) == 1:
+        candidates += [cell for line in lines if len(line.cells) > 1 for cell in line.cells if cell]
+    return candidates
 
 
 def _cell(text: str) -> str:
@@ -276,9 +286,11 @@ def render_report(ev: Evaluation) -> str:
     add("")
     add("מרחק תווים: כמה הוספות, מחיקות או החלפות של תו בודד צריך כדי להגיע מהשורה הקרובה ביותר בעמוד לטקסט הנכון. 0 = זהה. רצף רווחים נחשב לרווח אחד.")
     add("")
-    add("בדיקת התצוגה: כל שורה בסט, לא רק המתויגות, מוצגת באלגוריתם התצוגה של Unicode, בכיוון הפסקה שבו הקורא קרא אותה (Line.rtl: כיוון אחד לכל המסמך, לפי hebrew_pdf/logical_order.document_rtl; במסמך עברי כל שורה מימין לשמאל, גם שורה בלי עברית), ומושווית לסדר האותיות בעמוד. שורה שנכשלת היא שורה שהפלט שלה לא ייראה כמו העמוד. שורה דו-משמעית היא שורה שיותר מקריאה אחת שלה נראית בדיוק כמו העמוד (למשל \"1 Onboarding\" ו-\"Onboarding 1\"), והקורא בחר לפי ברירת מחדל. ההסבר המלא ב-harness/display_check.py וב-hebrew_pdf/logical_order.py.")
+    add("בדיקת התצוגה: כל שורה בסט, לא רק המתויגות, מוצגת באלגוריתם התצוגה של Unicode, בכיוון הפסקה שבו הקורא קרא אותה (כיוון אחד לכל המסמך, לפי רוב השורות, hebrew_pdf/logical_order.document_rtl; במסמך עברי כל שורה מימין לשמאל, גם שורה בלי עברית), ומושווית לסדר האותיות בעמוד. שורה עם כמה רכיבים (תאים, תיבות; hebrew_pdf/layout.py) נבדקת רכיב-רכיב, כי כל רכיב נקרא בנפרד. שורה שנכשלת היא שורה שהפלט שלה לא ייראה כמו העמוד. שורה דו-משמעית היא שורה שיותר מקריאה אחת שלה נראית בדיוק כמו העמוד (למשל \"1 Onboarding\" ו-\"Onboarding 1\"), והקורא בחר לפי ברירת מחדל. ההסבר המלא ב-harness/display_check.py וב-hebrew_pdf/logical_order.py.")
     add("")
     add("בדיקת הסדר של התיוגים: כל \"טקסט נכון\" מוצג באלגוריתם התצוגה של החבילה (hebrew_pdf/logical_order.drawn, כולל שיקוף סוגריים), כל תא בנפרד והתאים מימין לשמאל, ומושווה בלי רווחים לסדר האותיות בשורה בעמוד שיש לה הכי הרבה אותיות משותפות איתו. \"שורה שלמה\" ו-\"חלק מהשורה\" עוברות; \"סדר שונה\" הוא תיוג שגוי בסדר; \"חסר בעמוד\" הוא טקסט שאין בקובץ או שנוסף בתיוג. כך אדם בודק רק תוכן, והמכונה בודקת סדר. ההסבר המלא ב-harness/label_order.py.")
+    add("")
+    add("שורה עם כמה רכיבים מושווית לתיוג כתאים, עם <br> ביניהם. תיוג של תא אחד נמדד גם מול כל תא בנפרד, לפי \"שורה אחת\" ב-testset/labels.md: כשבשורה בעמוד יש כמה עמודות או תיבות, השורה המתויגת היא רק החלק של העמודה האחת.")
     add("")
     add("המרחק הוא גבול תחתון: כשהקורא שובר שורה מאוד (למשל מדביק אליה עמודה שכנה), שורה אחרת בעמוד יכולה להיות קרובה יותר מהשורה שלה, ואז המרחק קטן מהשגיאה האמיתית. בעמודה \"השורה הקרובה ביותר בפלט\" רואים מול איזו שורה נמדד. המדד הראשי הוא מספר השורות הזהות.")
     add("")
