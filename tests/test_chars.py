@@ -13,7 +13,7 @@ from unittest import mock
 import pypdfium2 as pdfium
 
 from hebrew_pdf import chars as chars_mod
-from hebrew_pdf.lines import read_page
+from hebrew_pdf.lines import read_document
 
 PDF = Path(__file__).resolve().parent.parent / "testset" / "pdfs" / "optimization_chrome.pdf"
 REAL_GET_CHAR_ORIGIN = chars_mod.pdfium_raw.FPDFText_GetCharOrigin
@@ -77,7 +77,7 @@ class CharOriginFailureTest(unittest.TestCase):
 
     def test_count_reaches_the_page_result(self):
         with mock.patch.object(chars_mod.pdfium_raw, "FPDFText_GetCharOrigin", failing_origin(self.bad)):
-            self.assertEqual(read_page(self.page).skipped_chars, 1)
+            self.assertEqual(read_document(self.pdf)[0].skipped_chars, 1)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ import pypdfium2 as pdfium
 from harness.labels import STATUS_APPROVED, parse_labels
 from harness.run import DEFAULT_LABELS, DEFAULT_PDFS
 from harness.textdiff import closest_line, normalize
-from hebrew_pdf.lines import read_page
+from hebrew_pdf.lines import read_document
 from hebrew_pdf.logical_order import drawn
 
 BRACKETS = frozenset("()[]{}")
@@ -37,7 +37,7 @@ class DrawnShapesMatchLabelsTest(unittest.TestCase):
             # שורת טבלה מתויגת עם | בין התאים; בעמוד אין תו כזה
             expected_text = " ".join(label.expected.replace(" | ", " ").replace("|", "").split())
             with pdfium.PdfDocument(str(DEFAULT_PDFS / label.file)) as pdf:
-                lines = read_page(pdf[label.page - 1]).lines
+                lines = read_document(pdf)[label.page - 1].lines
             _, closest = closest_line(label.expected, [line.text for line in lines])
             line = next(line for line in lines if normalize(line.text) == closest)
             with self.subTest(label=label.number):

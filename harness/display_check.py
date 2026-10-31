@@ -9,9 +9,14 @@
 רישיון: python-bidi הוא LGPL-3.0, ו-unicode-bidi הוא MIT או Apache-2.0. זו תלות
 של מערך הבדיקה בלבד (requirements-dev.txt), לא של הקורא.
 
-שלושה דברים שהבדיקה לא בודקת, בכוונה:
-- כיוון הפסקה. שורה עם עברית מוצגת בפסקה מימין לשמאל ושורה בלי עברית משמאל לימין,
-  לפי אותו כלל של הקורא (logical_order.is_rtl). זו החלטה פתוחה במסמך האפיון.
+ארבעה דברים שהבדיקה לא בודקת, בכוונה:
+- איפה יש רווח. ב-Line.visual הרווחים הם אלה שהקורא קבע לפי הפערים בעמוד
+  (hebrew_pdf/spacing.py), אותם רווחים שבטקסט. הבדיקה בודקת את הסדר שלהם, לא אם
+  הם במקום הנכון: את זה בודקים התיוג והבדיקות של spacing.
+- כיוון הפסקה. הטקסט מוצג בכיוון שבו הקורא קרא את השורה (Line.rtl), ולא בכיוון
+  שהבדיקה מחשבת לעצמה: עותק שני של הכלל היה יכול להיפרד מהראשון, ואז שורה נכונה
+  נכשלת או שורה שגויה עוברת. הכיוון עצמו הוא החלטה ברמת המסמך (logical_order.document_rtl),
+  ומשורה אחת אי אפשר לבדוק אותו.
 - לאיזה צד פונה סוגר. python-bidi לא מיישם את כלל L4 (מקור: unicode-bidi, src/lib.rs,
   "This does not apply [Rule L3] or [Rule L4]"), כלומר מציג את התו הלוגי בלי שיקוף,
   ואילו בעמוד (Line.visual) התו של סוגר הוא הצורה המצוירת (hebrew_pdf/bracket_shapes.py).
@@ -31,7 +36,6 @@ from bidi import get_display
 
 from harness.textdiff import normalize
 from hebrew_pdf.lines import Line
-from hebrew_pdf.logical_order import bidi_class, is_rtl
 
 _SEGMENT_SEPARATOR = "\x1f"
 _ANY_DIRECTION = str.maketrans({")": "(", "]": "[", "}": "{"})
@@ -47,6 +51,5 @@ def displayed(text: str, rtl: bool) -> str:
 
 
 def displays_like_page(line: Line) -> bool:
-    rtl = is_rtl([bidi_class(ch) for ch in line.visual])
-    shown = normalize(displayed(line.text, rtl)).translate(_ANY_DIRECTION)
+    shown = normalize(displayed(line.text, line.rtl)).translate(_ANY_DIRECTION)
     return shown == normalize(_paragraph_breaks_as_separators(line.visual)).translate(_ANY_DIRECTION)

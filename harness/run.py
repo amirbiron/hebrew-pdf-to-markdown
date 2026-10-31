@@ -22,6 +22,7 @@ from harness.display_check import displays_like_page
 from harness.reader import read_pages
 from harness.textdiff import closest_line, normalize, split_lines, visible
 from hebrew_pdf.lines import PageText
+from hebrew_pdf.spacing import SpaceCounts
 from hebrew_pdf.indirect_checks import score_final_letters, score_punct_at_start
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,6 +43,7 @@ class PageResult:
     ambiguous_lines: int  # שורות שיותר מקריאה אחת שלהן נראית כמו העמוד
     final_letters: int | None
     punct_at_start: int | None
+    spacing: SpaceCounts = SpaceCounts()  # הרווחים לפי הפער מול תווי הרווח שבקובץ (hebrew_pdf/spacing.py)
 
 
 @dataclass(frozen=True)
@@ -58,6 +60,10 @@ class FileResult:
     @property
     def ambiguous_lines(self) -> int:
         return sum(p.ambiguous_lines for p in self.pages)
+
+    @property
+    def spacing(self) -> SpaceCounts:
+        return sum((p.spacing for p in self.pages), SpaceCounts())
 
 
 @dataclass(frozen=True)
@@ -133,7 +139,7 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages) -> E
         pages = [
             PageResult(i, sum(1 for l in split_lines(p.text) if normalize(l)), p.skipped_chars, p.unknown_brackets,
                        sum(1 for line in p.lines if normalize(line.visual) and not displays_like_page(line)),
-                       p.ambiguous_lines, score_final_letters(p.text), score_punct_at_start(p.text))
+                       p.ambiguous_lines, score_final_letters(p.text), score_punct_at_start(p.text), p.spacing)
             for i, p in enumerate(read, 1)
         ]
         whole = "\n".join(texts)
@@ -176,6 +182,10 @@ def _pct(value: int | None) -> str:
     return "—" if value is None else f"{value}%"
 
 
+def _count_and_share(count: int, of: int) -> str:
+    return f"{count} ({100 * count / of:.1f}%)" if of else str(count)
+
+
 def _numbers(items: list[labels_mod.Label]) -> str:
     return ", ".join(str(label.number) for label in items) if items else "אין"
 
@@ -209,7 +219,7 @@ def render_report(ev: Evaluation) -> str:
     add("")
     add("מרחק תווים: כמה הוספות, מחיקות או החלפות של תו בודד צריך כדי להגיע מהשורה הקרובה ביותר בעמוד לטקסט הנכון. 0 = זהה. רצף רווחים נחשב לרווח אחד.")
     add("")
-    add("בדיקת התצוגה: כל שורה בסט, לא רק המתויגות, מוצגת באלגוריתם התצוגה של Unicode (שורה עם עברית בפסקה מימין לשמאל, שורה בלי עברית משמאל לימין) ומושווית לסדר האותיות בעמוד. שורה שנכשלת היא שורה שהפלט שלה לא ייראה כמו העמוד. שורה דו-משמעית היא שורה שיותר מקריאה אחת שלה נראית בדיוק כמו העמוד (למשל \"1 Onboarding\" ו-\"Onboarding 1\"), והקורא בחר לפי ברירת מחדל. ההסבר המלא ב-harness/display_check.py וב-hebrew_pdf/logical_order.py.")
+    add("בדיקת התצוגה: כל שורה בסט, לא רק המתויגות, מוצגת באלגוריתם התצוגה של Unicode, בכיוון הפסקה שבו הקורא קרא אותה (Line.rtl: כיוון אחד לכל המסמך, לפי hebrew_pdf/logical_order.document_rtl; במסמך עברי כל שורה מימין לשמאל, גם שורה בלי עברית), ומושווית לסדר האותיות בעמוד. שורה שנכשלת היא שורה שהפלט שלה לא ייראה כמו העמוד. שורה דו-משמעית היא שורה שיותר מקריאה אחת שלה נראית בדיוק כמו העמוד (למשל \"1 Onboarding\" ו-\"Onboarding 1\"), והקורא בחר לפי ברירת מחדל. ההסבר המלא ב-harness/display_check.py וב-hebrew_pdf/logical_order.py.")
     add("")
     add("המרחק הוא גבול תחתון: כשהקורא שובר שורה מאוד (למשל מדביק אליה עמודה שכנה), שורה אחרת בעמוד יכולה להיות קרובה יותר מהשורה שלה, ואז המרחק קטן מהשגיאה האמיתית. בעמודה \"השורה הקרובה ביותר בפלט\" רואים מול איזו שורה נמדד. המדד הראשי הוא מספר השורות הזהות.")
     add("")
@@ -252,6 +262,25 @@ def render_report(ev: Evaluation) -> str:
         mine = [r for r in ev.approved if r.label.file == f.name]
         add(f"| {f.name} | {creator_of(f.name)} | {len(f.pages)} | {_pct(f.final_letters)} | {_pct(f.punct_at_start)} "
             f"| {f.display_failures} | {f.ambiguous_lines} | {len(mine)} | {sum(r.exact for r in mine)} | {sum(r.distance for r in mine)} |")
+    add("")
+
+    add("## ריווח לפי תוכנה")
+    add("")
+    add("הרווחים בפלט נקבעים לפי הפערים בעמוד ולא לפי תווי הרווח שבקובץ: תווי הרווח יורדים, ורווח נכנס בכל פער בין שני תווים שגדול מהפער הרגיל בין אותיות באותה שורה, ועוד חצי רוחב רווח (hebrew_pdf/spacing.py). כל פער בין שני תווים סמוכים נספר פעם אחת. \"עם רווח בקובץ\": פערים שהיה בהם תו רווח בקובץ. \"ירדו\": מתוכם, פערים שלא נכנס בהם רווח. \"נוספו\": פערים בלי תו רווח בקובץ שנכנס בהם רווח. האחוזים הם מתוך הפערים עם רווח בקובץ.")
+    add("")
+    add("| תוכנה | קבצים | עם רווח בקובץ | ירדו | נוספו |")
+    add("|---|---|---|---|---|")
+    by_creator: dict[str, tuple[int, SpaceCounts]] = {}
+    for f in ev.files:
+        files, counts = by_creator.get(creator_of(f.name), (0, SpaceCounts()))
+        by_creator[creator_of(f.name)] = (files + 1, counts + f.spacing)
+    total = SpaceCounts()
+    for creator, (files, counts) in sorted(by_creator.items()):
+        total += counts
+        add(f"| {creator} | {files} | {counts.in_file} | {_count_and_share(counts.dropped, counts.in_file)} "
+            f"| {_count_and_share(counts.added, counts.in_file)} |")
+    add(f"| סך הכול | {len(ev.files)} | {total.in_file} | {_count_and_share(total.dropped, total.in_file)} "
+        f"| {_count_and_share(total.added, total.in_file)} |")
     add("")
 
     add("## לפי עמוד")

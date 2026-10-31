@@ -51,7 +51,7 @@
 import itertools
 import re
 import unicodedata
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
@@ -91,12 +91,34 @@ def bidi_class(text: str) -> str:
     return kind
 
 
-def is_rtl(kinds: Sequence[str]) -> bool:
-    """האם השורה עברית: יש בה תו חזק מימין לשמאל (R או AL).
+def document_rtl(texts: Iterable[str]) -> bool:
+    """כיוון הפסקה של כל השורות במסמך: מימין לשמאל, אלא אם יש במסמך יותר תווים חזקים
+    משמאל לימין (L) מאשר מימין לשמאל (R ו-AL).
 
-    שורה בלי עברית בכלל נשארת משמאל לימין, כמו באב-טיפוס. הכיוון של שורה כזו
-    במסמך עברי הוא החלטה פתוחה במסמך האפיון, ולא נקבע כאן.
+    UAX #9 קובע את כיוון הפסקה לפי התו החזק הראשון בה (P2, P3), ומאפשר לקבוע אותו
+    מבחוץ (HL1: "A higher-level protocol may set any paragraph level. This can be done
+    on the basis of the context, such as on a table cell, paragraph, document, or system
+    level", ובאותו סעיף, כדוגמה: "whether there are more RTL characters in the text than
+    LTR"). כאן הוא נקבע לפי המסמך כולו: שורה בלי עברית במסמך עברי היא חלק מפסקה עברית.
+    כתובת שמסתיימת בלוכסן, בעמוד עברי, מצוירת "/https://...", ורק בפסקה מימין לשמאל
+    הסדר הלוגי שלה הוא "https://.../". מילה אחת באנגלית נראית זהה בשני הכיוונים, ולכן
+    לא משתנה.
+
+    בתיקו, כולל מסמך בלי אף תו חזק, הכיוון הוא מימין לשמאל: זה קורא של מסמכים עבריים
+    (HL1 מתיר "default to level 1 (RTL) rather than 0 (LTR) to match overall RTL context").
     """
+    strong_rtl = strong_ltr = 0
+    for text in texts:
+        kind = bidi_class(text)
+        if kind in ("R", "AL"):
+            strong_rtl += 1
+        elif kind == "L":
+            strong_ltr += 1
+    return strong_ltr <= strong_rtl
+
+
+def _has_rtl(kinds: Sequence[str]) -> bool:
+    """האם יש בשורה תו חזק מימין לשמאל (R או AL)."""
     return any(kind in ("R", "AL") for kind in kinds)
 
 
@@ -279,6 +301,7 @@ def drawn(logical_texts: Sequence[str]) -> tuple[list[int], list[str]]:
 class Reading(Generic[T]):
     logical: list[T]
     texts: list[str]  # הטקסט הלוגי של כל איבר: סוגר ברמה 1 הפוך לצורה שבעמוד (L4)
+    rtl: bool  # כיוון הפסקה שבה השורה נקראה: מימין לשמאל (רמה 1) או משמאל לימין
     ambiguous: bool  # היו כמה קריאות תקינות, וברירת המחדל הכריעה
 
 
@@ -372,15 +395,21 @@ def _punctuation_errors(text: str) -> int:
                if text[i] in _PUNCTUATION and text[i - 1] == " " and text[i + 1] != " ")
 
 
-def to_logical(visual: Sequence[T], text_of: Callable[[T], str]) -> Reading[T]:
+def to_logical(visual: Sequence[T], text_of: Callable[[T], str], rtl_document: bool) -> Reading[T]:
     """הסדר הלוגי של שורה, מהאיברים שלה בסדר שבו הם בעמוד משמאל לימין.
 
-    text_of מחזיר את הטקסט של כל איבר. שורה בלי עברית נשארת כמו שהיא.
+    text_of מחזיר את הטקסט של כל איבר. rtl_document: כיוון הפסקה של המסמך (document_rtl).
+
+    במסמך עברי כל שורה נקראת בפסקה מימין לשמאל, גם שורה בלי עברית. במסמך שרובו לא
+    עברי, שורה בלי עברית נשארת כמו שהיא (פסקה משמאל לימין). שורה עם עברית במסמך כזה
+    נקראת בפסקה מימין לשמאל, כמו לפני שהכיוון נקבע לפי המסמך: ההיפוך של פסקה משמאל
+    לימין שיש בה עברית (רמות 0, 1 ו-2) לא ממומש, ובסט הבדיקה אין מסמך כזה. הכיוון
+    שבו השורה נקראה בפועל חוזר ב-Reading.rtl, ובדיקת התצוגה משתמשת בו.
     """
     texts = [text_of(item) for item in visual]
     kinds = [bidi_class(text) for text in texts]
-    if not is_rtl(kinds):
-        return Reading(list(visual), texts, ambiguous=False)
+    if not (rtl_document or _has_rtl(kinds)):
+        return Reading(list(visual), texts, rtl=False, ambiguous=False)
     weak = _weak_rules(kinds)
     numbers = _numbers(weak)
     fixed_pairs, open_pairs = _visual_pairs(texts, weak)
@@ -405,7 +434,7 @@ def to_logical(visual: Sequence[T], text_of: Callable[[T], str]) -> Reading[T]:
     ranked = sorted(candidates.items(), key=lambda item: item[1][:3])
     best_ids, (invalid, errors, _flips, best_texts) = ranked[0]
     ties = [ids for ids, rank in ranked if rank[:2] == (invalid, errors)]
-    return Reading([visual[i] for i in best_ids], best_texts, ambiguous=not invalid and len(ties) > 1)
+    return Reading([visual[i] for i in best_ids], best_texts, rtl=True, ambiguous=not invalid and len(ties) > 1)
 
 
 def _flip_sets(numbers: list[tuple[int, int]]):

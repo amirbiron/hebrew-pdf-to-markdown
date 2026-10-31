@@ -15,6 +15,7 @@ from bidi import get_display
 
 from hebrew_pdf.chars import Char
 from hebrew_pdf.lines import Line, build_line
+from hebrew_pdf.logical_order import document_rtl
 from hebrew_pdf.logical_order import drawn as drawn_texts
 
 
@@ -26,9 +27,18 @@ def drawn(logical: str) -> str:
     return "".join(texts)
 
 
+def row_of(visual: str) -> list[Char]:
+    """אותיות של שורה אחת, כל תו במקום שלו משמאל לימין, ברוחב 1 ובגובה 1.
+
+    גם תו רווח תופס מקום: הקורא מוריד אותו, ונשאר פער ברוחב 1, שהוא פער בין מילים
+    (hebrew_pdf/spacing.py). כך רווח במחרוזת הוא רווח בעמוד.
+    """
+    return [Char(ch, x + 0.5, 0.0, float(x), x + 1.0, 1.0) for x, ch in enumerate(visual)]
+
+
 def page_line(logical: str) -> Line:
-    """השורה כמו שהקורא היה רואה אותה בעמוד: כל תו במקום שלו, משמאל לימין."""
-    return build_line([Char(ch, float(x), 0.0) for x, ch in enumerate(drawn(logical))])
+    """השורה כמו שהקורא היה רואה אותה בעמוד של מסמך עברי."""
+    return build_line(row_of(drawn(logical)), rtl_document=True)
 
 
 class MixedRunsTest(unittest.TestCase):
@@ -127,19 +137,52 @@ class LineEdgesTest(unittest.TestCase):
         # בפלאייר ה-? של "ומה איתך?" ממופה ל-U+001C, שנמצא בקצה השמאלי של השורה.
         # str.strip() מחשיב אותו רווח ומחק אותו; אות שנמחקת בשקט היא כשל שלמות.
         visual = "\x1c" + get_display("ומה איתך", base_dir="R")
-        line = build_line([Char(ch, float(x), 0.0) for x, ch in enumerate(visual)])
+        line = build_line(row_of(visual), rtl_document=True)
         self.assertIn("\x1c", line.text)
 
     def test_spaces_at_the_edges_are_removed(self):
-        line = build_line([Char(ch, float(x), 0.0) for x, ch in enumerate("  םולש  ")])
+        line = build_line(row_of("  םולש  "), rtl_document=True)
         self.assertEqual(line.text, "שלום")
 
 
-class LeftToRightLineTest(unittest.TestCase):
-    def test_line_without_hebrew_keeps_page_order(self):
-        # כיוון של שורה בלי עברית הוא החלטה פתוחה במסמך האפיון; כאן משמאל לימין
-        row = [Char(ch, float(x), 0.0) for x, ch in enumerate("/https://example.com")]
-        self.assertEqual(build_line(row).text, "/https://example.com")
+class DocumentDirectionTest(unittest.TestCase):
+    """כיוון הפסקה הוא של המסמך (document_rtl), לא של השורה."""
+
+    def test_line_without_hebrew_in_a_hebrew_document(self):  # שורה 16
+        line = build_line(row_of("/https://example.com"), rtl_document=True)
+        self.assertEqual(line.text, "https://example.com/")
+        self.assertTrue(line.rtl)
+
+    def test_one_english_word_looks_the_same_in_both_directions(self):  # שורה 7
+        self.assertEqual(build_line(row_of("OSMentor"), rtl_document=True).text, "OSMentor")
+        self.assertEqual(build_line(row_of("OSMentor"), rtl_document=False).text, "OSMentor")
+
+    def test_numbers_only_row_is_read_right_to_left_in_a_hebrew_document(self):
+        # שורת המשך של טבלה בדוח הכספי: העמודה הימנית ראשונה, כמו בשורות המתויגות 38-40
+        self.assertEqual(page_line("19,677 19,138 3%").text, "19,677 19,138 3%")
+        self.assertEqual(build_line(row_of("3% 19,138 19,677"), rtl_document=True).text, "19,677 19,138 3%")
+
+    def test_line_without_hebrew_in_an_english_document_keeps_page_order(self):
+        line = build_line(row_of("/https://example.com"), rtl_document=False)
+        self.assertEqual(line.text, "/https://example.com")
+        self.assertFalse(line.rtl)
+
+    def test_hebrew_line_in_an_english_document_is_still_read_right_to_left(self):
+        # ההיפוך של פסקה משמאל לימין שיש בה עברית לא ממומש (ראו to_logical)
+        line = build_line(row_of(drawn("שלום Meta עולם")), rtl_document=False)
+        self.assertEqual(line.text, "שלום Meta עולם")
+        self.assertTrue(line.rtl)
+
+    def test_majority_of_strong_characters_decides(self):
+        self.assertTrue(document_rtl("שלום עולם world"))  # 8 מול 5
+        self.assertFalse(document_rtl("hello עולם"))  # 4 מול 5
+        # ספרות, רווחים וסימנים אינם תווים חזקים
+        self.assertFalse(document_rtl("ab 1234567 (!) א"))
+
+    def test_tie_and_no_strong_characters_are_right_to_left(self):
+        self.assertTrue(document_rtl("ab אב"))
+        self.assertTrue(document_rtl("123 - 456"))
+        self.assertTrue(document_rtl(""))
 
 
 if __name__ == "__main__":

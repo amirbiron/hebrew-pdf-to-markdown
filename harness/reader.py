@@ -13,14 +13,16 @@ from pathlib import Path
 
 import pypdfium2 as pdfium
 
-from hebrew_pdf.lines import PageText, read_page
+from hebrew_pdf.lines import PageText, read_document
 
 
 def read_pages(pdf_path: Path) -> list[PageText]:
     """הטקסט של כל עמוד בקובץ, לפי בונה השורות שבחבילה hebrew_pdf, עם מספר האותיות שדולגו.
 
+    כל המסמך נקרא בבת אחת (hebrew_pdf.lines.read_document), כי כיוון הפסקה נקבע לפי המסמך כולו.
+
     PdfDocument נסגר ביציאה מה-with (pypdfium2/_helpers/document.py, __exit__ קורא ל-close),
     ואיטרציה עליו מחזירה את העמודים לפי הסדר (document.py, __iter__).
     """
     with pdfium.PdfDocument(str(pdf_path)) as pdf:
-        return [read_page(page) for page in pdf]
+        return read_document(pdf)

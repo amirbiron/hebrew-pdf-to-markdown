@@ -14,6 +14,11 @@ class Char(NamedTuple):
     text: str  # בסוגר: התו של הצורה שמצוירת בעמוד, לא התו שבקובץ (bracket_shapes.py)
     x: float  # מרכז התיבה, אופקית
     baseline: float  # ה-y של נקודת המוצא של האות (FPDFText_GetCharOrigin)
+    # התיבה הרופפת (FPDFText_GetLooseCharBox): משמאל ומימין לפי רוחב ההתקדמות של האות,
+    # ובגובה לפי תיבת הגופן. ממנה נמדדים הפערים בין אותיות (spacing.py)
+    left: float
+    right: float
+    height: float
 
 
 @dataclass(frozen=True)
@@ -53,9 +58,14 @@ def page_chars(page) -> PageChars:
             continue
         # get_charbox זורקת PdfiumError בכשל (pypdfium2/_helpers/textpage.py), ואחרי
         # GetCharOrigin מוצלחת היא לא יכולה להיכשל: אותו תנאי, והמצביעים לא ריקים.
+        # כך גם התיבה הרופפת (loose=True, FPDFText_GetLooseCharBox ב-fpdfsdk/fpdf_text.cpp).
         box = textpage.get_charbox(i)
         center = (box[0] + box[2]) / 2
-        if not (math.isfinite(center) and math.isfinite(y.value)):
+        # התיבה הרופפת: משמאל = נקודת המוצא, מימין = המוצא ועוד רוחב ההתקדמות של האות,
+        # ולמעלה ולמטה = תיבת הגופן (GetLooseBounds ב-core/fpdftext/cpdf_textpage.cpp).
+        # כשאין לאות תיבה בכלל (תיבה ריקה, למשל רווח ש-PDFium הוסיף) היא ריקה גם כאן.
+        loose_left, loose_bottom, loose_right, loose_top = textpage.get_charbox(i, loose=True)
+        if not all(math.isfinite(v) for v in (center, y.value, loose_left, loose_bottom, loose_right, loose_top)):
             skipped += 1
             continue
         if ch in FAMILIES:
@@ -64,5 +74,5 @@ def page_chars(page) -> PageChars:
                 unknown_brackets += 1
             else:
                 ch = shape
-        chars.append(Char(ch, center, y.value))
+        chars.append(Char(ch, center, y.value, loose_left, loose_right, loose_top - loose_bottom))
     return PageChars(chars, skipped, unknown_brackets)

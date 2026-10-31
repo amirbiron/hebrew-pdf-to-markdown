@@ -19,8 +19,8 @@ from harness.display_check import _paragraph_breaks_as_separators, displays_like
 from harness.run import DEFAULT_PDFS
 from harness.textdiff import normalize
 from hebrew_pdf.chars import page_chars
-from hebrew_pdf.lines import Line, group_rows, read_page
-from hebrew_pdf.logical_order import bidi_class, display_levels, display_order, is_rtl
+from hebrew_pdf.lines import Line, group_rows, read_document
+from hebrew_pdf.logical_order import display_levels, display_order
 from prototype import hebrew_pdf_prototype as prototype
 
 # (קובץ, עמוד): מספר השורות שלא עוברות את בדיקת התצוגה, והסיבה
@@ -43,36 +43,47 @@ def forward_display(text: str) -> str:
 
 class DisplayCheckUnitTest(unittest.TestCase):
     def test_logical_text_passes(self):
-        self.assertTrue(displays_like_page(Line("שלום Meta, Google עולם", "םלוע Meta, Google םולש")))
+        self.assertTrue(displays_like_page(Line("שלום Meta, Google עולם", "םלוע Meta, Google םולש", rtl=True)))
 
     def test_reversed_english_order_fails(self):
-        self.assertFalse(displays_like_page(Line("שלום Google ,Meta עולם", "םלוע Meta, Google םולש")))
+        self.assertFalse(displays_like_page(Line("שלום Google ,Meta עולם", "םלוע Meta, Google םולש", rtl=True)))
 
     def test_spaces_are_collapsed_but_their_position_counts(self):
-        self.assertTrue(displays_like_page(Line("ומה  איתך", "ךתיא  המו")))
-        self.assertFalse(displays_like_page(Line("ומהא יתך", "ךתיא המו")))
+        self.assertTrue(displays_like_page(Line("ומה  איתך", "ךתיא  המו", rtl=True)))
+        self.assertFalse(displays_like_page(Line("ומהא יתך", "ךתיא המו", rtl=True)))
+
+    def test_the_text_is_shown_in_the_direction_the_reader_used(self):
+        # שורה בלי עברית: הלוכסן שבסוף הכתובת מוצג בקצה השמאלי רק בפסקה מימין לשמאל
+        self.assertTrue(displays_like_page(Line("https://x.com/", "/https://x.com", rtl=True)))
+        self.assertFalse(displays_like_page(Line("https://x.com/", "/https://x.com", rtl=False)))
+        self.assertTrue(displays_like_page(Line("/https://x.com", "/https://x.com", rtl=False)))
 
 
 class WholeSetTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.lines = []  # (קובץ, עמוד, Line של הקורא, טקסט של האב-טיפוס)
+        # (קובץ, עמוד, Line של הקורא, השורה של האב-טיפוס). לאב-טיפוס השורה בעמוד היא עם תווי
+        # הרווח שבקובץ, כי ממנה הוא בנה את הטקסט; לקורא היא עם הרווחים לפי הפער
+        cls.lines = []
         for path in sorted(DEFAULT_PDFS.glob("*.pdf")):
             with pdfium.PdfDocument(str(path)) as pdf:
-                for number, page in enumerate(pdf, 1):
+                pages = read_document(pdf)
+                for number, (page, page_text) in enumerate(zip(pdf, pages, strict=True), 1):
                     rows = group_rows(page_chars(page).chars)
-                    lines = read_page(page).lines
-                    for row, line in zip(rows, lines, strict=True):
+                    for row, line in zip(rows, page_text.lines, strict=True):
                         if normalize(line.visual):
-                            old = prototype.build_line([tuple(c) for c in row])
+                            old_visual = "".join(c.text for c in sorted(row, key=lambda c: c.x))
+                            old = Line(prototype.build_line([tuple(c) for c in row]), old_visual,
+                                       rtl=bool(prototype.HEBREW.search(old_visual)))
                             cls.lines.append((path.name, number, line, old))
 
     def test_the_whole_set_is_checked(self):
         self.assertGreater(len(self.lines), 3000)  # נמדד: 3541 שורות עם טקסט
 
     def test_prototype_output_fails_the_check(self):
-        failures = sum(not displays_like_page(Line(old, line.visual)) for _, _, line, old in self.lines)
-        self.assertGreater(failures, 100)  # נמדד: 172
+        # כל שורה מוצגת בכיוון שהאב-טיפוס התכוון אליו: מימין לשמאל רק כשיש בה עברית
+        failures = sum(not displays_like_page(old) for _, _, _, old in self.lines)
+        self.assertGreater(failures, 100)  # נמדד: 173 (גם על הקוד של סוף סבב 2)
 
     def test_failures_are_exactly_the_known_ones(self):
         failures = collections.Counter(
@@ -82,10 +93,10 @@ class WholeSetTest(unittest.TestCase):
     def test_reader_display_agrees_with_python_bidi(self):
         disagreements = []
         for _, _, line, _ in self.lines:
+            if not line.rtl:  # המימוש של הקורא מציג רק בפסקה מימין לשמאל
+                continue
             for text in (line.text, line.visual):  # גם טקסט שלא הקורא בנה
                 text = _paragraph_breaks_as_separators(text)
-                if not is_rtl([bidi_class(ch) for ch in text]):
-                    continue
                 if normalize(forward_display(text)) != normalize(get_display(text, base_dir="R")):
                     disagreements.append(text)
         self.assertEqual(disagreements, [])
