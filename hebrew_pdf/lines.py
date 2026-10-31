@@ -47,7 +47,9 @@ def build_line(row: list[Char]) -> Line:
     """השורה בסדר הלוגי, מהאותיות שלה לפי מיקומן בעמוד (ראו logical_order.py)."""
     visual = sorted(row, key=lambda c: c.x)
     reading = to_logical(visual, lambda c: c.text)
-    text = re.sub(r" {2,}", "  ", "".join(c.text for c in reading.logical)).strip()
+    # רק התו רווח יורד מהקצוות, כמו שרק הוא מאוחד. strip() בלי ארגומנט מוחק גם את
+    # U+001C עד U+001F, שבקבצים הם אותיות שמופו בטעות (ה-? של "ומה איתך?" בפלאייר).
+    text = re.sub(r" {2,}", "  ", "".join(c.text for c in reading.logical)).strip(" ")
     return Line(text, "".join(c.text for c in visual), reading.ambiguous)
 
 

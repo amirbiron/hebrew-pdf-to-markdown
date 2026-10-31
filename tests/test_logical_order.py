@@ -79,6 +79,19 @@ class AmbiguousReadingTest(unittest.TestCase):
         self.assertEqual(line.text, "Onboarding 1 אישי")
 
 
+class LineEdgesTest(unittest.TestCase):
+    def test_control_character_at_the_edge_is_kept(self):
+        # בפלאייר ה-? של "ומה איתך?" ממופה ל-U+001C, שנמצא בקצה השמאלי של השורה.
+        # str.strip() מחשיב אותו רווח ומחק אותו; אות שנמחקת בשקט היא כשל שלמות.
+        visual = "\x1c" + get_display("ומה איתך", base_dir="R")
+        line = build_line([Char(ch, float(x), 0.0) for x, ch in enumerate(visual)])
+        self.assertIn("\x1c", line.text)
+
+    def test_spaces_at_the_edges_are_removed(self):
+        line = build_line([Char(ch, float(x), 0.0) for x, ch in enumerate("  םולש  ")])
+        self.assertEqual(line.text, "שלום")
+
+
 class LeftToRightLineTest(unittest.TestCase):
     def test_line_without_hebrew_keeps_page_order(self):
         # כיוון של שורה בלי עברית הוא החלטה פתוחה במסמך האפיון; כאן משמאל לימין

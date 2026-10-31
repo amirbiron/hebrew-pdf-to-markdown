@@ -16,7 +16,7 @@
 | לא ברורות (לא נספרות) | 0 |
 | שורות פגומות בטבלת התיוג | 0 |
 | אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | 0 |
-| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | 3 מתוך 3541 |
+| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | 2 מתוך 3541 |
 | שורות דו-משמעיות (בכל הסט) | 45 |
 
 מרחק תווים: כמה הוספות, מחיקות או החלפות של תו בודד צריך כדי להגיע מהשורה הקרובה ביותר בעמוד לטקסט הנכון. 0 = זהה. רצף רווחים נחשב לרווח אחד.
@@ -57,7 +57,7 @@
 | 26 | gps-book_indesign.pdf | 2 | ✗ | 2 | אנו חברה לניהול עסקים פרטיים (קטנים ובינוניים). מתמחים באבחון, | אנו חברה לניהול עסקים פרטיים )קטנים ובינוניים(. מתמחים באבחון, |
 | 27 | gps-book_indesign.pdf | 2 | ✓ זהה | 0 | אנו מתגאים במעל 90% הצלחה |  |
 | 28 | marketing-flyer_illustrator.pdf | 1 | ✗ | 3 | מאות חברות בחרו ב GPS לעסקים | מאות חברות בחרו ב ⟨U+001D⟩⟨U+001E⟩⟨U+001F⟩ לעסקים |
-| 29 | marketing-flyer_illustrator.pdf | 1 | ✗ | 3 | ומה איתך? | ומהא יתך |
+| 29 | marketing-flyer_illustrator.pdf | 1 | ✗ | 3 | ומה איתך? | ומהא יתך⟨U+001C⟩ |
 | 30 | marketing-flyer_illustrator.pdf | 1 | ✗ | 10 | בניית תוכנית עבודה | פיתוח תהליכי עבודה |
 | 31 | marketing-flyer_illustrator.pdf | 1 | ✗ | 12 | פרסום במדיות, יחסי | פיתוח תשתיות |
 | 32 | presentation_canva.pdf | 2 | ✗ | 24 | מאיה קארגי \| 058-7999120 \| OOHMYWEB.COM | מאיה קארגי \| OOHMYWEB.COM \| 058-7999120 |
@@ -86,7 +86,7 @@
 | doc-6p_gdocs.pdf | gdocs | 6 | 100% | 0% | 1 | 14 | 3 | 2 | 3 |
 | financial-report-q2-2025_aspose.pdf | aspose | 66 | 100% | 0% | 0 | 1 | 4 | 0 | 45 |
 | gps-book_indesign.pdf | indesign | 16 | 100% | 0% | 0 | 1 | 3 | 2 | 2 |
-| marketing-flyer_illustrator.pdf | illustrator | 1 | 100% | 0% | 1 | 0 | 4 | 0 | 28 |
+| marketing-flyer_illustrator.pdf | illustrator | 1 | 100% | 0% | 0 | 0 | 4 | 0 | 28 |
 | mentoros-overview_weasyprint.pdf | weasyprint | 8 | 100% | 0% | 1 | 3 | 5 | 2 | 30 |
 | optimization_chrome.pdf | chrome | 1 | 100% | 0% | 0 | 0 | 2 | 1 | 3 |
 | presentation_canva.pdf | canva | 24 | 100% | 0% | 0 | 23 | 3 | 0 | 26 |
@@ -198,7 +198,7 @@
 | gps-book_indesign.pdf | 14 | 9 | 0 | 0 | 0 | — | — |
 | gps-book_indesign.pdf | 15 | 3 | 0 | 0 | 0 | 100% | — |
 | gps-book_indesign.pdf | 16 | 5 | 0 | 0 | 1 | 100% | 0% |
-| marketing-flyer_illustrator.pdf | 1 | 65 | 0 | 1 | 0 | 100% | 0% |
+| marketing-flyer_illustrator.pdf | 1 | 65 | 0 | 0 | 0 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 1 | 9 | 0 | 0 | 0 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 2 | 15 | 0 | 1 | 1 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 3 | 19 | 0 | 0 | 1 | 100% | 0% |
