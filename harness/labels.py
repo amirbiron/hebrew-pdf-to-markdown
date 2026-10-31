@@ -106,6 +106,8 @@ def parse_labels(text: str, known_files: frozenset[str]) -> tuple[list[Label], l
     if delimiter_index >= len(lines) or not lines[delimiter_index].strip().startswith("|") \
             or not _is_delimiter_row(split_row(lines[delimiter_index])):
         raise LabelsFileError(f"שורה {delimiter_index + 1}: אחרי הכותרת חסרה שורת ההפרדה (|---|---|...)")
+    # לפי GFM, כשמספר התאים בשורת ההפרדה שונה מהכותרת זו לא טבלה בכלל, ו-GitHub מציג את
+    # הבלוק כפסקה רגילה. מקור: https://github.github.com/gfm/#tables-extension- (דוגמה 203)
     delimiter_cells = len(split_row(lines[delimiter_index]))
     if delimiter_cells != len(COLUMNS):
         raise LabelsFileError(
