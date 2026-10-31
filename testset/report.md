@@ -9,25 +9,27 @@
 | | |
 |---|---|
 | שורות מאושרות שנספרו | 40 |
-| זהות לתיוג | 26 מתוך 40 |
-| מרחק תווים כולל | 134 |
-| שיעור שגיאת תווים (מרחק חלקי מספר התווים בטקסט הנכון) | 7.5% |
+| זהות לתיוג | 35 מתוך 40 |
+| מרחק תווים כולל | 33 |
+| שיעור שגיאת תווים (מרחק חלקי מספר התווים בטקסט הנכון) | 1.8% |
 | ממתינות לאישור (לא נספרות) | 0 |
 | לא ברורות (לא נספרות) | 0 |
 | שורות פגומות בטבלת התיוג | 0 |
 | תיוגים שעוברים את בדיקת הסדר (בכל סטטוס) | 37 מתוך 40 |
-| תאים זהים בטבלאות (env-vars_weasyprint.pdf) | 8 (0.3%) מתוך 2792 |
-| שורות טבלה זהות (env-vars_weasyprint.pdf) | 0 (0.0%) מתוך 468 |
+| תאים זהים בטבלאות (env-vars_weasyprint.pdf) | 2561 (91.7%) מתוך 2792 |
+| שורות טבלה זהות (env-vars_weasyprint.pdf) | 309 (66.0%) מתוך 468 |
 | אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | 0 |
 | סוגריים שהצורה שלהם לא נקבעה מהציור (בכל הסט) | 0 |
-| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | 10 מתוך 5531 |
-| שורות דו-משמעיות (בכל הסט) | 308 |
+| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | 7 מתוך 5531 |
+| שורות דו-משמעיות (בכל הסט) | 99 |
 
 מרחק תווים: כמה הוספות, מחיקות או החלפות של תו בודד צריך כדי להגיע מהשורה הקרובה ביותר בעמוד לטקסט הנכון. 0 = זהה. רצף רווחים נחשב לרווח אחד.
 
-בדיקת התצוגה: כל שורה בסט, לא רק המתויגות, מוצגת באלגוריתם התצוגה של Unicode, בכיוון הפסקה שבו הקורא קרא אותה (Line.rtl: כיוון אחד לכל המסמך, לפי hebrew_pdf/logical_order.document_rtl; במסמך עברי כל שורה מימין לשמאל, גם שורה בלי עברית), ומושווית לסדר האותיות בעמוד. שורה שנכשלת היא שורה שהפלט שלה לא ייראה כמו העמוד. שורה דו-משמעית היא שורה שיותר מקריאה אחת שלה נראית בדיוק כמו העמוד (למשל "1 Onboarding" ו-"Onboarding 1"), והקורא בחר לפי ברירת מחדל. ההסבר המלא ב-harness/display_check.py וב-hebrew_pdf/logical_order.py.
+בדיקת התצוגה: כל שורה בסט, לא רק המתויגות, מוצגת באלגוריתם התצוגה של Unicode, בכיוון הפסקה שבו הקורא קרא אותה (כיוון אחד לכל המסמך, לפי רוב השורות, hebrew_pdf/logical_order.document_rtl; במסמך עברי כל שורה מימין לשמאל, גם שורה בלי עברית), ומושווית לסדר האותיות בעמוד. שורה עם כמה רכיבים (תאים, תיבות; hebrew_pdf/layout.py) נבדקת רכיב-רכיב, כי כל רכיב נקרא בנפרד. שורה שנכשלת היא שורה שהפלט שלה לא ייראה כמו העמוד. שורה דו-משמעית היא שורה שיותר מקריאה אחת שלה נראית בדיוק כמו העמוד (למשל "1 Onboarding" ו-"Onboarding 1"), והקורא בחר לפי ברירת מחדל. ההסבר המלא ב-harness/display_check.py וב-hebrew_pdf/logical_order.py.
 
 בדיקת הסדר של התיוגים: כל "טקסט נכון" מוצג באלגוריתם התצוגה של החבילה (hebrew_pdf/logical_order.drawn, כולל שיקוף סוגריים), כל תא בנפרד והתאים מימין לשמאל, ומושווה בלי רווחים לסדר האותיות בשורה בעמוד שיש לה הכי הרבה אותיות משותפות איתו. "שורה שלמה" ו-"חלק מהשורה" עוברות; "סדר שונה" הוא תיוג שגוי בסדר; "חסר בעמוד" הוא טקסט שאין בקובץ או שנוסף בתיוג. כך אדם בודק רק תוכן, והמכונה בודקת סדר. ההסבר המלא ב-harness/label_order.py.
+
+שורה עם כמה רכיבים מושווית לתיוג כתאים, עם <br> ביניהם. תיוג של תא אחד נמדד גם מול כל תא בנפרד, לפי "שורה אחת" ב-testset/labels.md: כשבשורה בעמוד יש כמה עמודות או תיבות, השורה המתויגת היא רק החלק של העמודה האחת.
 
 המרחק הוא גבול תחתון: כשהקורא שובר שורה מאוד (למשל מדביק אליה עמודה שכנה), שורה אחרת בעמוד יכולה להיות קרובה יותר מהשורה שלה, ואז המרחק קטן מהשגיאה האמיתית. בעמודה "השורה הקרובה ביותר בפלט" רואים מול איזו שורה נמדד. המדד הראשי הוא מספר השורות הזהות.
 
@@ -36,16 +38,16 @@
 | מספר | קובץ | עמוד | תוצאה | מרחק | סדר התיוג | הטקסט הנכון | השורה הקרובה ביותר בפלט |
 |---|---|---|---|---|---|---|---|
 | 1 | chatbot-spec-form_gdocs.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | הסבר על טופס איפיון ראשוני לצ׳טבוט (לפני דיאגרמה) |  |
-| 2 | chatbot-spec-form_gdocs.pdf | 1 | ✗ | 2 | ✓ שורה שלמה | שאלה? <br> תשובת הלקוח | שאלה? תשובת הלקוח |
+| 2 | chatbot-spec-form_gdocs.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | שאלה? <br> תשובת הלקוח |  |
 | 3 | chatbot-spec-form_gdocs.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | (לדוגמה: סינון לידים, קביעת פגישות, תמיכה טכנית, |  |
 | 4 | doc-6p_gdocs.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | הארכיטקטורה של המערכת ב-Backend וב-Frontend בנויה בצורה הבאה, שלב אחרי שלב: |  |
 | 5 | doc-6p_gdocs.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | 1. חיבור פייסבוק (Meta OAuth): המשתמש נכנס למערכת ומבצע FB Connect. ה-Backend |  |
 | 6 | doc-6p_gdocs.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | שומר את ה-Access Token המאובטח ב-Supabase DB. |  |
 | 7 | mentoros-overview_weasyprint.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | OSMentor |  |
-| 8 | mentoros-overview_weasyprint.pdf | 1 | ✗ | 6 | ✓ שורה שלמה | מודולים מרכזיים <br> שאלות Deep Dive <br> זיכרון ארוך טווח <br> שכבות בטיחות | מודולים מרכזיים שאלות Deep Dive זיכרון ארוך טווח שכבות בטיחות |
+| 8 | mentoros-overview_weasyprint.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | מודולים מרכזיים <br> שאלות Deep Dive <br> זיכרון ארוך טווח <br> שכבות בטיחות |  |
 | 9 | mentoros-overview_weasyprint.pdf | 3 | ✗ | 4 | ✓ שורה שלמה | 1 Onboarding אישי — 10 שאלות | Onboarding 1 אישי — 10 שאלות |
 | 10 | mentoros-overview_weasyprint.pdf | 4 | ✓ זהה | 0 | ✓ שורה שלמה | כל החלטה נשמרת ואפשר לעקוב: פתוחה ← הוחלט ← נבחנה בדיעבד |  |
-| 11 | mentoros-overview_weasyprint.pdf | 8 | ✗ | 17 | ✓ שורה שלמה | Backend <br> FastAPI + Python 3.12 <br> שרת API מהיר, async, type-safe | FastAPI + Python 3.12 Backend שרת API מהיר, async, type-safe |
+| 11 | mentoros-overview_weasyprint.pdf | 8 | ✓ זהה | 0 | ✓ שורה שלמה | Backend <br> FastAPI + Python 3.12 <br> שרת API מהיר, async, type-safe |  |
 | 12 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | הצעת מחיר QT-00011 |  |
 | 13 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | הופקה ב-11/05/2026 · בתוקף עד 25/05/2026 |  |
 | 14 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | טלפון: 0543978620 |  |
@@ -55,7 +57,7 @@
 | 18 | price-quote_weasyprint.pdf | 4 | ✓ זהה | 0 | ✓ שורה שלמה | תקלות שמקורן בצד שלישי (Meta, Telegram, Google, ספקי תשתית), שאינן בשליטת החברה. |  |
 | 19 | social-publisher-setup_weasyprint.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | כל מה שצריך להכין לפני שמתחילים — Meta, Google Drive ו-Sheets |  |
 | 20 | social-publisher-setup_weasyprint.pdf | 2 | ✓ זהה | 0 | ✓ שורה שלמה | IG\_USER\_ID — נמצא ב-Business Settings ← Instagram Accounts. |  |
-| 21 | doc-4p_weasyprint.pdf | 1 | ✗ | 18 | ✓ חלק מהשורה | עוזרים לעסק שלך לחשוב אחרת | עוזרים לעסק שלך לחשוב אחרת מסמך אפיון דרישות |
+| 21 | doc-4p_weasyprint.pdf | 1 | ✓ זהה | 0 | ✓ חלק מהשורה | עוזרים לעסק שלך לחשוב אחרת |  |
 | 22 | doc-4p_weasyprint.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | תאריך: 11.06.2026 |  |
 | 23 | doc-2p_weasyprint.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | פרויקט Campaign AI · שותפות טכנולוגית · המטרה: להפוך "חזון" ל"עסקה שאפשר להעריך" |  |
 | 24 | doc-2p_weasyprint.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | מהרווח הנקי / מהמחזור / או בעלות בחברה (equity)? ההבדל עצום — אחוז מרווח נעלם אם אין רווח; equity שווה משהו גם במכירת החברה. |  |
@@ -64,17 +66,17 @@
 | 27 | gps-book_indesign.pdf | 2 | ✓ זהה | 0 | ✓ שורה שלמה | אנו מתגאים במעל 90% הצלחה |  |
 | 28 | marketing-flyer_illustrator.pdf | 1 | ✗ | 3 | ✗ חסר בעמוד: GPS | מאות חברות בחרו ב GPS לעסקים | מאות חברות בחרו ב ⟨U+001D⟩⟨U+001E⟩⟨U+001F⟩ לעסקים |
 | 29 | marketing-flyer_illustrator.pdf | 1 | ✗ | 1 | ✗ חסר בעמוד: ? | ומה איתך? | ומה איתך⟨U+001C⟩ |
-| 30 | marketing-flyer_illustrator.pdf | 1 | ✗ | 10 | ✓ חלק מהשורה | בניית תוכנית עבודה | פיתוח תהליכי עבודה |
-| 31 | marketing-flyer_illustrator.pdf | 1 | ✗ | 12 | ✓ חלק מהשורה | פרסום במדיות, יחסי | פיתוח תשתיות |
+| 30 | marketing-flyer_illustrator.pdf | 1 | ✓ זהה | 0 | ✓ חלק מהשורה | בניית תוכנית עבודה |  |
+| 31 | marketing-flyer_illustrator.pdf | 1 | ✓ זהה | 0 | ✓ חלק מהשורה | פרסום במדיות, יחסי |  |
 | 32 | presentation_canva.pdf | 2 | ✗ | 24 | ✓ שורה שלמה | מאיה קארגי \| 058-7999120 \| OOHMYWEB.COM | מאיה קארגי \| OOHMYWEB.COM \| 058-7999120 |
 | 33 | presentation_canva.pdf | 4 | ✓ זהה | 0 | ✓ שורה שלמה | המדריך הזה נולד מתוך ההבנה (וצורך אמיתי שלי להתייעלות בכתיבת תוכן) |  |
 | 34 | presentation_canva.pdf | 23 | ✗ | 1 | ✗ חסר בעמוד: 💫 | הכלים להפוך את החזון הזה למציאות 💫 | הכלים להפוך את החזון הזה למציאות ⟨U+009A⟩ |
 | 35 | optimization_chrome.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | ← זה הזמן לבחון ולדייק את הפרומפט (ההנחיה) של ה-AI בפאנל. |  |
 | 36 | optimization_chrome.pdf | 1 | ✓ זהה | 0 | ✓ שורה שלמה | 3. דיוק ה-AI |  |
 | 37 | financial-report-q2-2025_aspose.pdf | 35 | ✓ זהה | 0 | ✓ שורה שלמה | רב בריח (08) תעשיות בע"מ |  |
-| 38 | financial-report-q2-2025_aspose.pdf | 35 | ✗ | 12 | ✓ שורה שלמה | הכנסות ממכירות <br>  <br> 366,343 <br> 300,306\* <br> 178,881 <br> 145,921\* <br> 633,833\* | הכנסות ממכירות 366,343 300,306\* 178,881 145,921\* 633,833\* |
-| 39 | financial-report-q2-2025_aspose.pdf | 35 | ✗ | 12 | ✓ שורה שלמה | הוצאות (הכנסות) אחרות <br>  <br> (189) <br> (5,203) <br> (139) <br> 18 <br> (9,995)\* | הוצאות (הכנסות) אחרות (189) (5,203) (139) 18 (9,995)\* |
-| 40 | financial-report-q2-2025_aspose.pdf | 35 | ✗ | 12 | ✓ שורה שלמה | רווח (הפסד) מפעילויות נמשכות <br>  <br> (206) <br> (29,396) <br> (2,073) <br> (20,496) <br> (53,464) | רווח (הפסד) מפעילויות נמשכות (206) (29,396) (2,073) (20,496) (53,464) |
+| 38 | financial-report-q2-2025_aspose.pdf | 35 | ✓ זהה | 0 | ✓ שורה שלמה | הכנסות ממכירות <br>  <br> 366,343 <br> 300,306\* <br> 178,881 <br> 145,921\* <br> 633,833\* |  |
+| 39 | financial-report-q2-2025_aspose.pdf | 35 | ✓ זהה | 0 | ✓ שורה שלמה | הוצאות (הכנסות) אחרות <br>  <br> (189) <br> (5,203) <br> (139) <br> 18 <br> (9,995)\* |  |
+| 40 | financial-report-q2-2025_aspose.pdf | 35 | ✓ זהה | 0 | ✓ שורה שלמה | רווח (הפסד) מפעילויות נמשכות <br>  <br> (206) <br> (29,396) <br> (2,073) <br> (20,496) <br> (53,464) |  |
 
 ממתינות לאישור: אין
 
@@ -89,21 +91,21 @@
 | | |
 |---|---|
 | שורות בדף התשובות (בלי שורות כותרת) | 468 |
-| שורות שנמצאו בפלט לפי התא הראשון | 8 (1.7%) |
-| שורות זהות | 0 (0.0%) |
-| תאים זהים | 8 (0.3%) מתוך 2792 |
-| תאים שלמים בשורה אחת | 1066 (58.6%) מתוך 1820 |
+| שורות שנמצאו בפלט לפי התא הראשון | 460 (98.3%) |
+| שורות זהות | 309 (66.0%) |
+| תאים זהים | 2561 (91.7%) מתוך 2792 |
+| תאים שלמים בשורה אחת | 1636 (89.9%) מתוך 1820 |
 
 | עמודה | תאים | זהים | שלמים בשורה אחת |
 |---|---|---|---|
-| משתנה | 464 | 8 (1.7%) | 299 (64.6%) מתוך 463 |
-| תיאור | 464 | 0 (0.0%) | 30 (6.5%) מתוך 464 |
-| חובה | 464 | 0 (0.0%) | 2 (66.7%) מתוך 3 |
-| ברירת מחדל | 464 | 0 (0.0%) | 186 (68.9%) מתוך 270 |
-| דוגמה | 464 | 0 (0.0%) | 224 (77.5%) מתוך 289 |
-| רכיב | 464 | 0 (0.0%) | 318 (98.5%) מתוך 323 |
-| Feature | 4 | 0 (0.0%) | 4 (100.0%) מתוך 4 |
-| Required Scopes | 4 | 0 (0.0%) | 3 (75.0%) מתוך 4 |
+| משתנה | 464 | 456 (98.3%) | 456 (98.5%) מתוך 463 |
+| תיאור | 464 | 356 (76.7%) | 358 (77.2%) מתוך 464 |
+| חובה | 464 | 452 (97.4%) | 3 (100.0%) מתוך 3 |
+| ברירת מחדל | 464 | 396 (85.3%) | 211 (78.1%) מתוך 270 |
+| דוגמה | 464 | 442 (95.3%) | 278 (96.2%) מתוך 289 |
+| רכיב | 464 | 452 (97.4%) | 323 (100.0%) מתוך 323 |
+| Feature | 4 | 4 (100.0%) | 4 (100.0%) מתוך 4 |
+| Required Scopes | 4 | 3 (75.0%) | 3 (75.0%) מתוך 4 |
 
 ## לפי קובץ
 
@@ -111,15 +113,15 @@
 
 | קובץ | תוכנה | עמודים | אותיות סופיות | פיסוק בתחילת שורה | בדיקת תצוגה נכשלה | דו-משמעיות | מאושרות | זהות | מרחק |
 |---|---|---|---|---|---|---|---|---|---|
-| chatbot-spec-form_gdocs.pdf | gdocs | 4 | 100% | 0% | 0 | 0 | 3 | 2 | 2 |
+| chatbot-spec-form_gdocs.pdf | gdocs | 4 | 100% | 0% | 0 | 0 | 3 | 3 | 0 |
 | doc-2p_weasyprint.pdf | weasyprint | 2 | 100% | 0% | 0 | 0 | 2 | 2 | 0 |
-| doc-4p_weasyprint.pdf | weasyprint | 4 | 100% | 0% | 0 | 0 | 2 | 1 | 18 |
+| doc-4p_weasyprint.pdf | weasyprint | 4 | 100% | 0% | 0 | 0 | 2 | 2 | 0 |
 | doc-6p_gdocs.pdf | gdocs | 6 | 100% | 0% | 1 | 12 | 3 | 3 | 0 |
-| env-vars_weasyprint.pdf | weasyprint | 63 | 100% | 0% | 8 | 262 | 0 | 0 | 0 |
-| financial-report-q2-2025_aspose.pdf | aspose | 66 | 100% | 0% | 0 | 1 | 4 | 1 | 36 |
+| env-vars_weasyprint.pdf | weasyprint | 63 | 100% | 0% | 6 | 52 | 0 | 0 | 0 |
+| financial-report-q2-2025_aspose.pdf | aspose | 66 | 100% | 0% | 0 | 1 | 4 | 4 | 0 |
 | gps-book_indesign.pdf | indesign | 16 | 100% | 0% | 0 | 2 | 3 | 3 | 0 |
-| marketing-flyer_illustrator.pdf | illustrator | 1 | 100% | 0% | 0 | 0 | 4 | 0 | 26 |
-| mentoros-overview_weasyprint.pdf | weasyprint | 8 | 100% | 0% | 1 | 4 | 5 | 2 | 27 |
+| marketing-flyer_illustrator.pdf | illustrator | 1 | 100% | 0% | 0 | 0 | 4 | 2 | 4 |
+| mentoros-overview_weasyprint.pdf | weasyprint | 8 | 100% | 0% | 0 | 5 | 5 | 4 | 4 |
 | optimization_chrome.pdf | chrome | 1 | 100% | 0% | 0 | 0 | 2 | 2 | 0 |
 | presentation_canva.pdf | canva | 24 | 100% | 0% | 0 | 23 | 3 | 1 | 25 |
 | price-quote_weasyprint.pdf | weasyprint | 7 | 100% | 0% | 0 | 1 | 7 | 7 | 0 |
@@ -163,69 +165,69 @@
 | doc-6p_gdocs.pdf | 4 | 38 | 0 | 0 | 1 | 6 | 100% | 0% |
 | doc-6p_gdocs.pdf | 5 | 36 | 0 | 0 | 0 | 0 | 100% | 0% |
 | doc-6p_gdocs.pdf | 6 | 32 | 0 | 0 | 0 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 1 | 23 | 0 | 0 | 0 | 7 | 100% | 0% |
-| env-vars_weasyprint.pdf | 2 | 34 | 0 | 0 | 0 | 8 | 100% | 0% |
-| env-vars_weasyprint.pdf | 3 | 34 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 4 | 28 | 0 | 0 | 0 | 6 | 100% | 0% |
+| env-vars_weasyprint.pdf | 1 | 23 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 2 | 34 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 3 | 34 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 4 | 28 | 0 | 0 | 0 | 1 | 100% | 0% |
 | env-vars_weasyprint.pdf | 5 | 31 | 0 | 0 | 0 | 0 | 100% | 0% |
-| env-vars_weasyprint.pdf | 6 | 36 | 0 | 0 | 0 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 7 | 37 | 0 | 0 | 1 | 3 | 100% | 0% |
-| env-vars_weasyprint.pdf | 8 | 34 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 9 | 34 | 0 | 0 | 0 | 8 | 100% | 0% |
-| env-vars_weasyprint.pdf | 10 | 32 | 0 | 0 | 0 | 5 | 100% | 0% |
-| env-vars_weasyprint.pdf | 11 | 35 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 12 | 33 | 0 | 0 | 0 | 5 | 100% | 0% |
-| env-vars_weasyprint.pdf | 13 | 33 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 14 | 34 | 0 | 0 | 0 | 7 | 100% | 0% |
-| env-vars_weasyprint.pdf | 15 | 33 | 0 | 0 | 0 | 5 | 100% | 0% |
-| env-vars_weasyprint.pdf | 16 | 35 | 0 | 0 | 0 | 6 | 100% | 0% |
-| env-vars_weasyprint.pdf | 17 | 32 | 0 | 0 | 1 | 8 | 100% | 0% |
-| env-vars_weasyprint.pdf | 18 | 30 | 0 | 0 | 0 | 3 | 100% | 0% |
-| env-vars_weasyprint.pdf | 19 | 34 | 0 | 0 | 0 | 3 | 100% | 0% |
-| env-vars_weasyprint.pdf | 20 | 32 | 0 | 0 | 0 | 5 | 100% | 0% |
-| env-vars_weasyprint.pdf | 21 | 35 | 0 | 0 | 0 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 22 | 30 | 0 | 0 | 0 | 9 | 100% | 0% |
-| env-vars_weasyprint.pdf | 23 | 15 | 0 | 0 | 0 | 3 | 100% | 0% |
-| env-vars_weasyprint.pdf | 24 | 32 | 0 | 0 | 0 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 25 | 34 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 26 | 32 | 0 | 0 | 0 | 8 | 100% | 0% |
-| env-vars_weasyprint.pdf | 27 | 36 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 28 | 34 | 0 | 0 | 0 | 9 | 100% | 0% |
-| env-vars_weasyprint.pdf | 29 | 34 | 0 | 0 | 1 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 30 | 36 | 0 | 0 | 0 | 7 | 100% | 0% |
-| env-vars_weasyprint.pdf | 31 | 29 | 0 | 0 | 0 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 32 | 35 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 33 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
-| env-vars_weasyprint.pdf | 34 | 34 | 0 | 0 | 1 | 6 | 100% | 0% |
-| env-vars_weasyprint.pdf | 35 | 31 | 0 | 0 | 0 | 7 | 100% | 0% |
-| env-vars_weasyprint.pdf | 36 | 36 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 37 | 34 | 0 | 0 | 0 | 6 | 100% | 0% |
-| env-vars_weasyprint.pdf | 38 | 34 | 0 | 0 | 0 | 8 | 100% | 0% |
-| env-vars_weasyprint.pdf | 39 | 34 | 0 | 0 | 0 | 4 | 100% | 0% |
+| env-vars_weasyprint.pdf | 6 | 36 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 7 | 37 | 0 | 0 | 1 | 2 | 100% | 0% |
+| env-vars_weasyprint.pdf | 8 | 34 | 0 | 0 | 1 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 9 | 34 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 10 | 32 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 11 | 35 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 12 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 13 | 33 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 14 | 34 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 15 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 16 | 35 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 17 | 32 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 18 | 30 | 0 | 0 | 0 | 2 | 100% | 0% |
+| env-vars_weasyprint.pdf | 19 | 34 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 20 | 32 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 21 | 35 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 22 | 30 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 23 | 15 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 24 | 32 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 25 | 34 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 26 | 32 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 27 | 36 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 28 | 34 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 29 | 34 | 0 | 0 | 1 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 30 | 36 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 31 | 29 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 32 | 35 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 33 | 33 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 34 | 34 | 0 | 0 | 1 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 35 | 31 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 36 | 36 | 0 | 0 | 0 | 2 | 100% | 0% |
+| env-vars_weasyprint.pdf | 37 | 34 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 38 | 34 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 39 | 34 | 0 | 0 | 0 | 2 | 100% | 0% |
 | env-vars_weasyprint.pdf | 40 | 29 | 0 | 0 | 0 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 41 | 29 | 0 | 0 | 0 | 5 | 100% | 0% |
-| env-vars_weasyprint.pdf | 42 | 35 | 0 | 0 | 1 | 7 | 100% | 0% |
-| env-vars_weasyprint.pdf | 43 | 33 | 0 | 0 | 0 | 5 | 100% | 0% |
-| env-vars_weasyprint.pdf | 44 | 30 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 45 | 30 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 46 | 35 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 47 | 34 | 0 | 0 | 0 | 3 | 100% | 0% |
-| env-vars_weasyprint.pdf | 48 | 34 | 0 | 0 | 2 | 5 | 100% | 0% |
-| env-vars_weasyprint.pdf | 49 | 32 | 0 | 0 | 0 | 6 | 100% | 0% |
-| env-vars_weasyprint.pdf | 50 | 33 | 0 | 0 | 0 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 51 | 18 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 41 | 29 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 42 | 35 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 43 | 33 | 0 | 0 | 0 | 2 | 100% | 0% |
+| env-vars_weasyprint.pdf | 44 | 30 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 45 | 30 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 46 | 35 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 47 | 34 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 48 | 34 | 0 | 0 | 1 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 49 | 32 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 50 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 51 | 18 | 0 | 0 | 0 | 2 | 100% | 0% |
 | env-vars_weasyprint.pdf | 52 | 29 | 0 | 0 | 0 | 0 | 100% | 0% |
 | env-vars_weasyprint.pdf | 53 | 31 | 0 | 0 | 0 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 54 | 24 | 0 | 0 | 0 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 55 | 30 | 0 | 0 | 0 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 56 | 30 | 0 | 0 | 0 | 1 | 100% | 4% |
+| env-vars_weasyprint.pdf | 54 | 24 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 55 | 30 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 56 | 30 | 0 | 0 | 0 | 0 | 100% | 4% |
 | env-vars_weasyprint.pdf | 57 | 33 | 0 | 0 | 1 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 58 | 34 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 59 | 33 | 0 | 0 | 0 | 5 | 100% | 0% |
-| env-vars_weasyprint.pdf | 60 | 31 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 61 | 32 | 0 | 0 | 0 | 6 | 100% | 0% |
-| env-vars_weasyprint.pdf | 62 | 26 | 0 | 0 | 0 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 63 | 13 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 58 | 34 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 59 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
+| env-vars_weasyprint.pdf | 60 | 31 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 61 | 32 | 0 | 0 | 0 | 1 | 100% | 0% |
+| env-vars_weasyprint.pdf | 62 | 26 | 0 | 0 | 0 | 3 | 100% | 0% |
+| env-vars_weasyprint.pdf | 63 | 13 | 0 | 0 | 0 | 2 | 100% | 0% |
 | financial-report-q2-2025_aspose.pdf | 1 | 2 | 0 | 0 | 0 | 0 | 100% | 0% |
 | financial-report-q2-2025_aspose.pdf | 2 | 8 | 0 | 0 | 0 | 0 | 100% | 0% |
 | financial-report-q2-2025_aspose.pdf | 3 | 2 | 0 | 0 | 0 | 0 | 100% | 0% |
@@ -310,13 +312,13 @@
 | gps-book_indesign.pdf | 16 | 5 | 0 | 0 | 0 | 1 | 100% | 0% |
 | marketing-flyer_illustrator.pdf | 1 | 65 | 0 | 0 | 0 | 0 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 1 | 9 | 0 | 0 | 0 | 1 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 2 | 15 | 0 | 0 | 1 | 1 | 100% | 0% |
+| mentoros-overview_weasyprint.pdf | 2 | 15 | 0 | 0 | 0 | 1 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 3 | 19 | 0 | 0 | 0 | 1 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 4 | 19 | 0 | 0 | 0 | 0 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 5 | 19 | 0 | 0 | 0 | 1 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 6 | 19 | 0 | 0 | 0 | 0 | 100% | 0% |
 | mentoros-overview_weasyprint.pdf | 7 | 8 | 0 | 0 | 0 | 0 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 8 | 12 | 0 | 0 | 0 | 0 | 100% | 0% |
+| mentoros-overview_weasyprint.pdf | 8 | 12 | 0 | 0 | 0 | 1 | 100% | 0% |
 | optimization_chrome.pdf | 1 | 14 | 0 | 0 | 0 | 0 | 100% | 0% |
 | presentation_canva.pdf | 1 | 4 | 0 | 0 | 0 | 1 | 100% | 0% |
 | presentation_canva.pdf | 2 | 15 | 0 | 0 | 0 | 1 | 100% | 0% |
