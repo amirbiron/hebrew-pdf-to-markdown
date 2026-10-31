@@ -8,6 +8,7 @@
 
 import json
 import tempfile
+import unicodedata
 import unittest
 from pathlib import Path
 
@@ -120,6 +121,11 @@ class RepoTruthFileTest(unittest.TestCase):
         self.assertEqual(len(tables), 6)
         self.assertEqual(sum(len(t.rows) for t in tables), 468)
         self.assertEqual(tables[0].header, ("משתנה", "תיאור", "חובה", "ברירת מחדל", "דוגמה", "רכיב"))
+
+    def test_no_invisible_format_characters(self):
+        # התא מציג טקסט, ותו עיצוב בלתי נראה (Cf, כמו RLM) לא מוצג (tools/build_table_pdf.py)
+        cells = [cell for t in load_truth(TRUTH) for row in (t.header, *t.rows) for cell in row]
+        self.assertEqual([cell for cell in cells if any(unicodedata.category(ch) == "Cf" for ch in cell)], [])
 
     def test_every_truth_file_has_its_pdf(self):
         truth_files = sorted(DEFAULT_TRUTH.glob("*.truth.json"))

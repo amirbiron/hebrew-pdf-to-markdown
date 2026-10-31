@@ -15,6 +15,7 @@
 2. ההיפוך של L2: קוראים את V מימין לשמאל, וכל רצף ברמה 2 נשאר משמאל לימין.
    וההיפוך של L4: סוגר שנשאר ברמה 1 מוצג בשיקוף, ולכן התו הלוגי שלו הוא ההפוך
    לצורה שבעמוד. (בעמוד, התו של סוגר הוא הצורה המצוירת; ראו bracket_shapes.py.)
+   "סוגר" כאן הוא כל תו ב-bracket_shapes.PAIRS: ( ) [ ] { } < > « ».
 3. אימות: מציגים את התוצאה באלגוריתם התצוגה עצמו (display_order), ובודקים שיוצא V,
    כולל הצורה של כל סוגר.
 
@@ -38,8 +39,9 @@
 מקור הכללים: https://www.unicode.org/reports/tr9/ (גרסה 52, Unicode 18.0.0).
 
 מה לא ממומש, ולמה:
-- L4 (שיקוף) רק לסוגריים ( ) [ ] { }. תווים משתקפים אחרים (למשל < >) נשארים כמו
-  שהם בקובץ: לא בדקנו את הצורה המצוירת שלהם, ובסט יש 8 כאלה.
+- L4 (שיקוף) רק לתווים שהצורה שלהם נקבעת מהציור (bracket_shapes.PAIRS: ( ) [ ] { } < > « »).
+  תו משתקף אחר נשאר כמו שהוא בקובץ, כי בלי הצורה המצוירת אין דרך לדעת אם התו שבקובץ הוא
+  הלוגי או המצויר. בסט אין אף תו כזה (נספר בסבב 5: כל התווים עם Bidi_Mirrored בכל הקבצים).
 - X1-X10 (הטבעות ובידודים מפורשים): אין תווים כאלה בסט הבדיקה, ואין להם מיקום
   משלהם בעמוד. כל השורה היא פסקה אחת ברמה 1 בלי הטבעות, ולכן sos ו-eos הם R (X10).
 - זוגות סוגריים (BD16) רק עבור ( ) [ ] { }, לפי BidiBrackets.txt (גרסה 18.0.0:
@@ -55,14 +57,19 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Generic, TypeVar
 
+from hebrew_pdf.bracket_shapes import PAIRS
+
 T = TypeVar("T")
 
 RTL_LEVEL = 1  # רמת הפסקה העברית
 LTR_LEVEL = 2  # אנגלית ומספרים בתוך פסקה עברית (I2)
 
 _NEUTRAL = frozenset({"ON", "WS", "S"})
-# BidiBrackets.txt: הסוגר הפותח והסוגר הסוגר שלו
+# BidiBrackets.txt: הסוגר הפותח והסוגר הסוגר שלו (BD16 ו-N0). < > ו-« » אינם שם: הם משתקפים
+# בתצוגה (L4) אבל לא מזווגים
 _BRACKET_PAIRS = {"(": ")", "[": "]", "{": "}"}
+# L4: כל תו והתו שהוא מוצג כמוהו בשיקוף (bracket_shapes.PAIRS)
+_MIRROR = {a: b for pair in PAIRS for a, b in (pair, pair[::-1])}
 _CLOSING = frozenset(_BRACKET_PAIRS.values())
 _BD16_STACK = 63  # BD16: "Create a fixed-size stack for exactly 63 elements"
 _PUNCTUATION = frozenset(".,:;!?")
@@ -312,11 +319,8 @@ class Reading(Generic[T]):
 
 
 def _mirrored(text: str) -> str:
-    if text and text[0] in _BRACKET_PAIRS:
-        return _BRACKET_PAIRS[text[0]] + text[1:]
-    for opening, closing in _BRACKET_PAIRS.items():
-        if text and text[0] == closing:
-            return opening + text[1:]
+    if text and text[0] in _MIRROR:
+        return _MIRROR[text[0]] + text[1:]
     return text
 
 

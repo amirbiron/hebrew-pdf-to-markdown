@@ -31,7 +31,7 @@
 | 6 | doc-6p_gdocs.pdf | 1 | שומר את ה-Access Token המאובטח ב-.Supabase DB | שומר את ה-Access Token המאובטח ב-Supabase DB. | מאושר |
 | 7 | mentoros-overview_weasyprint.pdf | 1 | OSMentor | OSMentor | מאושר |
 | 8 | mentoros-overview_weasyprint.pdf | 1 | מודולים מרכזייםשאלות Deep Diveזיכרון ארוך טווחשכבות בטיחות | מודולים מרכזיים <br> שאלות Deep Dive <br> זיכרון ארוך טווח <br> שכבות בטיחות | מאושר |
-| 9 | mentoros-overview_weasyprint.pdf | 3 | Onboarding 1 אישי — 10 שאלות | 1 Onboarding אישי — 10 שאלות | מאושר |
+| 9 | mentoros-overview_weasyprint.pdf | 3 | Onboarding 1 אישי — 10 שאלות | 1 <br> Onboarding אישי — 10 שאלות | מאושר |
 | 10 | mentoros-overview_weasyprint.pdf | 4 | כל החלטה נשמרת ואפשר לעקוב: פתוחה ← הוחלט ← נבחנה בדיעבד | כל החלטה נשמרת ואפשר לעקוב: פתוחה ← הוחלט ← נבחנה בדיעבד | מאושר |
 | 11 | mentoros-overview_weasyprint.pdf | 8 | Backend Python 3.12 + FastAPI שרת API מהיר, type-safe ,async | Backend <br> FastAPI + Python 3.12 <br> שרת API מהיר, async, type-safe | מאושר |
 | 12 | price-quote_weasyprint.pdf | 1 | ה צ ע ת מ ח י ר QT-00011 | הצעת מחיר QT-00011 | מאושר |
