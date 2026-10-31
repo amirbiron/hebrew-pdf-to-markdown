@@ -1,10 +1,10 @@
 """קיבוץ אותיות לשורות, ובניית הטקסט של כל שורה."""
 
-import re
 from dataclasses import dataclass
 
 from hebrew_pdf.chars import Char, page_chars
 from hebrew_pdf.logical_order import document_rtl, to_logical
+from hebrew_pdf.spacing import SpaceCounts, space_by_gaps
 
 BASELINE_TOLERANCE = 2.0  # נקודות PDF: אותיות שקו הבסיס שלהן קרוב עד כדי זה באותה שורה
 
@@ -12,12 +12,16 @@ BASELINE_TOLERANCE = 2.0  # נקודות PDF: אותיות שקו הבסיס ש�
 @dataclass(frozen=True)
 class Line:
     text: str  # הסדר הלוגי: הסדר שבו קוראים את השורה
-    visual: str  # האותיות כמו שהן מופיעות בעמוד, משמאל לימין (לבדיקת התצוגה)
+    # התווים כמו שהם מופיעים בעמוד, משמאל לימין, עם הרווחים לפי הפערים ולא תווי הרווח
+    # שבקובץ (spacing.py). לבדיקת התצוגה
+    visual: str
     # כיוון הפסקה שבה השורה נקראה (logical_order.to_logical). בדיקת התצוגה מציגה את
     # הטקסט באותו כיוון, ולא מחשבת כיוון משלה
     rtl: bool
     # יותר מקריאה אחת מוצגת בדיוק כמו השורה בעמוד, וברירת המחדל הכריעה (logical_order.py)
     ambiguous: bool = False
+    # כמה הרווחים לפי הפער שונים מתווי הרווח שבקובץ (spacing.py). build_line ממלא תמיד
+    spacing: SpaceCounts = SpaceCounts()
 
 
 @dataclass(frozen=True)
@@ -29,6 +33,10 @@ class PageText:
     @property
     def ambiguous_lines(self) -> int:
         return sum(line.ambiguous for line in self.lines)
+
+    @property
+    def spacing(self) -> SpaceCounts:
+        return sum((line.spacing for line in self.lines), SpaceCounts())
 
     @property
     def text(self) -> str:
@@ -52,12 +60,12 @@ def build_line(row: list[Char], rtl_document: bool) -> Line:
 
     rtl_document: כיוון הפסקה של המסמך (logical_order.document_rtl).
     """
-    visual = sorted(row, key=lambda c: c.x)
-    reading = to_logical(visual, lambda c: c.text, rtl_document)
-    # רק התו רווח יורד מהקצוות, כמו שרק הוא מאוחד. strip() בלי ארגומנט מוחק גם את
-    # U+001C עד U+001F, שבקבצים הם אותיות שמופו בטעות (ה-? של "ומה איתך?" בפלאייר).
-    text = re.sub(r" {2,}", "  ", "".join(reading.texts)).strip(" ")
-    return Line(text, "".join(c.text for c in visual), reading.rtl, reading.ambiguous)
+    # הרווחים לפי הפערים בעמוד ולא לפי הקובץ (spacing.py): רווח אחד בכל פער בין מילים,
+    # ואף פעם לא בקצה השורה, ולכן אין רצפים לאחד ואין מה להוריד מהקצוות
+    spaced = space_by_gaps(sorted(row, key=lambda c: c.x))
+    reading = to_logical(spaced.chars, lambda c: c.text, rtl_document)
+    return Line("".join(reading.texts), "".join(c.text for c in spaced.chars), reading.rtl, reading.ambiguous,
+                spaced.counts)
 
 
 def read_document(pdf) -> list[PageText]:

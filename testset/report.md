@@ -9,9 +9,9 @@
 | | |
 |---|---|
 | שורות מאושרות שנספרו | 40 |
-| זהות לתיוג | 20 מתוך 40 |
-| מרחק תווים כולל | 158 |
-| שיעור שגיאת תווים (מרחק חלקי מספר התווים בטקסט הנכון) | 8.8% |
+| זהות לתיוג | 26 מתוך 40 |
+| מרחק תווים כולל | 134 |
+| שיעור שגיאת תווים (מרחק חלקי מספר התווים בטקסט הנכון) | 7.5% |
 | ממתינות לאישור (לא נספרות) | 0 |
 | לא ברורות (לא נספרות) | 0 |
 | שורות פגומות בטבלת התיוג | 0 |
@@ -30,27 +30,27 @@
 
 | מספר | קובץ | עמוד | תוצאה | מרחק | הטקסט הנכון | השורה הקרובה ביותר בפלט |
 |---|---|---|---|---|---|---|
-| 1 | chatbot-spec-form_gdocs.pdf | 1 | ✗ | 2 | הסבר על טופס איפיון ראשוני לצ׳טבוט (לפני דיאגרמה) | הסבר על טופס איפיון ראשוני לצ׳טבוט( לפני דיאגרמה) |
+| 1 | chatbot-spec-form_gdocs.pdf | 1 | ✓ זהה | 0 | הסבר על טופס איפיון ראשוני לצ׳טבוט (לפני דיאגרמה) |  |
 | 2 | chatbot-spec-form_gdocs.pdf | 1 | ✗ | 2 | שאלה? \| תשובת הלקוח | שאלה? תשובת הלקוח |
 | 3 | chatbot-spec-form_gdocs.pdf | 1 | ✓ זהה | 0 | (לדוגמה: סינון לידים, קביעת פגישות, תמיכה טכנית, |  |
 | 4 | doc-6p_gdocs.pdf | 1 | ✓ זהה | 0 | הארכיטקטורה של המערכת ב-Backend וב-Frontend בנויה בצורה הבאה, שלב אחרי שלב: |  |
-| 5 | doc-6p_gdocs.pdf | 1 | ✗ | 2 | 1. חיבור פייסבוק (Meta OAuth): המשתמש נכנס למערכת ומבצע FB Connect. ה-Backend | 1. חיבור פייסבוק( Meta OAuth): המשתמש נכנס למערכת ומבצע FB Connect. ה-Backend |
+| 5 | doc-6p_gdocs.pdf | 1 | ✓ זהה | 0 | 1. חיבור פייסבוק (Meta OAuth): המשתמש נכנס למערכת ומבצע FB Connect. ה-Backend |  |
 | 6 | doc-6p_gdocs.pdf | 1 | ✓ זהה | 0 | שומר את ה-Access Token המאובטח ב-Supabase DB. |  |
 | 7 | mentoros-overview_weasyprint.pdf | 1 | ✓ זהה | 0 | OSMentor |  |
-| 8 | mentoros-overview_weasyprint.pdf | 1 | ✗ | 9 | מודולים מרכזיים \| שאלות Deep Dive \| זיכרון ארוך טווח \| שכבות בטיחות | מודולים מרכזייםשאלות Deep Diveזיכרון ארוך טווחשכבות בטיחות |
+| 8 | mentoros-overview_weasyprint.pdf | 1 | ✗ | 6 | מודולים מרכזיים \| שאלות Deep Dive \| זיכרון ארוך טווח \| שכבות בטיחות | מודולים מרכזיים שאלות Deep Dive זיכרון ארוך טווח שכבות בטיחות |
 | 9 | mentoros-overview_weasyprint.pdf | 3 | ✗ | 4 | 1 Onboarding אישי — 10 שאלות | Onboarding 1 אישי — 10 שאלות |
 | 10 | mentoros-overview_weasyprint.pdf | 4 | ✓ זהה | 0 | כל החלטה נשמרת ואפשר לעקוב: פתוחה ← הוחלט ← נבחנה בדיעבד |  |
 | 11 | mentoros-overview_weasyprint.pdf | 8 | ✗ | 17 | Backend \| FastAPI + Python 3.12 \| שרת API מהיר, async, type-safe | FastAPI + Python 3.12 Backend שרת API מהיר, async, type-safe |
-| 12 | price-quote_weasyprint.pdf | 1 | ✗ | 6 | הצעת מחיר QT-00011 | ה צ ע ת מ ח י ר QT-00011 |
+| 12 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | הצעת מחיר QT-00011 |  |
 | 13 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | הופקה ב-11/05/2026 · בתוקף עד 25/05/2026 |  |
 | 14 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | טלפון: 0543978620 |  |
 | 15 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | amirbiron@gmail.com |  |
 | 16 | price-quote_weasyprint.pdf | 1 | ✓ זהה | 0 | https://amirbiron.github.io/Automation-made-easy/ |  |
-| 17 | price-quote_weasyprint.pdf | 2 | ✗ | 5 | סה"כ לתשלום | תנאי תשלום |
+| 17 | price-quote_weasyprint.pdf | 2 | ✓ זהה | 0 | סה"כ לתשלום |  |
 | 18 | price-quote_weasyprint.pdf | 4 | ✓ זהה | 0 | תקלות שמקורן בצד שלישי (Meta, Telegram, Google, ספקי תשתית), שאינן בשליטת החברה. |  |
 | 19 | social-publisher-setup_weasyprint.pdf | 1 | ✓ זהה | 0 | כל מה שצריך להכין לפני שמתחילים — Meta, Google Drive ו-Sheets |  |
 | 20 | social-publisher-setup_weasyprint.pdf | 2 | ✓ זהה | 0 | IG\_USER\_ID — נמצא ב-Business Settings ← Instagram Accounts. |  |
-| 21 | doc-4p_weasyprint.pdf | 1 | ✗ | 17 | עוזרים לעסק שלך לחשוב אחרת | עוזרים לעסק שלך לחשוב אחרתמסמך אפיון דרישות |
+| 21 | doc-4p_weasyprint.pdf | 1 | ✗ | 18 | עוזרים לעסק שלך לחשוב אחרת | עוזרים לעסק שלך לחשוב אחרת מסמך אפיון דרישות |
 | 22 | doc-4p_weasyprint.pdf | 1 | ✓ זהה | 0 | תאריך: 11.06.2026 |  |
 | 23 | doc-2p_weasyprint.pdf | 1 | ✓ זהה | 0 | פרויקט Campaign AI · שותפות טכנולוגית · המטרה: להפוך "חזון" ל"עסקה שאפשר להעריך" |  |
 | 24 | doc-2p_weasyprint.pdf | 1 | ✓ זהה | 0 | מהרווח הנקי / מהמחזור / או בעלות בחברה (equity)? ההבדל עצום — אחוז מרווח נעלם אם אין רווח; equity שווה משהו גם במכירת החברה. |  |
@@ -58,18 +58,18 @@
 | 26 | gps-book_indesign.pdf | 2 | ✓ זהה | 0 | אנו חברה לניהול עסקים פרטיים (קטנים ובינוניים). מתמחים באבחון, |  |
 | 27 | gps-book_indesign.pdf | 2 | ✓ זהה | 0 | אנו מתגאים במעל 90% הצלחה |  |
 | 28 | marketing-flyer_illustrator.pdf | 1 | ✗ | 3 | מאות חברות בחרו ב GPS לעסקים | מאות חברות בחרו ב ⟨U+001D⟩⟨U+001E⟩⟨U+001F⟩ לעסקים |
-| 29 | marketing-flyer_illustrator.pdf | 1 | ✗ | 3 | ומה איתך? | ומהא יתך⟨U+001C⟩ |
+| 29 | marketing-flyer_illustrator.pdf | 1 | ✗ | 1 | ומה איתך? | ומה איתך⟨U+001C⟩ |
 | 30 | marketing-flyer_illustrator.pdf | 1 | ✗ | 10 | בניית תוכנית עבודה | פיתוח תהליכי עבודה |
 | 31 | marketing-flyer_illustrator.pdf | 1 | ✗ | 12 | פרסום במדיות, יחסי | פיתוח תשתיות |
 | 32 | presentation_canva.pdf | 2 | ✗ | 24 | מאיה קארגי \| 058-7999120 \| OOHMYWEB.COM | מאיה קארגי \| OOHMYWEB.COM \| 058-7999120 |
 | 33 | presentation_canva.pdf | 4 | ✓ זהה | 0 | המדריך הזה נולד מתוך ההבנה (וצורך אמיתי שלי להתייעלות בכתיבת תוכן) |  |
 | 34 | presentation_canva.pdf | 23 | ✗ | 1 | הכלים להפוך את החזון הזה למציאות 💫 | הכלים להפוך את החזון הזה למציאות ⟨U+009A⟩ |
-| 35 | optimization_chrome.pdf | 1 | ✗ | 2 | ← זה הזמן לבחון ולדייק את הפרומפט (ההנחיה) של ה-AI בפאנל. | ← זה הזמן לבחון ולדייק את הפרומפט( ההנחיה) של ה-AI בפאנל. |
+| 35 | optimization_chrome.pdf | 1 | ✓ זהה | 0 | ← זה הזמן לבחון ולדייק את הפרומפט (ההנחיה) של ה-AI בפאנל. |  |
 | 36 | optimization_chrome.pdf | 1 | ✓ זהה | 0 | 3. דיוק ה-AI |  |
-| 37 | financial-report-q2-2025_aspose.pdf | 35 | ✗ | 1 | רב בריח (08) תעשיות בע"מ | רב בריח ( 08) תעשיות בע"מ |
+| 37 | financial-report-q2-2025_aspose.pdf | 35 | ✓ זהה | 0 | רב בריח (08) תעשיות בע"מ |  |
 | 38 | financial-report-q2-2025_aspose.pdf | 35 | ✗ | 12 | הכנסות ממכירות \| \| 366,343 \| 300,306\* \| 178,881 \| 145,921\* \| 633,833\* | הכנסות ממכירות 366,343 300,306\* 178,881 145,921\* 633,833\* |
 | 39 | financial-report-q2-2025_aspose.pdf | 35 | ✗ | 12 | הוצאות (הכנסות) אחרות \| \| (189) \| (5,203) \| (139) \| 18 \| (9,995)\* | הוצאות (הכנסות) אחרות (189) (5,203) (139) 18 (9,995)\* |
-| 40 | financial-report-q2-2025_aspose.pdf | 35 | ✗ | 14 | רווח (הפסד) מפעילויות נמשכות \| \| (206) \| (29,396) \| (2,073) \| (20,496) \| (53,464) | רווח (הפסד) מפעילו יו ת נמשכו ת (206) (29,396) (2,073) (20,496) (53,464) |
+| 40 | financial-report-q2-2025_aspose.pdf | 35 | ✗ | 12 | רווח (הפסד) מפעילויות נמשכות \| \| (206) \| (29,396) \| (2,073) \| (20,496) \| (53,464) | רווח (הפסד) מפעילויות נמשכות (206) (29,396) (2,073) (20,496) (53,464) |
 
 ממתינות לאישור: אין
 
@@ -81,18 +81,33 @@
 
 | קובץ | תוכנה | עמודים | אותיות סופיות | פיסוק בתחילת שורה | בדיקת תצוגה נכשלה | דו-משמעיות | מאושרות | זהות | מרחק |
 |---|---|---|---|---|---|---|---|---|---|
-| chatbot-spec-form_gdocs.pdf | gdocs | 4 | 100% | 0% | 0 | 0 | 3 | 1 | 4 |
+| chatbot-spec-form_gdocs.pdf | gdocs | 4 | 100% | 0% | 0 | 0 | 3 | 2 | 2 |
 | doc-2p_weasyprint.pdf | weasyprint | 2 | 100% | 0% | 0 | 0 | 2 | 2 | 0 |
-| doc-4p_weasyprint.pdf | weasyprint | 4 | 100% | 0% | 0 | 0 | 2 | 1 | 17 |
-| doc-6p_gdocs.pdf | gdocs | 6 | 100% | 0% | 1 | 12 | 3 | 2 | 2 |
-| financial-report-q2-2025_aspose.pdf | aspose | 66 | 100% | 0% | 0 | 1 | 4 | 0 | 39 |
+| doc-4p_weasyprint.pdf | weasyprint | 4 | 100% | 0% | 0 | 0 | 2 | 1 | 18 |
+| doc-6p_gdocs.pdf | gdocs | 6 | 100% | 0% | 1 | 12 | 3 | 3 | 0 |
+| financial-report-q2-2025_aspose.pdf | aspose | 66 | 100% | 0% | 0 | 1 | 4 | 1 | 36 |
 | gps-book_indesign.pdf | indesign | 16 | 100% | 0% | 0 | 2 | 3 | 3 | 0 |
-| marketing-flyer_illustrator.pdf | illustrator | 1 | 100% | 0% | 0 | 0 | 4 | 0 | 28 |
-| mentoros-overview_weasyprint.pdf | weasyprint | 8 | 100% | 0% | 1 | 4 | 5 | 2 | 30 |
-| optimization_chrome.pdf | chrome | 1 | 100% | 0% | 0 | 0 | 2 | 1 | 2 |
+| marketing-flyer_illustrator.pdf | illustrator | 1 | 100% | 0% | 0 | 0 | 4 | 0 | 26 |
+| mentoros-overview_weasyprint.pdf | weasyprint | 8 | 100% | 0% | 1 | 4 | 5 | 2 | 27 |
+| optimization_chrome.pdf | chrome | 1 | 100% | 0% | 0 | 0 | 2 | 2 | 0 |
 | presentation_canva.pdf | canva | 24 | 100% | 0% | 0 | 23 | 3 | 1 | 25 |
-| price-quote_weasyprint.pdf | weasyprint | 7 | 100% | 0% | 0 | 1 | 7 | 5 | 11 |
+| price-quote_weasyprint.pdf | weasyprint | 7 | 100% | 0% | 0 | 1 | 7 | 7 | 0 |
 | social-publisher-setup_weasyprint.pdf | weasyprint | 2 | 100% | 0% | 0 | 3 | 2 | 2 | 0 |
+
+## ריווח לפי תוכנה
+
+הרווחים בפלט נקבעים לפי הפערים בעמוד ולא לפי תווי הרווח שבקובץ: תווי הרווח יורדים, ורווח נכנס בכל פער בין שני תווים שגדול מהפער הרגיל בין אותיות באותה שורה, ועוד חצי רוחב רווח (hebrew_pdf/spacing.py). כל פער בין שני תווים סמוכים נספר פעם אחת. "עם רווח בקובץ": פערים שהיה בהם תו רווח בקובץ. "ירדו": מתוכם, פערים שלא נכנס בהם רווח. "נוספו": פערים בלי תו רווח בקובץ שנכנס בהם רווח. האחוזים הם מתוך הפערים עם רווח בקובץ.
+
+| תוכנה | קבצים | עם רווח בקובץ | ירדו | נוספו |
+|---|---|---|---|---|
+| aspose | 1 | 13157 | 182 (1.4%) | 105 (0.8%) |
+| canva | 1 | 2530 | 0 (0.0%) | 0 (0.0%) |
+| chrome | 1 | 82 | 1 (1.2%) | 1 (1.2%) |
+| gdocs | 2 | 2189 | 121 (5.5%) | 122 (5.6%) |
+| illustrator | 1 | 140 | 1 (0.7%) | 3 (2.1%) |
+| indesign | 1 | 972 | 0 (0.0%) | 3 (0.3%) |
+| weasyprint | 5 | 3570 | 14 (0.4%) | 18 (0.5%) |
+| סך הכול | 12 | 22640 | 319 (1.4%) | 252 (1.1%) |
 
 ## לפי עמוד
 

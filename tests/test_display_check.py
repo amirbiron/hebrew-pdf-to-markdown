@@ -62,7 +62,9 @@ class DisplayCheckUnitTest(unittest.TestCase):
 class WholeSetTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.lines = []  # (קובץ, עמוד, Line של הקורא, טקסט של האב-טיפוס)
+        # (קובץ, עמוד, Line של הקורא, השורה של האב-טיפוס). לאב-טיפוס השורה בעמוד היא עם תווי
+        # הרווח שבקובץ, כי ממנה הוא בנה את הטקסט; לקורא היא עם הרווחים לפי הפער
+        cls.lines = []
         for path in sorted(DEFAULT_PDFS.glob("*.pdf")):
             with pdfium.PdfDocument(str(path)) as pdf:
                 pages = read_document(pdf)
@@ -70,7 +72,9 @@ class WholeSetTest(unittest.TestCase):
                     rows = group_rows(page_chars(page).chars)
                     for row, line in zip(rows, page_text.lines, strict=True):
                         if normalize(line.visual):
-                            old = prototype.build_line([tuple(c) for c in row])
+                            old_visual = "".join(c.text for c in sorted(row, key=lambda c: c.x))
+                            old = Line(prototype.build_line([tuple(c) for c in row]), old_visual,
+                                       rtl=bool(prototype.HEBREW.search(old_visual)))
                             cls.lines.append((path.name, number, line, old))
 
     def test_the_whole_set_is_checked(self):
@@ -78,9 +82,8 @@ class WholeSetTest(unittest.TestCase):
 
     def test_prototype_output_fails_the_check(self):
         # כל שורה מוצגת בכיוון שהאב-טיפוס התכוון אליו: מימין לשמאל רק כשיש בה עברית
-        failures = sum(not displays_like_page(Line(old, line.visual, rtl=bool(prototype.HEBREW.search(line.visual))))
-                       for _, _, line, old in self.lines)
-        self.assertGreater(failures, 100)  # נמדד: 172
+        failures = sum(not displays_like_page(old) for _, _, _, old in self.lines)
+        self.assertGreater(failures, 100)  # נמדד: 173 (גם על הקוד של סוף סבב 2)
 
     def test_failures_are_exactly_the_known_ones(self):
         failures = collections.Counter(

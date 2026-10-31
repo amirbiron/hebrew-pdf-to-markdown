@@ -28,8 +28,12 @@ def drawn(logical: str) -> str:
 
 
 def row_of(visual: str) -> list[Char]:
-    """אותיות של שורה אחת, כל תו במקום שלו משמאל לימין."""
-    return [Char(ch, float(x), 0.0) for x, ch in enumerate(visual)]
+    """אותיות של שורה אחת, כל תו במקום שלו משמאל לימין, ברוחב 1 ובגובה 1.
+
+    גם תו רווח תופס מקום: הקורא מוריד אותו, ונשאר פער ברוחב 1, שהוא פער בין מילים
+    (hebrew_pdf/spacing.py). כך רווח במחרוזת הוא רווח בעמוד.
+    """
+    return [Char(ch, x + 0.5, 0.0, float(x), x + 1.0, 1.0) for x, ch in enumerate(visual)]
 
 
 def page_line(logical: str) -> Line:
