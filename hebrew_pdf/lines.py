@@ -7,8 +7,8 @@ import pypdfium2.raw as pdfium_raw
 from pypdfium2 import PdfiumError
 
 from hebrew_pdf.chars import Char, page_chars
-from hebrew_pdf.layout import (MIN_PAGE_GAPS, PageLine, column_of, page_layout, page_line, split_components,
-                               usual_word_gap)
+from hebrew_pdf.layout import (MIN_PAGE_GAPS, PageLine, column_of, page_layout, page_line, rule_between,
+                               split_components, usual_word_gap)
 from hebrew_pdf.logical_order import document_rtl, to_logical
 from hebrew_pdf.spacing import SpaceCounts, space_by_gaps
 
@@ -204,10 +204,11 @@ def read_document(pdf) -> list[PageText]:
     for pdf_page, found, spaced, lines in zip(pdf_pages, pages, spaced_pages, line_pages):
         ratios = [g.ratio for line in lines for g in line.gaps]
         word_gap = usual_word_gap(ratios) if len(ratios) >= MIN_PAGE_GAPS else document_gap
-        layout = page_layout(lines, word_gap)
+        rules = horizontal_rules(pdf_page)
+        layout = page_layout(lines, word_gap, rules)
         page_lines = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts)
                       for i, (line, s) in enumerate(zip(lines, spaced))]
-        merged = _merged_rows(page_lines, layout.tables, lines, horizontal_rules(pdf_page))
+        merged = _merged_rows(page_lines, layout.tables, lines, rules)
         width, height = pdf_page.get_size()
         out.append(PageText(page_lines, found.skipped, found.unknown_brackets, [row.cells for row in merged],
                             [row.source for row in merged], rtl, width, height))
@@ -296,9 +297,7 @@ def _new_rows(lines: list[Line], table_of, geometry: list[PageLine], rules) -> l
     טקסט בעמודה הראשונה (לפי סדר הקריאה) היא המשך.
     """
     def ruled(i: int) -> bool:
-        above, below = geometry[i - 1], geometry[i]
-        top, bottom = below.baseline + 0.6 * below.height, above.baseline - 0.2 * above.height
-        return any(top < y < bottom and left < below.right and right > below.left for left, right, y in rules)
+        return rule_between(geometry[i - 1], geometry[i], rules)
 
     new = [True] * len(lines)
     by_table: dict[int, list[int]] = {}

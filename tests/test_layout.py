@@ -20,30 +20,34 @@ WIDTH, HEIGHT, WORD = 5.0, 10.0, 2.0
 USUAL = WORD / HEIGHT
 
 
-def chars(segments: list[tuple[float, str]], baseline: float) -> list[Char]:
-    """תווים של שורה בעמוד: כל קטע מתחיל ב-x שלו, והתווים שלו לפי הסדר בעמוד משמאל לימין."""
+def chars(segments: list[tuple[float, str]], baseline: float, size: float = 0.0) -> list[Char]:
+    """תווים של שורה בעמוד: כל קטע מתחיל ב-x שלו, והתווים שלו לפי הסדר בעמוד משמאל לימין.
+    size: גודל האות (Char.size); 0 כמו תו בלי גודל."""
     out = []
     for x, text in segments:
         for ch in text:
             if ch == " ":
                 x += WORD
                 continue
-            out.append(Char(ch, x + WIDTH / 2, baseline, x, x + WIDTH, HEIGHT))
+            out.append(Char(ch, x + WIDTH / 2, baseline, x, x + WIDTH, HEIGHT, size))
             x += WIDTH
     return out
 
 
-def build(page: list[list[tuple[float, str]]], rtl: bool = False, rules_above: tuple[int, ...] = ()):
+def build(page: list[list[tuple[float, str]]], rtl: bool = False, rules_above: tuple[int, ...] = (),
+          sizes: tuple[float, ...] = ()):
     """השורות של עמוד (מלמעלה למטה, 15 נקודות בין שורה לשורה), אחרי חלוקה לרכיבים.
 
     rules_above: השורות שמעליהן מצויר קו אופקי לרוחב כל העמוד (קו מסגרת של טבלה).
+    sizes: גודל האות של כל שורה (Char.size); בלי: 0 לכל השורות.
     """
-    spaced = [space_by_gaps(chars(segments, -15.0 * i)) for i, segments in enumerate(page)]
+    sizes = sizes or (0.0,) * len(page)
+    spaced = [space_by_gaps(chars(segments, -15.0 * i, size)) for i, (segments, size) in enumerate(zip(page, sizes))]
     lines = [page_line(s.chars) for s in spaced]
-    layout = page_layout(lines, USUAL)
+    rules = [(-10.0, 400.0, -15.0 * i + 9) for i in rules_above]
+    layout = page_layout(lines, USUAL, rules)
     built = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts) for i, (line, s) in
              enumerate(zip(lines, spaced))]
-    rules = [(-10.0, 400.0, -15.0 * i + 9) for i in rules_above]
     return built, table_rows(built, layout.tables, lines, rules)
 
 
@@ -145,6 +149,39 @@ class TableTest(unittest.TestCase):
                          [(60, "word")],
                          [(0, "c2"), (60, "next"), (200, "OTHER")]])
         self.assertEqual(rows[0], ("c1", "to-word", "NAME"))
+
+
+class TableEndTest(unittest.TestCase):
+    """איפה טבלה נגמרת (hebrew_pdf/layout.py, סעיף 5): כותרת קצרה בצד ימין לא חוצה את העמודות
+    שמשמאלה, והמסדרון של הטבלה ממשיך לתוכה. גודל האות מסיים אותה."""
+    TABLES = [[(0, "a1"), (60, "desc"), (200, "N1")],
+              [(0, "a2"), (60, "more"), (200, "N2")],
+              [(200, "HEAD")],
+              [(0, "b1"), (60, "text"), (200, "M1")],
+              [(0, "b2"), (60, "last"), (200, "M2")]]
+
+    def test_a_heading_between_two_tables_ends_the_first(self):
+        lines, rows = build(self.TABLES, sizes=(10, 10, 20, 10, 10))
+        self.assertIsNone(lines[2].columns)
+        self.assertEqual(rows, [("a1", "desc", "N1"), ("a2", "more", "N2"), ("HEAD",),
+                                ("b1", "text", "M1"), ("b2", "last", "M2")])
+
+    def test_without_a_size_the_heading_is_a_row(self):
+        # כך היה עד סבב 5ב בכל גודל: הכותרת נבלעה בטבלה
+        lines, _ = build(self.TABLES)
+        self.assertIsNotNone(lines[2].columns)
+
+    def test_in_a_framed_table_a_continuation_in_another_size_stays(self):
+        # טבלה עם קווי מסגרת בין השורות: שורת המשך בתוך תא, בלי קו מעליה, בגודל אחר (קוד), שייכת לטבלה.
+        # הכותרת, שיש קו מעליה (הקו התחתון של הטבלה), מסיימת אותה
+        page = [[(0, "a1"), (60, "desc"), (200, "N1")],
+                [(60, "code")],
+                [(0, "a2"), (60, "more"), (200, "N2")],
+                [(200, "HEAD")]]
+        lines, rows = build(page, rules_above=(0, 2, 3), sizes=(10, 8, 10, 20))
+        self.assertIsNotNone(lines[1].columns)
+        self.assertIsNone(lines[3].columns)
+        self.assertEqual(rows, [("a1", "desc code", "N1"), ("a2", "more", "N2"), ("HEAD",)])
 
 
 class RealLinesTest(unittest.TestCase):

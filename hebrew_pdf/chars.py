@@ -10,6 +10,17 @@ import pypdfium2.raw as pdfium_raw
 from hebrew_pdf.bracket_shapes import FAMILIES, drawn_shape
 
 
+# שני גדלים של אות "שווים" כשהיחס ביניהם עד 1.02: הגודל מגיע מהקובץ (גודל הגופן כפול המטריצה),
+# וגדלים של אותו סגנון שווים בו עד כדי עיגול. בדיקת רגישות (סבב 5, כל הסט): מ-1.005 עד 1.05 מספר
+# הכותרות משתנה בעד 6 מתוך 276, והפסקאות בעד 3. משמש את הכותרות (markdown.py) ואת הסוף של טבלה (layout.py)
+SAME_SIZE = 1.02
+
+
+def same_size(a: float, b: float) -> bool:
+    """שני גדלים של אות שווים (SAME_SIZE)."""
+    return max(a, b) <= min(a, b) * SAME_SIZE
+
+
 class Char(NamedTuple):
     text: str  # בסוגר: התו של הצורה שמצוירת בעמוד, לא התו שבקובץ (bracket_shapes.py)
     x: float  # מרכז התיבה, אופקית

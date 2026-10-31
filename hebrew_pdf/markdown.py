@@ -52,13 +52,10 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
+from hebrew_pdf.chars import SAME_SIZE
 from hebrew_pdf.lines import Geometry, PageText, join_lines
 from hebrew_pdf.logical_order import bidi_class
 
-# שני גדלים של אות "שווים" כשהיחס ביניהם עד 1.02: הגודל מגיע מהקובץ (גודל הגופן כפול המטריצה),
-# וגדלים של אותו סגנון שווים בו עד כדי עיגול. בדיקת רגישות (סבב 5, כל הסט): מ-1.005 עד 1.05 מספר
-# הכותרות משתנה בעד 6 מתוך 276, והפסקאות בעד 3
-SAME_SIZE = 1.02
 # כותרת: גדולה מגוף הטקסט פי 1.1 לפחות. ב-CSS, h3 הוא פי 1.17 מהגוף; וריאציות של טקסט רגיל
 # באותו מסמך קטנות מזה (בסט: עד פי 1.05, טקסט בתיבה או שורת פתיחה). כותרת בגודל הגוף (h4 בברירת
 # המחדל של דפדפן) לא מזוהה בלי משקל גופן, ונשארת פסקה. בדיקת רגישות (סבב 5, כל הסט): אין טווח
