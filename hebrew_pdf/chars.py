@@ -3,6 +3,8 @@
 import ctypes
 import math
 import re
+import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import NamedTuple
 
@@ -68,10 +70,13 @@ def page_chars(page) -> PageChars:
     matrix = pdfium_raw.FS_MATRIX()
     chars = []
     skipped = unknown_brackets = 0
+    mirrored = mirrored_by_pdfium(textpage, document_r2l(page.pdf))
     for i in range(textpage.count_chars()):
         ch = textpage.get_text_range(i, 1)
         if not ch or ch in "\r\n":
             continue
+        if ch in _UNICODE_UNMIRRORED and i in mirrored:
+            ch = _UNICODE_UNMIRRORED[ch]  # מבטלים את השיקוף של PDFium (mirrored_by_pdfium)
         if not pdfium_raw.FPDFText_GetCharOrigin(textpage, i, x, y):
             skipped += 1
             continue
@@ -118,6 +123,93 @@ def font_name(textpage, index: int) -> str:
         return ""
     name = buffer.value.decode("utf-8", errors="replace")
     return name[7:] if _SUBSET_TAG.match(name) else name
+
+
+# התווים ש-PDFium משקף (GetMirrorChar, core/fxcrt/fx_unicode.cpp, kFXTextLayoutBidiMirror) ו-Unicode לא
+# מגדיר כמשתקפים (Bidi_Mirrored=No): מתוך 366 הערכים בטבלה של PDFium, רק ארבע המירכאות האלה (נבדק מול
+# unicodedata.mirrored, Unicode 15.1). כל אחת והתו שהיא הופכת אליו. שאר התווים בטבלה הם סוגריים שהצורה
+# שלהם נקבעת מהציור (bracket_shapes.py), או תווים שאינם בסט
+_UNICODE_UNMIRRORED = {"\u2018": "\u2019", "\u2019": "\u2018", "\u201c": "\u201d", "\u201d": "\u201c"}
+_WEAK = frozenset({"AN", "EN", "NSM", "CS", "ES", "ET", "BN"})
+
+
+def document_r2l(pdf) -> bool:
+    """האם במסמך ViewerPreferences/Direction הוא R2L, כמו ש-FPDFText_LoadPage קובע את rtl_ של
+    CPDF_TextPage (fpdfsdk/fpdf_text.cpp: CPDF_ViewerPreferences::IsDirectionR2L). נקרא דרך
+    FPDF_VIEWERREF_GetName, שמחזיר את האורך כולל ה-NUL, ו-0 כשאין מפתח כזה או כשהערך אינו שם (name)
+    (fpdfsdk/fpdf_view.cpp, CPDF_ViewerPreferences::GenericName)."""
+    length = pdfium_raw.FPDF_VIEWERREF_GetName(pdf, b"Direction", None, 0)
+    if length <= 0:
+        return False
+    buffer = ctypes.create_string_buffer(length)
+    if pdfium_raw.FPDF_VIEWERREF_GetName(pdf, b"Direction", buffer, length) != length:
+        return False
+    return buffer.value == b"R2L"
+
+
+def mirrored_by_pdfium(textpage, r2l: bool) -> set[int]:
+    """האינדקסים של התווים בעמוד ש-PDFium שיקף, לפי התווים שהוא מחזיר (FPDFText_GetUnicode) ולפי השורות
+    שהוא יצר (התווים "\r" ו-"\n" שהוא הוסיף, FPDFText_IsGenerated). התנאי עצמו ב-_mirrored_in_lines."""
+    sequence = []
+    for i in range(pdfium_raw.FPDFText_CountChars(textpage)):
+        char = chr(pdfium_raw.FPDFText_GetUnicode(textpage, i))
+        sequence.append((char, char in "\r\n" and pdfium_raw.FPDFText_IsGenerated(textpage, i) == 1))
+    return _mirrored_in_lines(sequence, r2l)
+
+
+def _direction(char: str) -> str:
+    """הכיוון של תו כמו ב-CFX_BidiChar::AppendChar (core/fxcrt/fx_bidi.cpp): L, R (גם AL), W (חלש: AN,
+    EN, NSM, CS, ES, ET, BN) או N (כל השאר). לפי Bidi_Class של unicodedata; ל-PDFium טבלה משלו
+    (fx_ucddata.inc), ובתווים שבסט הן מסכימות (נבדק: 217 מתוך 217 מירכאות, tests/test_chars.py)."""
+    kind = unicodedata.bidirectional(char)
+    if kind == "L":
+        return "L"
+    if kind in ("R", "AL"):
+        return "R"
+    return "W" if kind in _WEAK else "N"
+
+
+def _mirrored_in_lines(sequence: Sequence[tuple[str, bool]], r2l: bool) -> set[int]:
+    """האינדקסים ש-PDFium העביר ב-AddCharInfo עם is_rtl, ולכן שיקף (GetMirrorChar), לפי
+    CPDF_TextPage::CloseTempLine בגרסה שבתוך pypdfium2 5.13.0 (PDFium 153.0.7999.0, הענף chromium/7999,
+    core/fpdftext/cpdf_textpage.cpp). sequence: לכל תו בעמוד, (התו, האם הוא שבירת שורה ש-PDFium יצר).
+
+    PDFium בונה את העמוד בשורות זמניות, וסוגר שורה (CloseTempLine) כשהוא מוסיף שבירת שורה ("\r\n")
+    ובסוף העמוד. בכל שורה הוא מחלק את התווים לרצפים של אותו כיוון (_direction), ועובר עליהם לפי הסדר,
+    עם "כיוון נוכחי" שמתחיל משמאל לימין, או מימין לשמאל כשהמסמך R2L (r2l): רצף R, ורצף N כשהכיוון הנוכחי
+    מימין לשמאל, עוברים בשיקוף והכיוון הנוכחי נהיה מימין לשמאל; רצף L מחזיר אותו לשמאל לימין, ורצף W לא
+    משנה אותו. כשהמסמך R2L, הרצפים מתהפכים (SetOverallDirectionRight) לפני המעבר.
+    הסדר שבו PDFium מחזיר את התווים הוא סדר המעבר: כל רצף, ורצפים סמוכים שומרים על הכיוון שלהם, ולכן
+    החלוקה לרצפים על התווים שהוא מחזיר היא החלוקה שהוא עבר עליה (גם כשהוא הפך את סדר התווים ברצף או
+    את סדר הרצפים). בגרסה קודמת של PDFium (עד 2025) הכיוון הכללי נקבע גם לפי מספר הרצפים בכל כיוון
+    (auto_order); בגרסה הזו לא, ו-5 מתוך 217 מירכאות בסט מכריעות בין השתיים."""
+    mirrored: set[int] = set()
+    line: list[tuple[int, str]] = []
+
+    def close():
+        segments: list[tuple[str, list[int]]] = []
+        for index, char in line:
+            direction = _direction(char)
+            if segments and segments[-1][0] == direction:
+                segments[-1][1].append(index)
+            else:
+                segments.append((direction, [index]))
+        current = "R" if r2l else "L"
+        for direction, indices in segments:
+            if direction == "R" or (direction == "N" and current == "R"):
+                current = "R"
+                mirrored.update(indices)
+            elif direction != "W":
+                current = "L"
+
+    for index, (char, line_break) in enumerate(sequence):
+        if line_break:
+            close()
+            line = []
+        else:
+            line.append((index, char))
+    close()
+    return mirrored
 
 
 def font_size(textpage, index: int, matrix: "pdfium_raw.FS_MATRIX") -> float:
