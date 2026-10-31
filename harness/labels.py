@@ -42,9 +42,6 @@ _DELIMITER_CELL = re.compile(":?-+:?")
 _BLOCK_START = re.compile(
     r" {0,3}(?:#{1,6}(?:[ \t]|$)|>|```|~~~|[-*+](?:[ \t]|$)|[0-9]{1,9}[.)](?:[ \t]|$)|<"
     r"|(?:\*[ \t]*){3,}$|(?:-[ \t]*){3,}$|(?:_[ \t]*){3,}$)")
-# תווים שמשנים את התצוגה בתוך תא: עיצוב (* _ ~), קוד (`), HTML (<), קישור ([ ]), ישות (&).
-# לוכסן הפוך לפניהם הופך אותם לתו רגיל (GFM, "Backslash escapes"), ו-split_row מבטל אותו.
-_CELL_ESCAPES = frozenset("\\|*_`~<[]&")
 # גבול בין תאים ב"הטקסט הנכון": תג br, כמו ש-GFM מזהה תג פתיחה (https://github.github.com/gfm/#open-tag):
 # "<", שם התג, אולי תכונות, אולי רווח, אולי "/", ו-">". שמות תגים ב-HTML לא תלויים באותיות
 # גדולות, ולכן גם <BR>. כל אלה מוצגים ב-GitHub כמעבר שורה: <br>, <br/>, <br />, <br class="x">
@@ -139,12 +136,6 @@ def split_cells(raw: str) -> tuple[str, ...]:
     """תא של "הטקסט הנכון", כמו שהוא כתוב בקובץ (לפני ביטול ה-escapes), לתאים של השורה
     שבעמוד: גבול בכל <br> (_CELL_BREAK). הרווחים בקצוות כל תא יורדים."""
     return tuple(part.strip() for part in _unescape_parts(raw, _CELL_BREAK))
-
-
-def escape_cell(text: str) -> str:
-    """טקסט לתא בטבלה, שמוצג בדיוק כמו שהוא: לוכסן הפוך לפני \\, | ותווי התחביר
-    שב-_CELL_ESCAPES. הפעולה ההפוכה של split_row."""
-    return "".join("\\" + char if char in _CELL_ESCAPES else char for char in text)
 
 
 def _looks_like_label_row(line: str) -> bool:

@@ -10,3 +10,6 @@ python-bidi==0.6.12
 # משתמש בגופן DejaVu Sans שמותקן במערכת.
 weasyprint==70.0
 markdown==3.11.2
+# מפרסר GFM לבדיקה של ה-Markdown שהחבילה בונה (harness/markdown_check.py): קישור לפייתון של cmark-gfm,
+# הספרייה ש-GitHub מציג בה Markdown. רישיון: MIT (כולל רכיבים ב-third_party ברישיונות משלהם, לפי METADATA).
+cmarkgfm==2025.10.22
