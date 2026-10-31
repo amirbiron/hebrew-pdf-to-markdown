@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from harness import labels as labels_mod
+from harness.display_check import displays_like_page
 from harness.reader import read_pages
 from harness.textdiff import closest_line, normalize, split_lines, visible
 from hebrew_pdf.lines import PageText
@@ -36,6 +37,8 @@ class PageResult:
     page: int
     line_count: int
     skipped_chars: int
+    display_failures: int  # שורות שלא עוברות את בדיקת התצוגה (harness/display_check.py)
+    ambiguous_lines: int  # שורות שיותר מקריאה אחת שלהן נראית כמו העמוד
     final_letters: int | None
     punct_at_start: int | None
 
@@ -46,6 +49,14 @@ class FileResult:
     pages: list[PageResult]
     final_letters: int | None
     punct_at_start: int | None
+
+    @property
+    def display_failures(self) -> int:
+        return sum(p.display_failures for p in self.pages)
+
+    @property
+    def ambiguous_lines(self) -> int:
+        return sum(p.ambiguous_lines for p in self.pages)
 
 
 @dataclass(frozen=True)
@@ -81,6 +92,18 @@ class Evaluation:
         return sum(p.skipped_chars for f in self.files for p in f.pages)
 
     @property
+    def line_count(self) -> int:
+        return sum(p.line_count for f in self.files for p in f.pages)
+
+    @property
+    def display_failures(self) -> int:
+        return sum(f.display_failures for f in self.files)
+
+    @property
+    def ambiguous_lines(self) -> int:
+        return sum(f.ambiguous_lines for f in self.files)
+
+    @property
     def total_chars(self) -> int:
         return sum(len(normalize(r.label.expected)) for r in self.approved)
 
@@ -104,7 +127,8 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages) -> E
         page_texts[path.name] = texts
         pages = [
             PageResult(i, sum(1 for l in split_lines(p.text) if normalize(l)), p.skipped_chars,
-                       score_final_letters(p.text), score_punct_at_start(p.text))
+                       sum(1 for line in p.lines if normalize(line.visual) and not displays_like_page(line)),
+                       p.ambiguous_lines, score_final_letters(p.text), score_punct_at_start(p.text))
             for i, p in enumerate(read, 1)
         ]
         whole = "\n".join(texts)
@@ -174,8 +198,12 @@ def render_report(ev: Evaluation) -> str:
     add(f"| לא ברורות (לא נספרות) | {len(ev.unclear)} |")
     add(f"| שורות פגומות בטבלת התיוג | {len(ev.problems)} |")
     add(f"| אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | {ev.skipped_chars} |")
+    add(f"| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | {ev.display_failures} מתוך {ev.line_count} |")
+    add(f"| שורות דו-משמעיות (בכל הסט) | {ev.ambiguous_lines} |")
     add("")
     add("מרחק תווים: כמה הוספות, מחיקות או החלפות של תו בודד צריך כדי להגיע מהשורה הקרובה ביותר בעמוד לטקסט הנכון. 0 = זהה. רצף רווחים נחשב לרווח אחד.")
+    add("")
+    add("בדיקת התצוגה: כל שורה בסט, לא רק המתויגות, מוצגת באלגוריתם התצוגה של Unicode (שורה עם עברית בפסקה מימין לשמאל, שורה בלי עברית משמאל לימין) ומושווית לסדר האותיות בעמוד. שורה שנכשלת היא שורה שהפלט שלה לא ייראה כמו העמוד. שורה דו-משמעית היא שורה שיותר מקריאה אחת שלה נראית בדיוק כמו העמוד (למשל \"1 Onboarding\" ו-\"Onboarding 1\"), והקורא בחר לפי ברירת מחדל. ההסבר המלא ב-harness/display_check.py וב-hebrew_pdf/logical_order.py.")
     add("")
     add("המרחק הוא גבול תחתון: כשהקורא שובר שורה מאוד (למשל מדביק אליה עמודה שכנה), שורה אחרת בעמוד יכולה להיות קרובה יותר מהשורה שלה, ואז המרחק קטן מהשגיאה האמיתית. בעמודה \"השורה הקרובה ביותר בפלט\" רואים מול איזו שורה נמדד. המדד הראשי הוא מספר השורות הזהות.")
     add("")
@@ -212,12 +240,12 @@ def render_report(ev: Evaluation) -> str:
     add("")
     add("אותיות סופיות: אחוז המילים (מבין אלה שיש בהן אות סופית) שהאות הסופית לא בתחילתן; גבוה = טוב. פיסוק בתחילת שורה: אחוז השורות העבריות שמתחילות בסימן פיסוק; נמוך = טוב. שתיהן בדיקות עקיפות מהאב-טיפוס, ו-100% בהן אינו הוכחה שהפלט נכון.")
     add("")
-    add("| קובץ | תוכנה | עמודים | אותיות סופיות | פיסוק בתחילת שורה | מאושרות | זהות | מרחק |")
-    add("|---|---|---|---|---|---|---|---|")
+    add("| קובץ | תוכנה | עמודים | אותיות סופיות | פיסוק בתחילת שורה | בדיקת תצוגה נכשלה | דו-משמעיות | מאושרות | זהות | מרחק |")
+    add("|---|---|---|---|---|---|---|---|---|---|")
     for f in ev.files:
         mine = [r for r in ev.approved if r.label.file == f.name]
         add(f"| {f.name} | {creator_of(f.name)} | {len(f.pages)} | {_pct(f.final_letters)} | {_pct(f.punct_at_start)} "
-            f"| {len(mine)} | {sum(r.exact for r in mine)} | {sum(r.distance for r in mine)} |")
+            f"| {f.display_failures} | {f.ambiguous_lines} | {len(mine)} | {sum(r.exact for r in mine)} | {sum(r.distance for r in mine)} |")
     add("")
 
     add("## לפי עמוד")
@@ -225,12 +253,13 @@ def render_report(ev: Evaluation) -> str:
     add("<details>")
     add("<summary>כל העמודים</summary>")
     add("")
-    add("| קובץ | עמוד | שורות עם טקסט | אותיות שדולגו | אותיות סופיות | פיסוק בתחילת שורה |")
-    add("|---|---|---|---|---|---|")
+    add("| קובץ | עמוד | שורות עם טקסט | אותיות שדולגו | בדיקת תצוגה נכשלה | דו-משמעיות | אותיות סופיות | פיסוק בתחילת שורה |")
+    add("|---|---|---|---|---|---|---|---|")
     for f in ev.files:
         for p in f.pages:
             lines = str(p.line_count) if p.line_count else "0 (אין טקסט)"
-            add(f"| {f.name} | {p.page} | {lines} | {p.skipped_chars} | {_pct(p.final_letters)} | {_pct(p.punct_at_start)} |")
+            add(f"| {f.name} | {p.page} | {lines} | {p.skipped_chars} | {p.display_failures} | {p.ambiguous_lines} "
+                f"| {_pct(p.final_letters)} | {_pct(p.punct_at_start)} |")
     add("")
     add("</details>")
     add("")

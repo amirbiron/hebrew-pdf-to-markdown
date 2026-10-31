@@ -17,19 +17,19 @@
 
 | תיקייה | מה יש בה |
 |---|---|
-| `hebrew_pdf/` | בונה השורות: קריאת האותיות מ-pypdfium2 (`chars.py`), קיבוץ לשורות ובניית הטקסט (`lines.py`), והבדיקות העקיפות (`indirect_checks.py`) |
+| `hebrew_pdf/` | בונה השורות: קריאת האותיות מ-pypdfium2 (`chars.py`), קיבוץ לשורות ובניית הטקסט (`lines.py`), הסדר הלוגי של שורה לפי אלגוריתם הכיוון של Unicode (`logical_order.py`), והבדיקות העקיפות (`indirect_checks.py`) |
 | `prototype/` | האב-טיפוס שממנו התחיל `hebrew_pdf`, כמו שהיה. נשאר כתיעוד של נקודת ההתחלה, ולא משתנה |
 | `testset/pdfs/` | 12 קובצי PDF אמיתיים, סט הבדיקה הקבוע |
 | `testset/README.md` | פירוט הקבצים: איזו תוכנה יצרה כל אחד ומה מיוחד בו |
 | `testset/labels.md` | 40 שורות מתויגות: מה הכלי הוציא מול הטקסט הנכון לפי העמוד. רק שורה בסטטוס "מאושר" נספרת |
 | `testset/report.md` | הדוח של מערך הבדיקה. נכתב מחדש בכל הרצה; לא עורכים אותו ביד |
-| `harness/` | מערך הבדיקה. הקורא נקרא דרך פונקציה אחת, `read_pages` ב-`harness/reader.py`: כדי לבדוק קורא אחר משנים רק אותה |
+| `harness/` | מערך הבדיקה. הקורא נקרא דרך פונקציה אחת, `read_pages` ב-`harness/reader.py`: כדי לבדוק קורא אחר משנים רק אותה. `display_check.py` בודק כל שורה בסט: האם הפלט, כשמציגים אותו בפסקה עברית, נראה כמו השורה בעמוד |
 | `tests/` | בדיקות של מערך הבדיקה עצמו, כולל בדיקה שקורא מקולקל בכוונה מוריד את התוצאה |
 
 ## הרצה
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # הקורא עצמו צריך רק את requirements.txt
 python prototype/hebrew_pdf_prototype.py testset/pdfs/mentoros-overview_weasyprint.pdf
 python prototype/hebrew_pdf_prototype.py --score testset/pdfs
 python -m harness                      # מערך הבדיקה: כותב את testset/report.md

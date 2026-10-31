@@ -5,9 +5,9 @@
 
 import re
 
-from hebrew_pdf.lines import HEBREW
 
 FINAL_LETTERS = "ךםןףץ"
+HEBREW = re.compile(r"[\u0590-\u05ff]")
 
 
 def score_final_letters(text):

@@ -16,13 +16,14 @@ from pathlib import Path
 from harness.labels import STATUSES, STATUS_APPROVED
 from harness.reader import read_pages
 from harness.run import DEFAULT_LABELS, DEFAULT_PDFS, evaluate, render_report
-from hebrew_pdf.lines import PageText
+from hebrew_pdf.lines import Line, PageText
 
 _LATIN_OR_DIGIT_RUN = re.compile(r"[A-Za-z0-9]+")
 
 
 def reversed_ltr_reader(pdf_path: Path) -> list[PageText]:
-    return [PageText(_LATIN_OR_DIGIT_RUN.sub(lambda m: m.group(0)[::-1], p.text), p.skipped_chars)
+    return [PageText([Line(_LATIN_OR_DIGIT_RUN.sub(lambda m: m.group(0)[::-1], line.text), line.visual, line.ambiguous)
+                      for line in p.lines], p.skipped_chars)
             for p in read_pages(pdf_path)]
 
 
