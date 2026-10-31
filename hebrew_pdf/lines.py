@@ -1,6 +1,7 @@
 """קיבוץ אותיות לשורות, חלוקת כל שורה לרכיבים, ובניית הטקסט של כל רכיב."""
 
 import statistics
+from collections import Counter
 from dataclasses import dataclass, field
 
 import pypdfium2.raw as pdfium_raw
@@ -26,6 +27,7 @@ class Geometry:
     right: float = 0.0  # הקצה הימני של האות הימנית
     size: float = 0.0  # החציון של גודל האות (Char.size) באותיות שיש להן גודל
     glyph: float = 0.0  # רוחב אופייני של אות: החציון של רוחב ההתקדמות (Char.right - Char.left)
+    font: str = ""  # הגופן של רוב האותיות (Char.font); "": לא ידוע
 
     @property
     def width(self) -> float:
@@ -38,8 +40,10 @@ def geometry_of(chars: list[Char]) -> Geometry:
     if not glyphs:
         return Geometry()
     sizes = [c.size for c in glyphs if c.size > 0]
+    fonts = Counter(c.font for c in glyphs)
     return Geometry(glyphs[0].baseline, min(c.left for c in glyphs), max(c.right for c in glyphs),
-                    statistics.median(sizes) if sizes else 0.0, statistics.median(c.right - c.left for c in glyphs))
+                    statistics.median(sizes) if sizes else 0.0, statistics.median(c.right - c.left for c in glyphs),
+                    max(fonts, key=lambda f: (fonts[f], f)))
 
 
 @dataclass(frozen=True)

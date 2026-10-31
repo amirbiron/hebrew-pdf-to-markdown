@@ -2,6 +2,7 @@
 
 import ctypes
 import math
+import re
 from dataclasses import dataclass
 from typing import NamedTuple
 
@@ -34,6 +35,8 @@ class Char(NamedTuple):
     # 0: אין גודל (רווח שהקורא הוסיף, spacing.py). למה לא height: היא תיבת הגופן, ובגופן אחר
     # באותו גודל היא אחרת (נמדד ב-Canva: em 14 בשלושה גופנים, ותיבה של 18.9 עד 19.6)
     size: float = 0.0
+    # שם הגופן שהאות מצוירת בו (font_name), בלי תג התת-קבוצה. "": לא ידוע (או רווח שהקורא הוסיף)
+    font: str = ""
 
 
 @dataclass(frozen=True)
@@ -91,8 +94,30 @@ def page_chars(page) -> PageChars:
                 unknown_brackets += 1
             else:
                 ch = shape
-        chars.append(Char(ch, center, y.value, loose_left, loose_right, loose_top - loose_bottom, size))
+        chars.append(Char(ch, center, y.value, loose_left, loose_right, loose_top - loose_bottom, size,
+                          font_name(textpage, i)))
     return PageChars(chars, skipped, unknown_brackets)
+
+
+# תג של תת-קבוצת גופן: שש אותיות לטיניות גדולות ו-"+" לפני שם הגופן (PDF 1.7, סעיף 9.6.4, Font Subsets).
+# אותו גופן שהוטמע פעמיים בתת-קבוצות שונות מקבל תגים שונים, ובלי להוריד אותו הוא היה נראה כשני גופנים
+_SUBSET_TAG = re.compile(r"[A-Z]{6}\+")
+
+
+def font_name(textpage, index: int) -> str:
+    """שם הגופן של האות (FPDFText_GetFontInfo), בלי תג התת-קבוצה; "" כשהקריאה נכשלה.
+
+    לפי public/fpdf_text.h: הערך המוחזר הוא האורך של השם כולל ה-NUL בסוף, בבייטים, ו-0 בכשל; ורק כשהוא
+    לא גדול מאורך החוצץ, החוצץ מקבל את השם (UTF-8). לכן קודם שואלים את האורך ואז קוראים. (FPDFText_GetFontWeight
+    לא בשימוש: הוא מחזיר 400 גם לגופן מודגש ב-WeasyPrint; markdown.py.) ב-Chrome השם ריק לכל האותיות."""
+    length = pdfium_raw.FPDFText_GetFontInfo(textpage, index, None, 0, None)
+    if length <= 0:
+        return ""
+    buffer = ctypes.create_string_buffer(length)
+    if pdfium_raw.FPDFText_GetFontInfo(textpage, index, buffer, length, None) != length:
+        return ""
+    name = buffer.value.decode("utf-8", errors="replace")
+    return name[7:] if _SUBSET_TAG.match(name) else name
 
 
 def font_size(textpage, index: int, matrix: "pdfium_raw.FS_MATRIX") -> float:
