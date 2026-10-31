@@ -14,6 +14,7 @@
 
 לפני שאתה נוגע באחד מהנושאים בטבלה — קרא את הקובץ המתאים ב-`amirbiron/amir-bug-patterns` (דרך MCP של CodeKeeper אם יש mirror, אחרת מ-GitHub).
 אלה דפוסים שכבר עלו לי בפרודקשן — לא תיאוריה.
+> בכלי הmcp, שם הריפו תמיד בלי שם הבעלים: `amir-bug-patterns`, לא: `amirbiron/amir-bug-patterns`
 
 | כשאתה נוגע ב... | קרא |
 |---|---|
