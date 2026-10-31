@@ -37,8 +37,16 @@ class SplitRowTest(unittest.TestCase):
     def test_empty_cell(self):
         self.assertEqual(split_row("| a | | b |"), ["a", "", "b"])
 
+    def test_no_leading_pipe(self):
+        self.assertEqual(split_row("a | b |"), ["a", "b"])
+
+    def test_formatting_characters_are_escaped(self):
+        self.assertEqual(escape_cell("*א* _ב_ `ג` ~ד~ <ה> [ו] &ז"),
+                         "\\*א\\* \\_ב\\_ \\`ג\\` \\~ד\\~ \\<ה> \\[ו\\] \\&ז")
+
     def test_escape_round_trip(self):
-        samples = ["a | b", "\\", "a\\|b", "x \\ | y", "שאלה? | תשובת הלקוח", "C:\\path\\", "|"]
+        samples = ["a | b", "\\", "a\\|b", "x \\ | y", "שאלה? | תשובת הלקוח", "C:\\path\\", "|",
+                   "סה\"כ *לא* כולל", "__init__", "<b>x</b> &amp;", "[קישור](http://x)", "~מחוק~", "`קוד`"]
         for text in samples:
             with self.subTest(text=text):
                 self.assertEqual(split_row("| " + escape_cell(text) + " | z |"), [text, "z"])
@@ -85,6 +93,37 @@ class ParseLabelsTest(unittest.TestCase):
         self.assertEqual(len(labels), 1)
         self.assertEqual(len(problems), 1)
         self.assertIn("כבר מופיע בשורה 5", problems[0].message)
+
+    def test_row_without_leading_pipe_is_read_like_github_shows_it(self):
+        # ב-GFM ה-| בקצוות לא חובה, ו-GitHub מציג את השורה כשורה רגילה בטבלה
+        labels, problems = self.parse(
+            f"| 1 | a.pdf | 1 | | x | {STATUS_APPROVED} |\n"
+            f"2 | a.pdf | 1 | | y | {STATUS_APPROVED} |\n"
+            f"| 3 | a.pdf | 1 | | z | {STATUS_APPROVED} |\n")
+        self.assertEqual(problems, [])
+        self.assertEqual([l.number for l in labels], [1, 2, 3])
+
+    def test_text_line_inside_the_table_is_a_problem_and_rows_after_it_are_read(self):
+        labels, problems = self.parse(
+            f"| 1 | a.pdf | 1 | | x | {STATUS_APPROVED} |\n"
+            "הערה שנכתבה בטעות בתוך הטבלה\n"
+            f"| 3 | a.pdf | 1 | | z | {STATUS_APPROVED} |\n")
+        self.assertEqual([l.number for l in labels], [1, 3])
+        self.assertEqual([(p.source_line, "1 תאים" in p.message) for p in problems], [(6, True)])
+
+    def test_heading_ends_the_table_without_a_problem(self):
+        labels, problems = self.parse(
+            f"| 1 | a.pdf | 1 | | x | {STATUS_APPROVED} |\n## Notes | details\nטקסט | עם קו\n")
+        self.assertEqual([l.number for l in labels], [1])
+        self.assertEqual(problems, [])
+
+    def test_label_row_after_the_table_is_reported_not_dropped(self):
+        labels, problems = self.parse(
+            f"| 1 | a.pdf | 1 | | x | {STATUS_APPROVED} |\n\n| 2 | a.pdf | 1 | | y | {STATUS_APPROVED} |\n")
+        self.assertEqual([l.number for l in labels], [1])
+        self.assertEqual(len(problems), 1)
+        self.assertEqual(problems[0].source_line, 7)
+        self.assertIn("מחוץ לטבלה", problems[0].message)
 
     def test_missing_table_is_a_file_error(self):
         with self.assertRaises(LabelsFileError):

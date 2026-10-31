@@ -7,6 +7,11 @@
 כללי הכתיבה בתאים הם של GitHub Flavored Markdown, כדי שמה שרואים בתצוגה של הקובץ
 הוא מה שהקוד קורא: לוכסן הפוך לפני סימן פיסוק של ASCII מבטל את משמעותו (\\| הוא
 התו |, ו-\\\\ הוא לוכסן הפוך אחד). | בלי לוכסן לפניו הוא גבול בין תאים.
+
+גם גבול הטבלה הוא של GFM: הטבלה נגמרת בשורה הריקה הראשונה או בתחילת מבנה אחר
+(כותרת, ציטוט, רשימה, בלוק קוד), וכל שורה עד אז היא שורה בטבלה, גם בלי | בהתחלה.
+מקור: https://github.github.com/gfm/#tables-extension- (דוגמאות 199, 201, 202).
+שורת תיוג שנמצאת אחרי סוף הטבלה לא נקראת, אבל מדווחת, כדי שלא תיעלם בשקט.
 """
 
 import re
@@ -23,6 +28,13 @@ STATUSES = (STATUS_PENDING, STATUS_APPROVED, STATUS_UNCLEAR)
 _ASCII_PUNCTUATION = frozenset(string.punctuation)
 _DIGITS = re.compile("[0-9]+")
 _DELIMITER_CELL = re.compile(":?-+:?")
+# תחילת מבנה אחר שקוטעת טבלה ב-GFM: כותרת, ציטוט, בלוק קוד, רשימה, HTML, קו מפריד
+_BLOCK_START = re.compile(
+    r" {0,3}(?:#{1,6}(?:[ \t]|$)|>|```|~~~|[-*+](?:[ \t]|$)|[0-9]{1,9}[.)](?:[ \t]|$)|<"
+    r"|(?:\*[ \t]*){3,}$|(?:-[ \t]*){3,}$|(?:_[ \t]*){3,}$)")
+# תווים שמשנים את התצוגה בתוך תא: עיצוב (* _ ~), קוד (`), HTML (<), קישור ([ ]), ישות (&).
+# לוכסן הפוך לפניהם הופך אותם לתו רגיל (GFM, "Backslash escapes"), ו-split_row מבטל אותו.
+_CELL_ESCAPES = frozenset("\\|*_`~<[]&")
 
 
 class LabelsFileError(ValueError):
@@ -49,16 +61,14 @@ class LabelProblem:
 def split_row(line: str) -> list[str]:
     """שורת טבלה לתאים, אחרי ביטול ה-escapes. הרווחים בקצוות כל תא יורדים.
 
-    | בתחילת השורה חובה; | בסוף השורה לא חובה. לוכסן הפוך לפני תו שאינו פיסוק של
+    | בתחילת השורה ובסופה לא חובה, כמו ב-GFM. לוכסן הפוך לפני תו שאינו פיסוק של
     ASCII נשאר כמו שהוא (כמו ב-GFM: "C:\\path" נשאר "C:\\path").
     """
     stripped = line.strip()
-    if not stripped.startswith("|"):
-        raise ValueError("שורת טבלה חייבת להתחיל ב-|")
     cells = []
     current = []
     ended_with_pipe = False
-    i = 1
+    i = 1 if stripped.startswith("|") else 0
     while i < len(stripped):
         char = stripped[i]
         ended_with_pipe = False
@@ -79,8 +89,14 @@ def split_row(line: str) -> list[str]:
 
 
 def escape_cell(text: str) -> str:
-    """טקסט לתא בטבלה: \\ ו-| מקבלים לוכסן הפוך. הפעולה ההפוכה של split_row."""
-    return text.replace("\\", "\\\\").replace("|", "\\|")
+    """טקסט לתא בטבלה, שמוצג בדיוק כמו שהוא: לוכסן הפוך לפני \\, | ותווי התחביר
+    שב-_CELL_ESCAPES. הפעולה ההפוכה של split_row."""
+    return "".join("\\" + char if char in _CELL_ESCAPES else char for char in text)
+
+
+def _looks_like_label_row(line: str) -> bool:
+    cells = split_row(line)
+    return len(cells) == len(COLUMNS) and bool(_DIGITS.fullmatch(cells[0]))
 
 
 def _is_delimiter_row(cells: list[str]) -> bool:
@@ -97,14 +113,13 @@ def parse_labels(text: str, known_files: frozenset[str]) -> tuple[list[Label], l
     lines = text.split("\n")
     header_index = None
     for index, line in enumerate(lines):
-        if line.strip().startswith("|") and tuple(split_row(line)) == COLUMNS:
+        if "|" in line and tuple(split_row(line)) == COLUMNS:
             header_index = index
             break
     if header_index is None:
         raise LabelsFileError("לא נמצאה טבלה עם הכותרת: " + " | ".join(COLUMNS))
     delimiter_index = header_index + 1
-    if delimiter_index >= len(lines) or not lines[delimiter_index].strip().startswith("|") \
-            or not _is_delimiter_row(split_row(lines[delimiter_index])):
+    if delimiter_index >= len(lines) or not _is_delimiter_row(split_row(lines[delimiter_index])):
         raise LabelsFileError(f"שורה {delimiter_index + 1}: אחרי הכותרת חסרה שורת ההפרדה (|---|---|...)")
     # לפי GFM, כשמספר התאים בשורת ההפרדה שונה מהכותרת זו לא טבלה בכלל, ו-GitHub מציג את
     # הבלוק כפסקה רגילה. מקור: https://github.github.com/gfm/#tables-extension- (דוגמה 203)
@@ -116,10 +131,12 @@ def parse_labels(text: str, known_files: frozenset[str]) -> tuple[list[Label], l
     labels: list[Label] = []
     problems: list[LabelProblem] = []
     seen_numbers: dict[int, int] = {}
+    table_end = len(lines)
     for index in range(header_index + 2, len(lines)):
         line = lines[index]
-        if not line.strip().startswith("|"):
-            break  # סוף הטבלה
+        if not line.strip() or _BLOCK_START.match(line):
+            table_end = index  # סוף הטבלה, כמו ב-GFM
+            break
         source_line = index + 1
         label, problem = _parse_row(split_row(line), source_line, known_files)
         if problem is not None:
@@ -131,6 +148,12 @@ def parse_labels(text: str, known_files: frozenset[str]) -> tuple[list[Label], l
             continue
         seen_numbers[label.number] = source_line
         labels.append(label)
+
+    for index in range(table_end, len(lines)):
+        if _looks_like_label_row(lines[index]):
+            problems.append(LabelProblem(
+                index + 1, "שורת תיוג מחוץ לטבלה: שורה ריקה או טקסט אחר מפרידים בינה לבין הטבלה, "
+                           "ולכן גם GitHub לא מציג אותה בטבלה. היא לא נקראה"))
     return labels, problems
 
 

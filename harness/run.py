@@ -126,7 +126,13 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages) -> E
 
 
 def _cell(text: str) -> str:
-    return labels_mod.escape_cell(visible(text))
+    """טקסט לתא בדוח, שמוצג בדיוק כמו שהוא.
+
+    $ מקבל טיפול נפרד: GitHub מציג $...$ כנוסחה, ולפי התיעוד שלו מחוץ לנוסחה עוטפים
+    את ה-$ ב-span (https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions).
+    זה לא שייך ל-escape_cell, כי הדוח לא נקרא בחזרה ו-split_row לא מכיר span.
+    """
+    return labels_mod.escape_cell(visible(text)).replace("$", "<span>$</span>")
 
 
 def _pct(value: int | None) -> str:
