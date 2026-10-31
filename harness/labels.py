@@ -8,6 +8,16 @@
 הוא מה שהקוד קורא: לוכסן הפוך לפני סימן פיסוק של ASCII מבטל את משמעותו (\\| הוא
 התו |, ו-\\\\ הוא לוכסן הפוך אחד). | בלי לוכסן לפניו הוא גבול בין תאים.
 
+גבול בין תאים בתוך "הטקסט הנכון" (שורת טבלה, או תיבות זו לצד זו) הוא <br>: תג HTML
+שבתוך תא בטבלה של GitHub מוצג כמעבר שורה, כך שכל תא מופיע בשורה משלו. ב-GFM תוכן התא
+מפוענח כ-inlines ("Each row consists of cells containing arbitrary text, in which [inlines]
+are parsed", https://github.github.com/gfm/#tables-extension-), ותג HTML הוא inline
+("Text between < and > that looks like an HTML tag is parsed as a raw HTML tag",
+https://github.github.com/gfm/#raw-html). GitHub משאיר את br אחרי הסינון (html-pipeline,
+lib/html_pipeline/sanitization_filter.rb, ברשימת האלמנטים המותרים). <br> לא יכול להיות טקסט
+של מסמך, כי טקסט "<br>" נכתב \\<br> (הלוכסן ההפוך מבטל את משמעות ה-<), ובתצוגה הוא נראה
+כטקסט. לכן אין התנגשות עם התו | עצמו, שנכתב \\| ונשאר חלק מהטקסט.
+
 גם גבול הטבלה הוא של GFM: הטבלה נגמרת בשורה הריקה הראשונה או בתחילת מבנה אחר
 (כותרת, ציטוט, רשימה, בלוק קוד), וכל שורה עד אז היא שורה בטבלה, גם בלי | בהתחלה.
 מקור: https://github.github.com/gfm/#tables-extension- (דוגמאות 199, 201, 202).
@@ -35,6 +45,10 @@ _BLOCK_START = re.compile(
 # תווים שמשנים את התצוגה בתוך תא: עיצוב (* _ ~), קוד (`), HTML (<), קישור ([ ]), ישות (&).
 # לוכסן הפוך לפניהם הופך אותם לתו רגיל (GFM, "Backslash escapes"), ו-split_row מבטל אותו.
 _CELL_ESCAPES = frozenset("\\|*_`~<[]&")
+# גבול בין תאים ב"הטקסט הנכון": תג br, כמו ש-GFM מזהה תג פתיחה (https://github.github.com/gfm/#open-tag):
+# "<", שם התג, אולי תכונות, אולי רווח, אולי "/", ו-">". שמות תגים ב-HTML לא תלויים באותיות
+# גדולות, ולכן גם <BR>. כל אלה מוצגים ב-GitHub כמעבר שורה: <br>, <br/>, <br />, <br class="x">
+_CELL_BREAK = re.compile(r"<br(?:[ \t][^<>]*)?/?>", re.IGNORECASE)
 
 
 class LabelsFileError(ValueError):
@@ -47,7 +61,9 @@ class Label:
     file: str
     page: int
     tool_output: str
-    expected: str
+    # הטקסט הנכון, כתאים לפי סדר הקריאה (מימין לשמאל). שורה רגילה היא תא אחד. תא ריק נשאר
+    # ריק. להשוואה כמחרוזת אחת: harness.textdiff.join_cells
+    expected: tuple[str, ...]
     status: str
     source_line: int  # מספר השורה ב-labels.md, להודעות שגיאה
 
@@ -58,11 +74,10 @@ class LabelProblem:
     message: str
 
 
-def split_row(line: str) -> list[str]:
-    """שורת טבלה לתאים, אחרי ביטול ה-escapes. הרווחים בקצוות כל תא יורדים.
+def _split_raw(line: str) -> list[str]:
+    """שורת טבלה לתאים, בלי לבטל את ה-escapes ובלי להוריד רווחים: \\| נשאר \\| בתוך התא.
 
-    | בתחילת השורה ובסופה לא חובה, כמו ב-GFM. לוכסן הפוך לפני תו שאינו פיסוק של
-    ASCII נשאר כמו שהוא (כמו ב-GFM: "C:\\path" נשאר "C:\\path").
+    | בתחילת השורה ובסופה לא חובה, כמו ב-GFM. | בלי לוכסן הפוך לפניו הוא גבול בין תאים.
     """
     stripped = line.strip()
     cells = []
@@ -73,7 +88,7 @@ def split_row(line: str) -> list[str]:
         char = stripped[i]
         ended_with_pipe = False
         if char == "\\" and i + 1 < len(stripped) and stripped[i + 1] in _ASCII_PUNCTUATION:
-            current.append(stripped[i + 1])
+            current.append(stripped[i:i + 2])
             i += 2
             continue
         if char == "|":
@@ -85,7 +100,45 @@ def split_row(line: str) -> list[str]:
         i += 1
     if not ended_with_pipe:
         cells.append("".join(current))
-    return [cell.strip() for cell in cells]
+    return cells
+
+
+def _unescape_parts(raw: str, boundary: re.Pattern | None = None) -> list[str]:
+    """ביטול ה-escapes של GFM: לוכסן הפוך לפני סימן פיסוק של ASCII הופך אותו לתו רגיל.
+    לוכסן הפוך לפני תו שאינו פיסוק של ASCII נשאר כמו שהוא (כמו ב-GFM: "C:\\path" נשאר).
+
+    boundary: כשנמסר, הטקסט מתפצל בכל מופע שלו שאינו חלק מ-escape. הסריקה משמאל לימין,
+    ולכן \\<br> הוא "<br>" כטקסט, ו-\\\\<br> הוא לוכסן הפוך ואחריו גבול, כמו ש-GitHub מציג.
+    """
+    parts: list[str] = []
+    out: list[str] = []
+    i = 0
+    while i < len(raw):
+        if raw[i] == "\\" and i + 1 < len(raw) and raw[i + 1] in _ASCII_PUNCTUATION:
+            out.append(raw[i + 1])
+            i += 2
+            continue
+        found = boundary.match(raw, i) if boundary is not None else None
+        if found:
+            parts.append("".join(out))
+            out = []
+            i = found.end()
+            continue
+        out.append(raw[i])
+        i += 1
+    parts.append("".join(out))
+    return parts
+
+
+def split_row(line: str) -> list[str]:
+    """שורת טבלה לתאים, אחרי ביטול ה-escapes. הרווחים בקצוות כל תא יורדים."""
+    return [_unescape_parts(cell)[0].strip() for cell in _split_raw(line)]
+
+
+def split_cells(raw: str) -> tuple[str, ...]:
+    """תא של "הטקסט הנכון", כמו שהוא כתוב בקובץ (לפני ביטול ה-escapes), לתאים של השורה
+    שבעמוד: גבול בכל <br> (_CELL_BREAK). הרווחים בקצוות כל תא יורדים."""
+    return tuple(part.strip() for part in _unescape_parts(raw, _CELL_BREAK))
 
 
 def escape_cell(text: str) -> str:
@@ -138,7 +191,7 @@ def parse_labels(text: str, known_files: frozenset[str]) -> tuple[list[Label], l
             table_end = index  # סוף הטבלה, כמו ב-GFM
             break
         source_line = index + 1
-        label, problem = _parse_row(split_row(line), source_line, known_files)
+        label, problem = _parse_row(_split_raw(line), source_line, known_files)
         if problem is not None:
             problems.append(problem)
             continue
@@ -157,18 +210,19 @@ def parse_labels(text: str, known_files: frozenset[str]) -> tuple[list[Label], l
     return labels, problems
 
 
-def _parse_row(cells: list[str], source_line: int, known_files: frozenset[str]):
-    if len(cells) != len(COLUMNS):
+def _parse_row(raw_cells: list[str], source_line: int, known_files: frozenset[str]):
+    if len(raw_cells) != len(COLUMNS):
         return None, LabelProblem(
-            source_line, f"{len(cells)} תאים במקום {len(COLUMNS)} (אולי | בתוך טקסט בלי \\ לפניו?)")
-    number_cell, file_cell, page_cell, tool_output, expected, status = cells
+            source_line, f"{len(raw_cells)} תאים במקום {len(COLUMNS)} (אולי | בתוך טקסט בלי \\ לפניו?)")
+    number_cell, file_cell, page_cell, tool_output, _, status = (_unescape_parts(cell)[0].strip() for cell in raw_cells)
+    expected = split_cells(raw_cells[4])
     if not _DIGITS.fullmatch(number_cell) or int(number_cell) < 1:
         return None, LabelProblem(source_line, f"מספר לא תקין: '{number_cell}'")
     if file_cell not in known_files:
         return None, LabelProblem(source_line, f"קובץ לא מוכר בסט הבדיקה: '{file_cell}'")
     if not _DIGITS.fullmatch(page_cell) or int(page_cell) < 1:
         return None, LabelProblem(source_line, f"עמוד לא תקין: '{page_cell}'")
-    if not expected:
+    if not any(expected):
         return None, LabelProblem(source_line, "הטקסט הנכון ריק")
     if status not in STATUSES:
         return None, LabelProblem(

@@ -23,6 +23,15 @@ class Line:
     # כמה הרווחים לפי הפער שונים מתווי הרווח שבקובץ (spacing.py). build_line ממלא תמיד
     spacing: SpaceCounts = SpaceCounts()
 
+    @property
+    def cells(self) -> tuple[str, ...]:
+        """הרכיבים של השורה (תאים, תיבות, תגים), כל אחד בסדר הלוגי, לפי סדר הקריאה.
+
+        מערך הבדיקה משווה לפיהם את השורה לתיוג ולדף התשובות של הטבלאות. הקורא עוד לא
+        מפריד בין רכיבים: כל שורה היא רכיב אחד.
+        """
+        return (self.text,)
+
 
 @dataclass(frozen=True)
 class PageText:

@@ -2,11 +2,20 @@
 
 import re
 import unicodedata
+from collections.abc import Sequence
 
 # כל תווי הרווח של Unicode (קטגוריה Zs) ועוד טאב. בכוונה לא \s ולא str.split():
 # שניהם מחשיבים גם את U+001C עד U+001F לרווח, ואלה בדיוק התווים שהפלאייר מוציא
 # במקום אותיות שלא מופו (GPS, סימן שאלה). נרמול שהופך אותם לרווח היה מסתיר כשל.
 _SPACE_RUN = re.compile("[\t\u0020\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]+")
+
+# הגבול בין שני תאים (רכיבים) של שורה, בייצוג הפנימי של ההשוואה: שורה עם כמה תאים
+# מושווית כמחרוזת אחת, והגבול נספר בה כתו אחד. זה noncharacter של Unicode, "a code point
+# that is permanently reserved in the Unicode Standard for internal use and that will never
+# be assigned to an abstract character" (https://www.unicode.org/faq/private_use.html,
+# "Noncharacters"), ולכן הוא לא חלק מטקסט של מסמך. הוא לא נכתב לשום קובץ: בטבלת התיוג
+# המפריד הוא <br> (harness/labels.py), ובדוח הגבול מוצג כ-<br>.
+CELL_BOUNDARY = "\ufdd0"
 
 
 def split_lines(page_text: str) -> list[str]:
@@ -25,6 +34,21 @@ def normalize(text: str) -> str:
     המיקום של הרווח כן נשמר: "ומהא יתך" מול "ומה איתך" נשאר שונה.
     """
     return _SPACE_RUN.sub(" ", text).strip(" ")
+
+
+def join_cells(cells: Sequence[str]) -> str:
+    """התאים של שורה כמחרוזת אחת להשוואה, לפי סדר הקריאה, עם CELL_BOUNDARY ביניהם.
+
+    רווח משני צדי הגבול, כדי ש-normalize יאחד אותו עם הרווחים שבקצות התאים, כמו שהיה
+    "שאלה? | תשובה" כשהמפריד בתיוג היה |. תא ריק נשאר: ("א", "", "ב") הוא שני גבולות
+    שביניהם רווח אחד.
+    """
+    return f" {CELL_BOUNDARY} ".join(cells)
+
+
+def without_spaces(text: str) -> str:
+    """הטקסט בלי שום רווח (לפי אותה הגדרה של normalize). לבדיקות של סדר ותוכן בלבד."""
+    return _SPACE_RUN.sub("", text)
 
 
 def levenshtein(a: str, b: str, limit: int | None = None) -> int:
