@@ -1,7 +1,8 @@
 """בדיקת התצוגה: האם הפלט, כשמציגים אותו בפסקה עברית, נראה כמו השורה בעמוד.
 
 לכל שורה יש שני דברים: הטקסט שהקורא הוציא (הסדר הלוגי), והאותיות כמו שהן בעמוד,
-משמאל לימין (Line.visual). הבדיקה מציגה את הטקסט באלגוריתם התצוגה של Unicode
+משמאל לימין (Line.visual). שורה עם כמה רכיבים (תאים, תיבות; hebrew_pdf/layout.py) נבדקת
+רכיב-רכיב (Line.parts), כי כל רכיב נקרא בנפרד. הבדיקה מציגה את הטקסט באלגוריתם התצוגה של Unicode
 (UAX #9) ומשווה לסדר שבעמוד, אחרי איחוד רווחים (textdiff.normalize).
 
 אלגוריתם התצוגה כאן הוא python-bidi, שעוטף את unicode-bidi של Servo (Rust): מימוש
@@ -51,5 +52,14 @@ def displayed(text: str, rtl: bool) -> str:
 
 
 def displays_like_page(line: Line) -> bool:
-    shown = normalize(displayed(line.text, line.rtl)).translate(_ANY_DIRECTION)
-    return shown == normalize(_paragraph_breaks_as_separators(line.visual)).translate(_ANY_DIRECTION)
+    """כל רכיב של השורה (Line.parts), כשמציגים אותו בכיוון שבו הוא נקרא, נראה כמו הרכיב בעמוד.
+
+    רכיבים נפרדים (תאים, תיבות) נקראים כל אחד בנפרד, ולכן גם מוצגים כל אחד בנפרד: שורה
+    של כמה תאים, כשמציגים אותה כפסקה אחת, לא אמורה להיראות כמו העמוד.
+    """
+    return all(_component_displays_like_page(part.text, part.visual, part.rtl) for part in line.parts)
+
+
+def _component_displays_like_page(text: str, visual: str, rtl: bool) -> bool:
+    shown = normalize(displayed(text, rtl)).translate(_ANY_DIRECTION)
+    return shown == normalize(_paragraph_breaks_as_separators(visual)).translate(_ANY_DIRECTION)

@@ -91,30 +91,36 @@ def bidi_class(text: str) -> str:
     return kind
 
 
-def document_rtl(texts: Iterable[str]) -> bool:
-    """כיוון הפסקה של כל השורות במסמך: מימין לשמאל, אלא אם יש במסמך יותר תווים חזקים
-    משמאל לימין (L) מאשר מימין לשמאל (R ו-AL).
+def document_rtl(lines: Iterable[Iterable[str]]) -> bool:
+    """כיוון הפסקה של כל השורות במסמך: מימין לשמאל, אלא אם יש במסמך יותר שורות שיש בהן
+    תווים חזקים משמאל לימין (L) ואין בהן אף תו חזק מימין לשמאל (R, AL), מאשר שורות עם
+    תו מימין לשמאל. lines: התווים של כל שורה.
 
     UAX #9 קובע את כיוון הפסקה לפי התו החזק הראשון בה (P2, P3), ומאפשר לקבוע אותו
     מבחוץ (HL1: "A higher-level protocol may set any paragraph level. This can be done
     on the basis of the context, such as on a table cell, paragraph, document, or system
-    level", ובאותו סעיף, כדוגמה: "whether there are more RTL characters in the text than
-    LTR"). כאן הוא נקבע לפי המסמך כולו: שורה בלי עברית במסמך עברי היא חלק מפסקה עברית.
+    level"). כאן הוא נקבע לפי המסמך כולו: שורה בלי עברית במסמך עברי היא חלק מפסקה עברית.
     כתובת שמסתיימת בלוכסן, בעמוד עברי, מצוירת "/https://...", ורק בפסקה מימין לשמאל
     הסדר הלוגי שלה הוא "https://.../". מילה אחת באנגלית נראית זהה בשני הכיוונים, ולכן
     לא משתנה.
 
+    למה לפי שורות ולא לפי תווים: הכיוון של המסמך משנה רק שורות בלי עברית, כי שורה עם
+    עברית נקראת בכל מקרה בפסקה מימין לשמאל (to_logical). השאלה היא אם שורה בלי עברית
+    שייכת למסמך שהשורות שלו עבריות, ורוב השורות עונה עליה ישירות. ספירת תווים נתנה
+    משקל של 21 אותיות לשם משתנה אחד: בקובץ הטבלאות יש 26,859 אותיות לטיניות מול 25,885
+    עבריות, אבל ב-1,702 מתוך 1,925 השורות יש עברית, והמסמך עברי (dir="rtl").
+
     בתיקו, כולל מסמך בלי אף תו חזק, הכיוון הוא מימין לשמאל: זה קורא של מסמכים עבריים
     (HL1 מתיר "default to level 1 (RTL) rather than 0 (LTR) to match overall RTL context").
     """
-    strong_rtl = strong_ltr = 0
-    for text in texts:
-        kind = bidi_class(text)
-        if kind in ("R", "AL"):
-            strong_rtl += 1
-        elif kind == "L":
-            strong_ltr += 1
-    return strong_ltr <= strong_rtl
+    rtl_lines = ltr_lines = 0
+    for line in lines:
+        kinds = {bidi_class(text) for text in line}
+        if kinds & {"R", "AL"}:
+            rtl_lines += 1
+        elif "L" in kinds:
+            ltr_lines += 1
+    return ltr_lines <= rtl_lines
 
 
 def _has_rtl(kinds: Sequence[str]) -> bool:

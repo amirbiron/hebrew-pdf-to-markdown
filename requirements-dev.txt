@@ -3,3 +3,10 @@
 # אלגוריתם התצוגה של Unicode לבדיקת התצוגה (harness/display_check.py): מימוש עצמאי
 # שלא חולק קוד עם hebrew_pdf. רישיון: LGPL-3.0 (עוטף את unicode-bidi, MIT או Apache-2.0).
 python-bidi==0.6.12
+# בניית קובץ הטבלאות ודף התשובות שלו מחדש (tools/build_table_pdf.py), לא נדרש להרצת מערך הבדיקה.
+# הגרסאות שבנו את testset/pdfs/env-vars_weasyprint.pdf: WeasyPrint 70.0 לפי שדה ה-Producer בקובץ.
+# נבדק: עם שתי הגרסאות האלה דף התשובות יוצא זהה בייט-בייט, והטקסט של כל 63 העמודים זהה.
+# WeasyPrint טוענת גם ספריות מערכת (Pango, HarfBuzz, Fontconfig; weasyprint/text/ffi.py), והעמוד
+# משתמש בגופן DejaVu Sans שמותקן במערכת.
+weasyprint==70.0
+markdown==3.11.2

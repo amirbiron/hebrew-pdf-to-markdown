@@ -1,4 +1,5 @@
-"""מערך הבדיקה: מריץ את הקורא על כל סט הבדיקה, משווה לשורות המתויגות, וכותב דוח.
+"""מערך הבדיקה: מריץ את הקורא על כל סט הבדיקה, משווה לשורות המתויגות ולדפי התשובות של
+הטבלאות, וכותב דוח.
 
 שימוש (מתיקיית הריפו):
     python -m harness                       # כותב testset/report.md
@@ -8,19 +9,21 @@
 היא git diff על הקובץ, וכל שורה שהשתנתה בדוח היא שינוי אמיתי בתוצאה.
 
 פרטיות: הטקסט שחולץ נכתב רק לקובץ הדוח, ורק לשורות המתויגות (שכבר נמצאות בטבלת
-התיוג). מה שמודפס למסך הוא מספרים בלבד.
+התיוג). מדידת הטבלאות נכתבת לדוח כמספרים בלבד. מה שמודפס למסך הוא מספרים בלבד.
 """
 
 import argparse
 import sys
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from harness import labels as labels_mod
 from harness.display_check import displays_like_page
+from harness.label_order import MISSING, NOT_CHECKED, OrderCheck, check_label_order
 from harness.reader import read_pages
-from harness.textdiff import closest_line, normalize, split_lines, visible
+from harness.tables import TRUTH_SUFFIX, TableScore, TruthFileError, load_truth, pdf_name, score_tables
+from harness.textdiff import CELL_BOUNDARY, closest_line, join_cells, normalize, split_lines, visible
 from hebrew_pdf.lines import PageText
 from hebrew_pdf.spacing import SpaceCounts
 from hebrew_pdf.indirect_checks import score_final_letters, score_punct_at_start
@@ -28,6 +31,7 @@ from hebrew_pdf.indirect_checks import score_final_letters, score_punct_at_start
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PDFS = ROOT / "testset" / "pdfs"
 DEFAULT_LABELS = ROOT / "testset" / "labels.md"
+DEFAULT_TRUTH = ROOT / "testset" / "ground_truth"
 DEFAULT_OUTPUT = ROOT / "testset" / "report.md"
 
 Reader = Callable[[Path], list[PageText]]
@@ -70,7 +74,7 @@ class FileResult:
 class LabelResult:
     label: labels_mod.Label
     distance: int
-    closest: str
+    closest: str  # השורה הקרובה ביותר, מנורמלת, עם CELL_BOUNDARY בין התאים (textdiff.join_cells)
 
     @property
     def exact(self) -> bool:
@@ -85,6 +89,13 @@ class Evaluation:
     pending: list[labels_mod.Label]
     unclear: list[labels_mod.Label]
     problems: list[labels_mod.LabelProblem]
+    # בדיקת הסדר של כל תיוג שנקרא, בכל סטטוס (harness/label_order.py), לפי מספר התיוג
+    orders: dict[int, OrderCheck] = field(default_factory=dict)
+    tables: list[TableScore] = field(default_factory=list)  # טבלאות מול דף תשובות (harness/tables.py)
+
+    @property
+    def order_ok_count(self) -> int:
+        return sum(check.ok for check in self.orders.values())
 
     @property
     def exact_count(self) -> int:
@@ -116,7 +127,7 @@ class Evaluation:
 
     @property
     def total_chars(self) -> int:
-        return sum(len(normalize(r.label.expected)) for r in self.approved)
+        return sum(len(normalize(join_cells(r.label.expected))) for r in self.approved)
 
 
 def creator_of(file_name: str) -> str:
@@ -125,17 +136,20 @@ def creator_of(file_name: str) -> str:
     return stem.rsplit("_", 1)[1] if "_" in stem else "—"
 
 
-def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages) -> Evaluation:
+def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
+             truth_dir: Path | None = DEFAULT_TRUTH) -> Evaluation:
+    """truth_dir: תיקיית דפי התשובות של הטבלאות. כל דף תשובות חייב קובץ PDF בסט
+    (tables.pdf_name), אחרת TruthFileError. None: בלי מדידת טבלאות."""
     pdf_paths = sorted(pdf_dir.glob("*.pdf"))
     known = frozenset(p.name for p in pdf_paths)
     all_labels, problems = labels_mod.parse_labels(labels_path.read_text(encoding="utf-8"), known)
 
-    page_texts: dict[str, list[str]] = {}
+    read_files: dict[str, list[PageText]] = {}
     files: list[FileResult] = []
     for path in pdf_paths:
         read = reader(path)
+        read_files[path.name] = read
         texts = [p.text for p in read]
-        page_texts[path.name] = texts
         pages = [
             PageResult(i, sum(1 for l in split_lines(p.text) if normalize(l)), p.skipped_chars, p.unknown_brackets,
                        sum(1 for line in p.lines if normalize(line.visual) and not displays_like_page(line)),
@@ -148,24 +162,46 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages) -> E
     approved: list[LabelResult] = []
     pending: list[labels_mod.Label] = []
     unclear: list[labels_mod.Label] = []
+    orders: dict[int, OrderCheck] = {}
     problems = list(problems)
     for label in sorted(all_labels, key=lambda l: l.number):
-        page_count = len(page_texts[label.file])
+        page_count = len(read_files[label.file])
         if label.page > page_count:
             problems.append(labels_mod.LabelProblem(
                 label.source_line, f"עמוד {label.page} לא קיים ב-{label.file} (יש בו {page_count} עמודים)"))
             continue
+        lines = read_files[label.file][label.page - 1].lines
+        orders[label.number] = check_label_order(label.expected, lines)
         if label.status == labels_mod.STATUS_PENDING:
             pending.append(label)
         elif label.status == labels_mod.STATUS_UNCLEAR:
             unclear.append(label)
         else:
-            lines = split_lines(page_texts[label.file][label.page - 1])
-            distance, closest = closest_line(label.expected, lines)
+            distance, closest = closest_line(join_cells(label.expected), _candidates(label, lines))
             approved.append(LabelResult(label, distance, closest))
 
+    tables: list[TableScore] = []
+    if truth_dir is not None:
+        for truth_path in sorted(truth_dir.glob("*" + TRUTH_SUFFIX)):
+            name = pdf_name(truth_path)
+            if name not in read_files:
+                raise TruthFileError(f"{truth_path.name}: אין קובץ {name} בתיקיית ה-PDF ({pdf_dir})")
+            output = [row for page in read_files[name] for row in page.rows]
+            tables.append(score_tables(name, load_truth(truth_path), output))
+
     reader_name = f"{reader.__module__}.{reader.__qualname__}"
-    return Evaluation(reader_name, files, approved, pending, unclear, sorted(problems, key=lambda p: p.source_line))
+    return Evaluation(reader_name, files, approved, pending, unclear, sorted(problems, key=lambda p: p.source_line),
+                      orders, tables)
+
+
+def _candidates(label: labels_mod.Label, lines: list) -> list[str]:
+    """השורות בעמוד שמולן נמדד תיוג: כל שורה, עם התאים שלה. תיוג של תא אחד נמדד גם מול כל
+    תא בנפרד, לפי "שורה אחת" ב-testset/labels.md: כשבשורה בעמוד יש כמה עמודות או תיבות,
+    השורה המתויגת היא רק החלק של העמודה האחת."""
+    candidates = [join_cells(line.cells) for line in lines]
+    if len(label.expected) == 1:
+        candidates += [cell for line in lines if len(line.cells) > 1 for cell in line.cells if cell]
+    return candidates
 
 
 def _cell(text: str) -> str:
@@ -178,6 +214,32 @@ def _cell(text: str) -> str:
     return labels_mod.escape_cell(visible(text)).replace("$", "<span>$</span>")
 
 
+def _cells(cells: list[str] | tuple[str, ...]) -> str:
+    """תאים של שורה לתא בדוח: כל תא מוצג כמו שהוא, ו-<br> ביניהם, כמו בטבלת התיוג.
+
+    <br> נשאר בלי escape, כדי ש-GitHub יציג כל תא בשורה משלו. "<" שבתוך טקסט עובר
+    escape ב-_cell, ולכן טקסט "<br>" מוצג כטקסט ולא כגבול.
+    """
+    return " <br> ".join(_cell(cell) for cell in cells)
+
+
+def _line_cells(joined: str) -> list[str]:
+    """שורה מנורמלת עם CELL_BOUNDARY בין התאים (textdiff.join_cells), חזרה לתאים."""
+    return [cell.strip(" ") for cell in joined.split(CELL_BOUNDARY)]
+
+
+def _order(check: OrderCheck | None) -> str:
+    if check is None:
+        return "—"
+    if check.ok:
+        return f"✓ {check.kind}"
+    if check.kind == MISSING:
+        return f"✗ {check.kind}: {_cell(check.missing)}"
+    if check.kind == NOT_CHECKED:
+        return f"— {check.kind}"
+    return f"✗ {check.kind}"
+
+
 def _pct(value: int | None) -> str:
     return "—" if value is None else f"{value}%"
 
@@ -186,8 +248,9 @@ def _count_and_share(count: int, of: int) -> str:
     return f"{count} ({100 * count / of:.1f}%)" if of else str(count)
 
 
-def _numbers(items: list[labels_mod.Label]) -> str:
-    return ", ".join(str(label.number) for label in items) if items else "אין"
+def _numbers(items: list[labels_mod.Label], orders: dict[int, OrderCheck]) -> str:
+    """מספרי התיוגים, כל אחד עם תוצאת בדיקת הסדר שלו."""
+    return ", ".join(f"{label.number} ({_order(orders.get(label.number))})" for label in items) if items else "אין"
 
 
 def render_report(ev: Evaluation) -> str:
@@ -212,6 +275,10 @@ def render_report(ev: Evaluation) -> str:
     add(f"| ממתינות לאישור (לא נספרות) | {len(ev.pending)} |")
     add(f"| לא ברורות (לא נספרות) | {len(ev.unclear)} |")
     add(f"| שורות פגומות בטבלת התיוג | {len(ev.problems)} |")
+    add(f"| תיוגים שעוברים את בדיקת הסדר (בכל סטטוס) | {ev.order_ok_count} מתוך {len(ev.orders)} |")
+    for score in ev.tables:
+        add(f"| תאים זהים בטבלאות ({score.pdf}) | {_count_and_share(score.identical_cells, score.cells)} מתוך {score.cells} |")
+        add(f"| שורות טבלה זהות ({score.pdf}) | {_count_and_share(score.identical_rows, score.rows)} מתוך {score.rows} |")
     add(f"| אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | {ev.skipped_chars} |")
     add(f"| סוגריים שהצורה שלהם לא נקבעה מהציור (בכל הסט) | {ev.unknown_brackets} |")
     add(f"| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | {ev.display_failures} מתוך {ev.line_count} |")
@@ -219,7 +286,11 @@ def render_report(ev: Evaluation) -> str:
     add("")
     add("מרחק תווים: כמה הוספות, מחיקות או החלפות של תו בודד צריך כדי להגיע מהשורה הקרובה ביותר בעמוד לטקסט הנכון. 0 = זהה. רצף רווחים נחשב לרווח אחד.")
     add("")
-    add("בדיקת התצוגה: כל שורה בסט, לא רק המתויגות, מוצגת באלגוריתם התצוגה של Unicode, בכיוון הפסקה שבו הקורא קרא אותה (Line.rtl: כיוון אחד לכל המסמך, לפי hebrew_pdf/logical_order.document_rtl; במסמך עברי כל שורה מימין לשמאל, גם שורה בלי עברית), ומושווית לסדר האותיות בעמוד. שורה שנכשלת היא שורה שהפלט שלה לא ייראה כמו העמוד. שורה דו-משמעית היא שורה שיותר מקריאה אחת שלה נראית בדיוק כמו העמוד (למשל \"1 Onboarding\" ו-\"Onboarding 1\"), והקורא בחר לפי ברירת מחדל. ההסבר המלא ב-harness/display_check.py וב-hebrew_pdf/logical_order.py.")
+    add("בדיקת התצוגה: כל שורה בסט, לא רק המתויגות, מוצגת באלגוריתם התצוגה של Unicode, בכיוון הפסקה שבו הקורא קרא אותה (כיוון אחד לכל המסמך, לפי רוב השורות, hebrew_pdf/logical_order.document_rtl; במסמך עברי כל שורה מימין לשמאל, גם שורה בלי עברית), ומושווית לסדר האותיות בעמוד. שורה עם כמה רכיבים (תאים, תיבות; hebrew_pdf/layout.py) נבדקת רכיב-רכיב, כי כל רכיב נקרא בנפרד. שורה שנכשלת היא שורה שהפלט שלה לא ייראה כמו העמוד. שורה דו-משמעית היא שורה שיותר מקריאה אחת שלה נראית בדיוק כמו העמוד (למשל \"1 Onboarding\" ו-\"Onboarding 1\"), והקורא בחר לפי ברירת מחדל. ההסבר המלא ב-harness/display_check.py וב-hebrew_pdf/logical_order.py.")
+    add("")
+    add("בדיקת הסדר של התיוגים: כל \"טקסט נכון\" מוצג באלגוריתם התצוגה של החבילה (hebrew_pdf/logical_order.drawn, כולל שיקוף סוגריים), כל תא בנפרד והתאים מימין לשמאל, ומושווה בלי רווחים לסדר האותיות בשורה בעמוד שיש לה הכי הרבה אותיות משותפות איתו. \"שורה שלמה\" ו-\"חלק מהשורה\" עוברות; \"סדר שונה\" הוא תיוג שגוי בסדר; \"חסר בעמוד\" הוא טקסט שאין בקובץ או שנוסף בתיוג. כך אדם בודק רק תוכן, והמכונה בודקת סדר. ההסבר המלא ב-harness/label_order.py.")
+    add("")
+    add("שורה עם כמה רכיבים מושווית לתיוג כתאים, עם <br> ביניהם. תיוג של תא אחד נמדד גם מול כל תא בנפרד, לפי \"שורה אחת\" ב-testset/labels.md: כשבשורה בעמוד יש כמה עמודות או תיבות, השורה המתויגת היא רק החלק של העמודה האחת.")
     add("")
     add("המרחק הוא גבול תחתון: כשהקורא שובר שורה מאוד (למשל מדביק אליה עמודה שכנה), שורה אחרת בעמוד יכולה להיות קרובה יותר מהשורה שלה, ואז המרחק קטן מהשגיאה האמיתית. בעמודה \"השורה הקרובה ביותר בפלט\" רואים מול איזו שורה נמדד. המדד הראשי הוא מספר השורות הזהות.")
     add("")
@@ -238,19 +309,43 @@ def render_report(ev: Evaluation) -> str:
     add("## שורות מתויגות")
     add("")
     if ev.approved:
-        add("| מספר | קובץ | עמוד | תוצאה | מרחק | הטקסט הנכון | השורה הקרובה ביותר בפלט |")
-        add("|---|---|---|---|---|---|---|")
+        add("| מספר | קובץ | עמוד | תוצאה | מרחק | סדר התיוג | הטקסט הנכון | השורה הקרובה ביותר בפלט |")
+        add("|---|---|---|---|---|---|---|---|")
         for r in ev.approved:
             result = "✓ זהה" if r.exact else "✗"
-            closest = "" if r.exact else _cell(r.closest)
-            add(f"| {r.label.number} | {r.label.file} | {r.label.page} | {result} | {r.distance} | {_cell(r.label.expected)} | {closest} |")
+            closest = "" if r.exact else _cells(_line_cells(r.closest))
+            add(f"| {r.label.number} | {r.label.file} | {r.label.page} | {result} | {r.distance} "
+                f"| {_order(ev.orders.get(r.label.number))} | {_cells(r.label.expected)} | {closest} |")
     else:
         add("עדיין אין שורות מאושרות. שורה נספרת רק כשהסטטוס שלה ב-testset/labels.md הוא \"מאושר\".")
     add("")
-    add(f"ממתינות לאישור: {_numbers(ev.pending)}")
+    add(f"ממתינות לאישור: {_numbers(ev.pending, ev.orders)}")
     add("")
-    add(f"לא ברורות: {_numbers(ev.unclear)}")
+    add(f"לא ברורות: {_numbers(ev.unclear, ev.orders)}")
     add("")
+
+    if ev.tables:
+        add("## טבלאות מול דף תשובות")
+        add("")
+        add("כל קובץ ב-testset/ground_truth הוא דף התשובות של PDF בסט, שנבנה מאותו מקור (tools/build_table_pdf.py), ולכן הטקסט של כל תא ידוע. שורה בפלט מותאמת לשורה בדף התשובות לפי התא הראשון שלה (שם המשתנה, ייחודי), ולא לפי מקומה. תא זהה: באותה עמודה בשורה המותאמת, עם אותו טקסט; תא ריק בדף התשובות צריך להיות תא ריק בפלט. שורה זהה: כל התאים שלה זהים. \"שלם בשורה אחת\": התא מופיע ברצף בתוך שורה אחת של הפלט, בלי קשר לגבולות התאים; זה המדד של המדידה הראשונה (testset/ground_truth/README.md), והוא לא כולל תאים קצרים מ-4 תווים, \"כן\", \"לא\" ו-\"-\". ההסבר המלא ב-harness/tables.py.")
+        add("")
+        for score in ev.tables:
+            add(f"### {score.pdf}")
+            add("")
+            add("| | |")
+            add("|---|---|")
+            add(f"| שורות בדף התשובות (בלי שורות כותרת) | {score.rows} |")
+            add(f"| שורות שנמצאו בפלט לפי התא הראשון | {_count_and_share(score.aligned, score.rows)} |")
+            add(f"| שורות זהות | {_count_and_share(score.identical_rows, score.rows)} |")
+            add(f"| תאים זהים | {_count_and_share(score.identical_cells, score.cells)} מתוך {score.cells} |")
+            add(f"| תאים שלמים בשורה אחת | {_count_and_share(score.whole, score.whole_counted)} מתוך {score.whole_counted} |")
+            add("")
+            add("| עמודה | תאים | זהים | שלמים בשורה אחת |")
+            add("|---|---|---|---|")
+            for column in score.columns:
+                whole = f"{_count_and_share(column.whole, column.whole_counted)} מתוך {column.whole_counted}"
+                add(f"| {_cell(column.name)} | {column.cells} | {_count_and_share(column.identical, column.cells)} | {whole} |")
+            add("")
 
     add("## לפי קובץ")
     add("")
@@ -305,15 +400,22 @@ def main(argv: list[str] | None = None, reader: Reader = read_pages) -> int:
     parser = argparse.ArgumentParser(prog="python -m harness", description="מערך הבדיקה של בונה השורות")
     parser.add_argument("--pdfs", type=Path, default=DEFAULT_PDFS, help="תיקיית קובצי ה-PDF")
     parser.add_argument("--labels", type=Path, default=DEFAULT_LABELS, help="טבלת התיוג")
+    parser.add_argument("--truth", type=Path, default=DEFAULT_TRUTH, help="תיקיית דפי התשובות של הטבלאות")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="לאן לכתוב את הדוח")
     args = parser.parse_args(argv)
 
-    ev = evaluate(args.pdfs, args.labels, reader)
+    ev = evaluate(args.pdfs, args.labels, reader, args.truth)
     args.output.write_text(render_report(ev), encoding="utf-8")
 
     n = len(ev.approved)
     print(f"מאושרות: {n} | זהות: {ev.exact_count} | מרחק תווים: {ev.total_distance} | "
           f"ממתינות: {len(ev.pending)} | לא ברורות: {len(ev.unclear)} | פגומות: {len(ev.problems)}")
+    print(f"בדיקת הסדר של התיוגים: {ev.order_ok_count} מתוך {len(ev.orders)}")
+    if ev.tables:
+        cells = sum(s.cells for s in ev.tables)
+        rows = sum(s.rows for s in ev.tables)
+        print(f"טבלאות: תאים זהים {sum(s.identical_cells for s in ev.tables)} מתוך {cells} | "
+              f"שורות זהות {sum(s.identical_rows for s in ev.tables)} מתוך {rows}")
     print(f"הדוח: {args.output}")
     if ev.problems:
         print(f"יש {len(ev.problems)} שורות פגומות בטבלת התיוג; הפירוט בדוח.", file=sys.stderr)

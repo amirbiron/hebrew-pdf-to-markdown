@@ -2,7 +2,18 @@
 
 import unittest
 
-from harness.textdiff import closest_line, levenshtein, normalize, split_lines, visible
+import unicodedata
+
+from harness.textdiff import (
+    CELL_BOUNDARY,
+    closest_line,
+    join_cells,
+    levenshtein,
+    normalize,
+    split_lines,
+    visible,
+    without_spaces,
+)
 
 
 class SplitLinesTest(unittest.TestCase):
@@ -56,6 +67,23 @@ class ClosestLineTest(unittest.TestCase):
 
     def test_tie_keeps_the_first_line_even_when_it_is_blank(self):
         self.assertEqual(closest_line("ab", ["", "zz"]), (2, ""))
+
+
+class CellsTest(unittest.TestCase):
+    def test_boundary_is_a_noncharacter(self):
+        # Cn: לא תו שהוקצה, כך שלא יכול להגיע מטקסט של מסמך כתו בעל משמעות
+        self.assertEqual(unicodedata.category(CELL_BOUNDARY), "Cn")
+
+    def test_empty_cell_is_kept(self):
+        self.assertEqual(normalize(join_cells(("א", "", "ב"))), f"א {CELL_BOUNDARY} {CELL_BOUNDARY} ב")
+
+    def test_boundary_costs_what_a_separator_char_cost_before(self):
+        # שורה בלי גבולות מול תיוג עם גבול: אותו מרחק כמו "שאלה? | תשובה" מול "שאלה? תשובה"
+        self.assertEqual(levenshtein(normalize(join_cells(("שאלה?", "תשובה"))), "שאלה? תשובה"),
+                         levenshtein("שאלה? | תשובה", "שאלה? תשובה"))
+
+    def test_without_spaces_keeps_control_chars(self):
+        self.assertEqual(without_spaces(" ב \x1d\u00a0ל\t"), "ב\x1dל")
 
 
 class VisibleTest(unittest.TestCase):

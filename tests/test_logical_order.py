@@ -173,17 +173,23 @@ class DocumentDirectionTest(unittest.TestCase):
         self.assertEqual(line.text, "שלום Meta עולם")
         self.assertTrue(line.rtl)
 
-    def test_majority_of_strong_characters_decides(self):
-        self.assertTrue(document_rtl("שלום עולם world"))  # 8 מול 5
-        self.assertFalse(document_rtl("hello עולם"))  # 4 מול 5
-        # ספרות, רווחים וסימנים אינם תווים חזקים
-        self.assertFalse(document_rtl("ab 1234567 (!) א"))
+    def test_majority_of_lines_decides(self):
+        self.assertTrue(document_rtl(["שלום world", "hello", "עולם"]))
+        self.assertFalse(document_rtl(["hello עולם", "hello", "world"]))
+        # ספרות, רווחים וסימנים אינם תווים חזקים: שורה בלי תו חזק לא נספרת
+        self.assertFalse(document_rtl(["ab", "1234567 (!)", "cd", "א"]))
+
+    def test_long_identifiers_do_not_outweigh_hebrew_lines(self):
+        # כמו בקובץ הטבלאות: שמות משתנים ארוכים, שבספירת תווים היו מכריעים לשמאל-לימין
+        lines = ["MONGODB_MAX_POOL_SIZE גודל", "MONGODB_MIN_POOL_SIZE גודל", "Bot/WebApp/Scripts"]
+        self.assertGreater(sum(c.isascii() and c.isalpha() for line in lines for c in line),
+                           sum("\u0590" <= c <= "\u05ff" for line in lines for c in line))
+        self.assertTrue(document_rtl(lines))
 
     def test_tie_and_no_strong_characters_are_right_to_left(self):
-        self.assertTrue(document_rtl("ab אב"))
-        self.assertTrue(document_rtl("123 - 456"))
-        self.assertTrue(document_rtl(""))
-
+        self.assertTrue(document_rtl(["ab", "אב"]))
+        self.assertTrue(document_rtl(["123 - 456"]))
+        self.assertTrue(document_rtl([]))
 
 if __name__ == "__main__":
     unittest.main()

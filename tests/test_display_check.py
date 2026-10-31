@@ -19,7 +19,7 @@ from harness.display_check import _paragraph_breaks_as_separators, displays_like
 from harness.run import DEFAULT_PDFS
 from harness.textdiff import normalize
 from hebrew_pdf.chars import page_chars
-from hebrew_pdf.lines import Line, group_rows, read_document
+from hebrew_pdf.lines import Component, Line, group_rows, read_document
 from hebrew_pdf.logical_order import display_levels, display_order
 from prototype import hebrew_pdf_prototype as prototype
 
@@ -30,9 +30,18 @@ KNOWN_FAILURES = {
     # סוגריים, בתקן מאז Unicode 6.3); לפי התקן אין טקסט לוגי שמוצג כך. הקורא מוציא
     # את הטקסט הנכון, והבדיקה מסמנת עמוד שצויר לא לפי התקן.
     ("doc-6p_gdocs.pdf", 4): 1,
-    # "מה זה MentorOS?" ו-"2" רחוק בקצה השמאלי: שני רכיבים נפרדים באותה שורה. אין
-    # טקסט לוגי אחד שמוצג כך; צריך הפרדה בין רכיבים (הסבב של גבולות התאים).
-    ("mentoros-overview_weasyprint.pdf", 2): 1,
+    # קובץ הטבלאות: תאים שבמקור יש בהם קטעי קוד, למשל "אחרי עליית Gunicorn (`1`/`0`)", שבעמוד
+    # מצויר "(0/1) Gunicorn". WeasyPrint הציגה כל קטע קוד כאילו הוא מבודד משאר הטקסט, ולכן
+    # ה-/ לא נחשב מפריד בין שתי ספרות (כלל W4), וסוגריים אחרי קטע קוד לא שייכים לו (N0).
+    # נבדק בכל אחת מהשורות: python-bidi, עם בידוד (U+2068, U+2069) סביב כל קטע קוד לפי המקור
+    # (testset/sources/env-vars.md), מציג בדיוק את מה שבעמוד; בלי בידוד, לא. לפי התקן, בלי
+    # בידוד, אין טקסט לוגי שמוצג כך.
+    ("env-vars_weasyprint.pdf", 7): 1,  # Gunicorn (`1`/`0`)
+    ("env-vars_weasyprint.pdf", 8): 1,  # `webapp/app.py` (`python app.py`).
+    ("env-vars_weasyprint.pdf", 29): 1,  # `DEFAULT_CONTEXT_EXCHANGES` (5), השורה השנייה של התא
+    ("env-vars_weasyprint.pdf", 34): 1,  # כאשר ערכו `true`/`1` משתמשים
+    ("env-vars_weasyprint.pdf", 48): 1,  # `hostname:pid` (fallback)
+    ("env-vars_weasyprint.pdf", 57): 1,  # `https://us.posthog.com` (WebApp)
 }
 
 
@@ -51,6 +60,15 @@ class DisplayCheckUnitTest(unittest.TestCase):
     def test_spaces_are_collapsed_but_their_position_counts(self):
         self.assertTrue(displays_like_page(Line("ומה  איתך", "ךתיא  המו", rtl=True)))
         self.assertFalse(displays_like_page(Line("ומהא יתך", "ךתיא המו", rtl=True)))
+
+    def test_each_component_is_shown_on_its_own(self):
+        # שני תאים: כל אחד נכון לבד, אבל כפסקה אחת "FastAPI" ו-"Backend" היו מתחלפים
+        cells = (Component("Backend", "Backend", True), Component("FastAPI + Python 3.12", "FastAPI + Python 3.12", True),
+                 Component("שרת API", "API תרש", True))
+        line = Line("Backend FastAPI + Python 3.12 שרת API", "API תרש FastAPI + Python 3.12 Backend", True,
+                    components=cells)
+        self.assertTrue(displays_like_page(line))
+        self.assertFalse(displays_like_page(Line(line.text, line.visual, True)))
 
     def test_the_text_is_shown_in_the_direction_the_reader_used(self):
         # שורה בלי עברית: הלוכסן שבסוף הכתובת מוצג בקצה השמאלי רק בפסקה מימין לשמאל
@@ -78,7 +96,7 @@ class WholeSetTest(unittest.TestCase):
                             cls.lines.append((path.name, number, line, old))
 
     def test_the_whole_set_is_checked(self):
-        self.assertGreater(len(self.lines), 3000)  # נמדד: 3541 שורות עם טקסט
+        self.assertGreater(len(self.lines), 5000)  # נמדד: 5531 שורות עם טקסט (3541 בלי קובץ הטבלאות)
 
     def test_prototype_output_fails_the_check(self):
         # כל שורה מוצגת בכיוון שהאב-טיפוס התכוון אליו: מימין לשמאל רק כשיש בה עברית
