@@ -90,6 +90,12 @@ class ParseLabelsTest(unittest.TestCase):
         with self.assertRaises(LabelsFileError):
             parse_labels("# אין כאן טבלה\n", KNOWN)
 
+    def test_delimiter_row_with_wrong_cell_count_is_a_file_error(self):
+        text = "| " + " | ".join(COLUMNS) + " |\n|---|---|\n| 1 | a.pdf | 1 | | x | מאושר |\n"
+        with self.assertRaises(LabelsFileError) as caught:
+            parse_labels(text, KNOWN)
+        self.assertIn("2 תאים במקום 6", str(caught.exception))
+
     def test_missing_delimiter_row_is_a_file_error(self):
         with self.assertRaises(LabelsFileError):
             parse_labels("| " + " | ".join(COLUMNS) + " |\n| 1 | a.pdf | 1 | | x | מאושר |\n", KNOWN)

@@ -102,9 +102,14 @@ def parse_labels(text: str, known_files: frozenset[str]) -> tuple[list[Label], l
             break
     if header_index is None:
         raise LabelsFileError("לא נמצאה טבלה עם הכותרת: " + " | ".join(COLUMNS))
-    if header_index + 1 >= len(lines) or not lines[header_index + 1].strip().startswith("|") \
-            or not _is_delimiter_row(split_row(lines[header_index + 1])):
-        raise LabelsFileError(f"שורה {header_index + 2}: אחרי הכותרת חסרה שורת ההפרדה (|---|---|...)")
+    delimiter_index = header_index + 1
+    if delimiter_index >= len(lines) or not lines[delimiter_index].strip().startswith("|") \
+            or not _is_delimiter_row(split_row(lines[delimiter_index])):
+        raise LabelsFileError(f"שורה {delimiter_index + 1}: אחרי הכותרת חסרה שורת ההפרדה (|---|---|...)")
+    delimiter_cells = len(split_row(lines[delimiter_index]))
+    if delimiter_cells != len(COLUMNS):
+        raise LabelsFileError(
+            f"שורה {delimiter_index + 1}: בשורת ההפרדה {delimiter_cells} תאים במקום {len(COLUMNS)}")
 
     labels: list[Label] = []
     problems: list[LabelProblem] = []

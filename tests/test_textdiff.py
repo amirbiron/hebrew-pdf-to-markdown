@@ -50,6 +50,13 @@ class ClosestLineTest(unittest.TestCase):
     def test_no_lines(self):
         self.assertEqual(closest_line("שלום", []), (4, ""))
 
+    def test_far_lines_return_the_real_closest_line(self):
+        # כל השורות רחוקות יותר מאורך הטקסט הנכון: התוצאה היא שורה שקיימת בעמוד, עם המרחק האמיתי שלה
+        self.assertEqual(closest_line("ab", ["xxxxxx", "yyyyyyyy"]), (6, "xxxxxx"))
+
+    def test_tie_keeps_the_first_line_even_when_it_is_blank(self):
+        self.assertEqual(closest_line("ab", ["", "zz"]), (2, ""))
+
 
 class VisibleTest(unittest.TestCase):
     def test_control_and_format_chars_become_visible(self):

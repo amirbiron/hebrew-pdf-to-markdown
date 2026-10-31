@@ -55,19 +55,22 @@ def levenshtein(a: str, b: str, limit: int | None = None) -> int:
 def closest_line(expected: str, lines: list[str]) -> tuple[int, str]:
     """השורה בעמוד שהכי קרובה לטקסט הנכון: (מרחק, השורה). בתיקו, הראשונה מלמעלה.
 
-    שני הצדדים מנורמלים לפני ההשוואה. עמוד בלי שורות מחזיר את אורך הטקסט הנכון
-    (כל התווים חסרים) ושורה ריקה.
+    שני הצדדים מנורמלים לפני ההשוואה. השורה שחוזרת היא תמיד שורה שקיימת בעמוד, גם כשכל
+    השורות רחוקות יותר מאורך הטקסט הנכון. רק עמוד בלי שורות בכלל מחזיר את אורך הטקסט
+    הנכון (כל התווים חסרים) ושורה ריקה.
     """
     target = normalize(expected)
-    best_distance = len(target)
-    best_line = ""
-    for line in lines:
-        candidate = normalize(line)
-        distance = levenshtein(target, candidate, limit=best_distance)
-        if distance < best_distance or (distance == best_distance and not best_line):
-            best_distance, best_line = distance, candidate
+    if not lines:
+        return len(target), ""
+    best_line = normalize(lines[0])
+    best_distance = levenshtein(target, best_line)
+    for line in lines[1:]:
         if best_distance == 0:
             break
+        candidate = normalize(line)
+        distance = levenshtein(target, candidate, limit=best_distance)
+        if distance < best_distance:  # בתיקו נשארת השורה הקודמת, כלומר הראשונה מלמעלה
+            best_distance, best_line = distance, candidate
     return best_distance, best_line
 
 
