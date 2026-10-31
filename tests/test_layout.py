@@ -44,7 +44,7 @@ def build(page: list[list[tuple[float, str]]], rtl: bool = False, rules_above: t
     built = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts) for i, (line, s) in
              enumerate(zip(lines, spaced))]
     rules = [(-10.0, 400.0, -15.0 * i + 9) for i in rules_above]
-    return [b[0] for b in built], table_rows([b[0] for b in built], [b[1] for b in built], layout.tables, lines, rules)
+    return built, table_rows(built, layout.tables, lines, rules)
 
 
 def gap(words: float) -> float:
@@ -116,24 +116,22 @@ class TableTest(unittest.TestCase):
         self.assertEqual(rows, [("c1", "desc", "ABCDEFGH"), ("c2", "next", "KL")])
 
     def test_frame_lines_decide_where_a_row_starts(self):
-        # כמו MONGODB_SOCKET_TIMEOUT_M / S: שם שנשבר באמצע, ובשורת ההמשך יש טקסט בעמודה
-        # הראשונה. קו בין שורות הטבלה מראה שזו אותה שורה. החלק הראשון ממלא את רוחב העמודה,
-        # ולכן מתחבר בלי רווח
+        # בשורת ההמשך יש טקסט בעמודה הראשונה, וקו בין שורות הטבלה מראה שזו אותה שורה
         page = [[(0, "c1"), (60, "desc"), (200, "ABCDEFGH")],
                 [(60, "more"), (200, "IJ")],
                 [(0, "c2"), (60, "a wider one"), (200, "KL")],
                 [(0, "c3"), (60, "last"), (200, "MN")]]
         _, rows = build(page, rules_above=(0, 2, 3))
-        self.assertEqual(rows, [("c1", "desc more", "ABCDEFGHIJ"), ("c2", "a wider one", "KL"), ("c3", "last", "MN")])
+        self.assertEqual(rows, [("c1", "desc more", "ABCDEFGH IJ"), ("c2", "a wider one", "KL"), ("c3", "last", "MN")])
 
-    def test_known_limit_a_single_word_as_wide_as_its_column(self):
-        # מילה אחת שהיא גם הטקסט הרחב ביותר בעמודה נראית כמו שבירה באמצע מילה: מהגיאומטריה
-        # לבדה אי אפשר להבדיל (ראו _breaks_inside_a_word)
+    def test_a_single_word_as_wide_as_its_column_joins_with_a_space(self):
+        # עד סבב 5ב מילה אחת שממלאת את רוחב העמודה נחשבה מילה שנשברה באמצע, וחוברה בלי רווח
+        # ("descmore"). מחוץ לקובץ הטבלאות הכלל הזה טעה ב-41 מתוך 45 פעמים, והוא ירד
         page = [[(0, "c1"), (60, "desc"), (200, "AB")],
                 [(60, "more")],
                 [(0, "c2"), (60, "next"), (200, "KL")]]
         _, rows = build(page, rules_above=(0, 2))
-        self.assertEqual(rows[0], ("c1", "descmore", "AB"))
+        self.assertEqual(rows[0], ("c1", "desc more", "AB"))
 
     def test_a_frame_line_under_the_header_only_is_not_row_lines(self):
         page = [[(0, "h1"), (60, "head"), (200, "HEAD")],

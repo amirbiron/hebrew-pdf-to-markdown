@@ -22,8 +22,8 @@
    הרגיל הוא של אותו גודל במסמך כולו (_document_steps); ובלי זה, השורות נפרדות.
    למה לא המרווח הנפוץ במסמך: באותו מסמך ובאותו גודל יש גושים עם מרווחים שונים (בדוח הכספי
    0.99 ו-1.48 מגודל האות), ובמסמך של פסקאות בנות שורה אחת הנפוץ הוא דווקא המרווח בין פסקאות.
-   החיבור בין שורות של פסקה הוא אותו כלל שמחבר שורות בתא (lines.join_pieces), כשהרוחב הוא
-   הרוחב של המסגרת: השורה הרחבה ביותר בעמוד.
+   החיבור בין שורות של פסקה הוא אותו כלל שמחבר שורות בתא (lines.join_lines): ברווח, חוץ מאחרי
+   מקף או לוכסן שצמודים למילה.
 
 4. רשימות (_marker): תבליט (תו מהגושים Geometric Shapes או תבליט מ-General Punctuation, או -, *,
    +, –) או מספור ("1.", "1)", "א.", "א)") בתחילת השורה הלוגית, ואחריו רווח וטקסט. רמת הקינון לפי
@@ -52,7 +52,7 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from hebrew_pdf.lines import Geometry, PageText, Piece, join_pieces
+from hebrew_pdf.lines import Geometry, PageText, join_lines
 from hebrew_pdf.logical_order import bidi_class
 
 # שני גדלים של אות "שווים" כשהיחס ביניהם עד 1.02: הגודל מגיע מהקובץ (גודל הגופן כפול המטריצה),
@@ -316,7 +316,7 @@ class _Draft:
     """בלוק בבנייה: היחידות שלו, ובפריט גם הסימן וההזחה."""
     kind: str
     level: int
-    pieces: list[Piece]
+    pieces: list[str]  # הטקסט של כל שורה בעמוד שבבלוק
     marker: str = ""
     indent: float = 0.0
     glyph: float = 0.0
@@ -330,7 +330,6 @@ def _frame(units: list) -> float:
 def _page_blocks(number: int, units: list, levels: dict, size_of: dict, rtl: bool, continues: dict[int, bool],
                  blocks: list[Block], repeated: list[tuple[str, ...]]) -> None:
     text_units = [u for u in units if isinstance(u, _Unit) and not u.alone]
-    frame = _frame(units)
     # הקצה שממנו מתחילה הקריאה: ההזחה של פריט נמדדת ממנו
     start_edge = (max((u.geometry.right for u in text_units), default=0.0) if rtl
                   else min((u.geometry.left for u in text_units), default=0.0))
@@ -342,21 +341,21 @@ def _page_blocks(number: int, units: list, levels: dict, size_of: dict, rtl: boo
         marked = _marker(unit.text)
         # continues נכון רק כשהיחידה הקודמת היא שורה רגילה (לא טבלה ולא רכיב), ולכן drafts[-1] הוא שלה
         if marked is None and continues.get(i):
-            drafts[-1].pieces.append(_piece(unit.text, unit.geometry))
+            drafts[-1].pieces.append(unit.text)
             continue
         geometry = unit.geometry
         if marked is not None:
             indent = start_edge - geometry.right if rtl else geometry.left - start_edge
-            drafts.append(_Draft("item", 0, [_piece(marked[1], geometry)], marked[0], indent, geometry.glyph))
+            drafts.append(_Draft("item", 0, [marked[1]], marked[0], indent, geometry.glyph))
         else:
             level = levels.get(size_of.get(geometry.size, geometry.size), 0)
-            drafts.append(_Draft("heading" if level else "paragraph", level, [_piece(unit.text, geometry)]))
+            drafts.append(_Draft("heading" if level else "paragraph", level, [unit.text]))
     _nest(drafts)
     for draft in drafts:
         if isinstance(draft, _Table):
             _add_table(number, draft, draft is drafts[0], blocks, repeated)
         else:
-            text = join_pieces(draft.pieces, frame) if len(draft.pieces) > 1 else draft.pieces[0].text
+            text = join_lines(draft.pieces)
             blocks.append(Block(draft.kind, number, text, draft.level, draft.marker))
 
 
@@ -380,10 +379,6 @@ def _nest(drafts: list) -> None:
         for item in items:
             item.level = max(k for k, value in enumerate(indents) if item.indent - value >= -glyph)
         i = end
-
-
-def _piece(text: str, geometry: Geometry) -> Piece:
-    return Piece(text, geometry.width, geometry.glyph)
 
 
 @dataclass(frozen=True)
