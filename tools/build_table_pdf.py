@@ -3,12 +3,19 @@
 
 שימוש: python tools/build_table_pdf.py SOURCE.md OUT.pdf OUT.truth.json
 העמוד: A4 לרוחב, מימין לשמאל, גופן DejaVu Sans. תאים ארוכים נשברים לכמה שורות בכוונה.
-דף התשובות נגזר מה-HTML שנבנה, כך שהוא בדיוק הטקסט שכל תא מציג.
-דורש: pip install weasyprint markdown
+דף התשובות נגזר מה-HTML שנבנה, כך שהוא בדיוק הטקסט שכל תא מציג. תווי עיצוב בלתי נראים
+(הקטגוריה Cf ב-Unicode, כמו RLM) יורדים מהטקסט של כל תא: הם לא מוצגים, ולכן הם לא חלק ממה
+שהתא מציג. במקור יש שניים כאלה, בתיאורים של PUSH_LOCAL_TIMEOUT_SECONDS ו-MCP_RATE_LIMIT_PER_MINUTE.
+דורש: pip install -r requirements-dev.txt (הגרסאות שבנו את הקובץ שבריפו)
 """
-import json, re, sys
+import json, re, sys, unicodedata
 from html.parser import HTMLParser
 import markdown, weasyprint
+
+
+def cell_text(text):
+    """הטקסט שהתא מציג: בלי תווי Cf, ועם רווח אחד במקום כל רצף של רווחים."""
+    return re.sub(r"\s+", " ", "".join(ch for ch in text if unicodedata.category(ch) != "Cf")).strip()
 
 src = open(sys.argv[1], encoding="utf-8").read()
 # ::: type ... ::: -> div blocks (markdown inside kept via md_in_html)
@@ -44,7 +51,7 @@ class T(HTMLParser):
         elif tag in ("td", "th"): self.cell = []
         elif tag == "h2": self.section = ""
     def handle_endtag(self, tag):
-        if tag in ("td", "th"): self.row.append(re.sub(r"\s+", " ", "".join(self.cell)).strip()); self.cell = None
+        if tag in ("td", "th"): self.row.append(cell_text("".join(self.cell))); self.cell = None
         elif tag == "tr": self.tables[-1]["rows"].append(self.row); self.row = None
     def handle_data(self, d):
         if self.cell is not None: self.cell.append(d)

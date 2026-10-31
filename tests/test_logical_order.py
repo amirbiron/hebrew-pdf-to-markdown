@@ -9,10 +9,12 @@
 הסט שבדיקת התצוגה מצאה.
 """
 
+import unicodedata
 import unittest
 
 from bidi import get_display
 
+from hebrew_pdf.bracket_shapes import PAIRS
 from hebrew_pdf.chars import Char
 from hebrew_pdf.lines import Line, build_line
 from hebrew_pdf.logical_order import document_rtl
@@ -119,6 +121,29 @@ class BracketsTest(unittest.TestCase):
         self.assertEqual(drawn("אבג Meta (OAuth) דהו"), drawn("אבג (OAuth) Meta דהו"))
         line = self.assert_round_trip("אבג Meta (OAuth) דהו")
         self.assertTrue(line.ambiguous)
+
+
+class AngleBracketsTest(unittest.TestCase):
+    """< > ו-« » משתקפים בתצוגה כמו סוגריים (L4), והצורה שלהם בעמוד נקבעת מהציור (סבב 5)."""
+
+    def test_pairs_are_mirrored_characters(self):
+        self.assertTrue(all(unicodedata.mirrored(char) for pair in PAIRS for char in pair))
+
+    def test_angle_brackets_at_the_hebrew_level_are_mirrored(self):
+        # במצגת (Canva, עמוד 5) מצויר "<<" מימין ל"זיקוק", והטקסט הלוגי הוא ">> זיקוק"
+        line = build_line(row_of("קוקיז <<"), rtl_document=True)
+        self.assertEqual(line.text, ">> זיקוק")
+
+    def test_guillemet_after_hebrew_is_mirrored(self):
+        # בקובץ הטבלאות: "וכו«" לפני סוגר סוגר, ברמה מימין לשמאל, מצויר כ-"»"
+        line = build_line(row_of("(»וכו classic לשמל)"), rtl_document=True)
+        self.assertEqual(line.text, "(למשל classic וכו«)")
+
+    def test_angle_brackets_round_trip(self):
+        # "<" בין שתי מילים באנגלית נשאר ברמה משמאל לימין; ">" שאחריו עברית מוצג בשיקוף
+        for logical in ("נשלח כ-Authorization: Bearer <token> בכל בקשה", "בפורמט shared:<slug> (ללא רווחים)"):
+            with self.subTest(logical=logical):
+                self.assertEqual(page_line(logical).text, logical)
 
 
 class AmbiguousReadingTest(unittest.TestCase):

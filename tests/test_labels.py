@@ -8,11 +8,12 @@ from harness.labels import (
     STATUS_APPROVED,
     STATUS_PENDING,
     LabelsFileError,
-    escape_cell,
     parse_labels,
     split_cells,
     split_row,
 )
+
+from hebrew_pdf.markdown import escape_text as escape_cell
 
 ROOT = Path(__file__).resolve().parent.parent
 KNOWN = frozenset({"a.pdf", "b.pdf"})
@@ -191,7 +192,9 @@ class RealLabelsFileTest(unittest.TestCase):
         known = frozenset(p.name for p in (ROOT / "testset" / "pdfs").glob("*.pdf"))
         labels, _ = parse_labels((ROOT / "testset" / "labels.md").read_text(encoding="utf-8"), known)
         by_number = {label.number: label for label in labels}
-        self.assertEqual(sorted(n for n, label in by_number.items() if len(label.expected) > 1), [2, 8, 11, 38, 39, 40])
+        self.assertEqual(sorted(n for n, label in by_number.items() if len(label.expected) > 1), [2, 8, 9, 11, 38, 39, 40])
+        # שורה 9 (סבב 5): הספרה 1 מצוירת בתוך עיגול, כלומר היא רכיב נפרד בעמוד
+        self.assertEqual(by_number[9].expected, ("1", "Onboarding אישי — 10 שאלות"))
         self.assertEqual(by_number[38].expected[:3], ("הכנסות ממכירות", "", "366,343"))
         self.assertEqual(by_number[32].expected, ("מאיה קארגי | 058-7999120 | OOHMYWEB.COM",))
 
