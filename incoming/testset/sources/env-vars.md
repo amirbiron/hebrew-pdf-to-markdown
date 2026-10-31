@@ -1,0 +1,568 @@
+# משתני סביבה - רפרנס
+
+::: note
+בכל פעם שמוסיפים או משנים משתני סביבה בקוד/Infra **חייבים** לעדכן עמוד זה (רפרנס משתני הסביבה) וכן לציין זאת ב-PR. בכך אנו מבטיחים שהמידע הופך ל-Single Source of Truth גם למפתחים וגם לאנשי DevOps.
+:::
+
+::: info
+[Config Inspector (סקירת משתני סביבה)](webapp/config-inspector.html) — כלי האדמין שמציג את המשתנים בזמן ריצה. שם מתועדים גם הכללים להוספת משתנה: איך קובעים לאיזה שירות הוא שייך, איך נמנעים מסטטוס `Modified` שגוי, ומה צריך לתעד כשמשתנה משרת כמה שירותים.
+:::
+
+## טבלה מרכזית
+
+**Environment Variables**
+
+| משתנה | תיאור | חובה | ברירת מחדל | דוגמה | רכיב |
+| --- | --- | --- | --- | --- | --- |
+| `BOT_TOKEN` | טוקן הבוט מ-BotFather (נדרש גם ב-WebApp לאימות Telegram Login) | כן |   | `123456:ABC-DEF...` | Bot/WebApp |
+| `MONGODB_URL` | חיבור ל-MongoDB | כן |   | `mongodb://localhost:27017` | Bot/WebApp |
+| `MONGODB_MAX_POOL_SIZE` | גודל בריכת חיבורים מקסימלי ל‑MongoDB (maxPoolSize) | לא | `50` | `100` | Bot/WebApp |
+| `MONGODB_MIN_POOL_SIZE` | גודל בריכת חיבורים מינימלי ל‑MongoDB (minPoolSize) | לא | `5` | `5` | Bot/WebApp |
+| `MONGODB_MAX_IDLE_TIME_MS` | זמן השהייה מקסימלי בחוסר שימוש (maxIdleTimeMS) | לא | `30000` | `30000` | Bot/WebApp |
+| `MONGODB_WAIT_QUEUE_TIMEOUT_MS` | זמן המתנה בתור ה‑Pool לפני כישלון (waitQueueTimeoutMS) | לא | `8000` | `10000` | Bot/WebApp |
+| `MONGODB_SERVER_SELECTION_TIMEOUT_MS` | זמן בחירת שרת (serverSelectionTimeoutMS) | לא | `5000` | `5000` | Bot/WebApp |
+| `MONGODB_SOCKET_TIMEOUT_MS` | זמן קצוב לקריאת/כתיבת שקע (socketTimeoutMS) | לא | `45000` | `45000` | Bot/WebApp |
+| `MONGODB_CONNECT_TIMEOUT_MS` | זמן קצוב להתחברות (connectTimeoutMS) | לא | `5000` | `10000` | Bot/WebApp |
+| `MONGODB_CONNECT_RETRY_COOLDOWN_SECONDS` | צינון לפני ניסיון התחברות חוזר ל-MongoDB אחרי כשל (שניות); 0 מכבה | לא | `30` | `30` | Bot/WebApp/Scripts |
+| `MONGODB_RETRY_WRITES` | הפעלת Retry לכתיבות (retryWrites) | לא | `true` | `true` | Bot/WebApp |
+| `MONGODB_HEARTBEAT_FREQUENCY_MS` | תדירות בדיקת החיים של הדרייבר מול שרתי מונגו (heartbeatFrequencyMS) | לא | `10000` | `20000` | Bot/WebApp/MCP/Webserver |
+| `MONGODB_CONNECT_MAX_RETRIES` | מספר ניסיונות ההתחברות למונגו לפני ויתור (מינימום אפקטיבי 1) | לא | `4` | `6` | Bot/WebApp/MCP/Webserver |
+| `MONGODB_CONNECT_RETRY_BASE_DELAY` | השהיה בסיסית (שניות) בין ניסיונות ההתחברות; גדלה אקספוננציאלית | לא | `2` | `1` | Bot/WebApp/MCP/Webserver |
+| `MONGO_SERVERSTATUS_REFRESH_SEC` | כל כמה שניות נדגם `serverStatus` של מונגו לצורך ספי ההתראות (מינימום אפקטיבי 1) | לא | `5` | `10` | Bot/WebApp/Webserver |
+| `GITHUB_REPO` | הריפו שבו נפתחים Issues אוטומטית ממנוע החוקים, בפורמט `owner/repo`. ברירת המחדל היא מציין מיקום ולא ריפו אמיתי | לא | `owner/repo` | `amirbiron/CodeBot` | Bot/WebApp |
+| `MONGODB_RETRY_READS` | הפעלת Retry לקריאות (retryReads) | לא | `true` | `true` | Bot/WebApp |
+| `MONGODB_APPNAME` | שם אפליקציה לצורך Telemetry/Metadata ב‑MongoDB | לא | ”“ (ריק) | `CodeBot` | Bot/WebApp |
+| `DATABASE_NAME` | שם בסיס נתונים | לא | `code_keeper_bot` | `my_db` | Bot/WebApp |
+| `SECRET_KEY` | מפתח הצפנה ל-Flask/WebApp. **בשירות ה-MCP (מצב OAuth):** חותם ומאמת את זהות המשתמש בין הוובאפ ל-MCP (`/oauth/identify` → `/oauth/consent`). **חייב להיות ערך אקראי וחזק, זהה בין הוובאפ לשירות ה-MCP.** מצב OAuth יסרב לעלות עם ערך ריק או עם ברירת המחדל של הפיתוח (מונע זיוף זהות). | כן (WebApp; ובמצב OAuth גם MCP) |   | `supersecretkey123` | MCP/WebApp |
+| `BOT_USERNAME` | שם משתמש הבוט | לא | `my_code_keeper_bot` | `@MyBot` | Bot/WebApp |
+| `TELEGRAM_CONNECT_TIMEOUT_SECS` | טיימאאוט התחברות ל‑Telegram Bot API (שניות). מעלה סבילות לבעיות רשת קצרות. | לא | `10.0` | `10.0` | Bot |
+| `TELEGRAM_POOL_TIMEOUT_SECS` | טיימאאוט המתנה ל‑connection מה‑pool (שניות) בעת קריאות ל‑Telegram Bot API. | לא | `10.0` | `10.0` | Bot |
+| `TELEGRAM_READ_TIMEOUT_SECS` | טיימאאוט קריאה ל‑Telegram Bot API (שניות). מומלץ שיהיה גבוה מ‑`TELEGRAM_LONG_POLL_TIMEOUT_SECS` כדי להקטין סיכוי ל‑`getUpdates` Conflict בזמן ”גיהוק“ רשת. | לא | `30.0` | `30.0` | Bot |
+| `TELEGRAM_WRITE_TIMEOUT_SECS` | טיימאאוט כתיבה ל‑Telegram Bot API (שניות). | לא | `30.0` | `30.0` | Bot |
+| `TELEGRAM_LONG_POLL_TIMEOUT_SECS` | `timeout` של long‑polling עבור `getUpdates` (שניות). זה זמן ההמתנה בצד שרת Telegram לפני החזרת עדכונים. | לא | `20` | `20` | Bot |
+| `TELEGRAM_POLL_INTERVAL_SECS` | `poll_interval` בין סבבי polling (שניות). `0` = ברירת מחדל של python-telegram-bot. | לא | `0.0` | `0.0` | Bot |
+| `TELEGRAM_CONFLICT_BACKOFF_SECS` | זמן המתנה (שניות) לפני retry כאשר מתקבלת שגיאת `409 Conflict` מסוג ”terminated by other getUpdates request“. | לא | `30` | `30` | Bot |
+| `TELEGRAM_CONFLICT_MAX_RETRIES` | כמה פעמים לנסות שוב (retry) אחרי `409 Conflict`. אם מגיעים לתקרה — התהליך יוצא כדי לשחרר lock ולאפשר ל‑orchestrator לנסות התאוששות. `0`/שלילי = ללא הגבלה (לא מומלץ). | לא | `5` | `5` | Bot |
+| `TELEGRAM_CONFLICT_MAX_SECONDS` | חלון זמן מקסימלי (שניות) לרצף conflicts לפני יציאה מהתהליך (שחרור lock + recovery). `0`/שלילי = ללא הגבלה (לא מומלץ). | לא | `300` | `300` | Bot |
+| `GITHUB_TOKEN` | טוקן GitHub לשימוש בפעולות API, וגם לאימות clone/fetch של המראות לבעלים שאינו ב-`GITHUB_TOKENS`. במראות הוא נשלח רק לריפו שדורש הזדהות, ככותרת ולא בתוך ה-URL — ראו [אימות מול GitHub — הטוקן לא נשמר במראה](mcp-server.html#mcp-mirror-credentials). למינימום הרשאות ראו טבלת Scopes בהמשך. | לא |   | `ghp_xxx...` | Bot/WebApp |
+| `GITHUB_TOKENS` | מיפוי בעלים(owner/org)→טוקן לסנכרון ריפואים ממספר ארגונים, כשטוקן יחיד לא מכסה את כולם. פורמט JSON (`{"Org": "ghp_..."}`) או פשוט (`Org1=ghp_...,Org2=github_pat_...`). נבחר לפי הבעלים של הריפו; אם אין התאמה נופלים ל-`GITHUB_TOKEN`. הטוקן לא נשמר במראה ולא נשלח לריפו ציבורי ([אימות מול GitHub — הטוקן לא נשמר במראה](mcp-server.html#mcp-mirror-credentials)). | לא |   | `Org1=ghp_xxx,Org2=github_pat_yyy` | Bot/WebApp |
+| `GITHUB_WEBHOOK_SECRET` | סוד לאימות GitHub Webhook (HMAC SHA256) עבור `POST /api/webhooks/github`. אם לא מוגדר, ה-webhook ייחסם (401) ולא יתבצע Sync אוטומטי. | כן (Repo Sync) | ”“ (ריק) | `my_webhook_secret` | WebApp |
+| `REPO_MIRROR_PATH` | נתיב בסיסי בדיסק לשמירת Bare Mirror של הריפו (Repo Sync Engine). נדרש גם בשירות ה-MCP עבור כלי דפדפן הריפו (אדמין בלבד) — השירות חייב דיסק עם ה-mirrors (ב-Render דיסק הוא פר-שירות). | לא | `/var/data/repos` | `/var/data/repos` | MCP/WebApp |
+| `WEBAPP_REPO_AUTOFILL` | מילוי ה-mirrors החסרים בדיסק של הוובאפ בעלייה: כל ריפו שיש לו רשומה ב-`repo_metadata` ואין לו mirror משוכפל, בלי כתיבה למסד, וה-worker של הסנכרון מחכה למילוי לפני שהוא תופס ג’ובים (ראו [דיסק בלי mirrors: המילוי בעלייה](webapp/code-browser.html#code-browser-mirror-fill)). `0` מכבה. | לא | `1` (פעיל) | `0` | WebApp |
+| `WEBAPP_SYNC_WORKER` | ה-worker שתופס ומריץ את ג’ובי הסנכרון בשירות הזה, ועולה עם שרת הוובאפ (ראו [מה קורה לג’וב סנכרון](webapp/code-browser.html#code-browser-sync-jobs)). `0` מכבה, בעלייה וגם כשמגיע webhook: הג’ובים, גם אלה שהשירות הזה יוצר מה-webhook, נשארים `pending` עד ששירות אחר על אותו מסד תופס אותם. לזמן מעבר בין שני שירותים: כל ג’וב מעדכן רק את הדיסק של השירות שתפס אותו, ולכן בשירות שיוצא מכבים את ה-worker. | לא | `1` (פעיל) | `0` | WebApp |
+| `REPO_NAME` | שם ריפו לוגי לשימוש ב-Repo Sync (מפתח ל-mirror בדיסק ול-metadata ב-DB) | לא | `CodeBot` | `CodeBot` | WebApp |
+| `WEBAPP_URL` | הכתובת הציבורית של ה-WebApp, והמקור היחיד לכל קישור אליו. הקורא היחיד שלו הוא `webapp_url.py`, והפורמט וההתנהגות כשהוא חסר או פגום מוגדרים שם: אין ברירת מחדל, ובלי ערך תקין אין קישורים ל-WebApp, ונרשמת שורת ERROR בעלייה של כל שירות. ב-WebApp המצב מוצג ב-`/health`, ובשירות ה-MCP ב-`/healthz`. בשירות ה-MCP הוא משמש גם לגשר זהות OAuth (`/oauth/identify`), ומדליק מצב OAuth יחד עם `MCP_SERVER_URL`. בתוך בקשה ל-WebApp, בלי ערך תקין, הקישורים נבנים מהכתובת שהבקשה הגיעה אליה. החליף את `PUBLIC_BASE_URL` ואת `PUBLIC_URL` (אוקטובר 2026). | כן |   | `https://my.app` | Bot/WebApp/MCP |
+| `BOT_JOBS_API_BASE_URL` | בסיס URL ל-API הפנימי של הבוט (aiohttp) עבור Trigger של Jobs ממסך המוניטור (`POST /api/jobs/<job_id>/trigger`). אם לא מוגדר, כפתור ההפעלה ידנית במוניטור יהיה לא זמין. | לא |   | `http://127.0.0.1:8080` | WebApp |
+| `BOT_API_BASE_URL` | Alias/תאימות לאחור ל-`BOT_JOBS_API_BASE_URL` (נבדק רק אם `BOT_JOBS_API_BASE_URL` ריק). | לא |   | `http://127.0.0.1:8080` | WebApp |
+| `WEBAPP_ENABLE_WARMUP` | הפעלת שלב warmup אוטומטי אחרי עליית Gunicorn (`1`/`0`) | לא | `1` | `0` | WebApp |
+| `WEBAPP_WARMUP_URL` | יעד curl לבדיקת הבריאות הראשונית (ברירת מחדל `http://127.0.0.1:$PORT/healthz`) | לא | `http://127.0.0.1:$PORT/healthz` | `https://internal.lb/healthz` | WebApp |
+| `WEBAPP_WARMUP_MAX_ATTEMPTS` | מספר ניסיונות curl עבור בדיקת הבריאות | לא | `15` | `10` | WebApp |
+| `WEBAPP_WARMUP_DELAY_SECONDS` | השהיה בין ניסיונות ה-warmup הראשיים (שניות) | לא | `2` | `5` | WebApp |
+| `WEBAPP_WSGI_APP` | היעד ש-Gunicorn טוען ב-`scripts/start_webapp.sh`, שמריץ אותו מתוך `webapp/` ועם `--pythonpath` לשורש הריפו. היעד חייב לטעון את `webapp/app.py` בשם `webapp.app`, ויעד כמו `app:app` נעצר בעלייה בשגיאה: בשם אחר, כל ייבוא של `webapp.app` היה טוען את הקובץ פעם נוספת | לא | `webapp.app:app` | `webapp.app:app` | WebApp |
+| `WEBAPP_DEV_HOST` | כתובת ההאזנה של שרת הפיתוח בהרצה ישירה של `webapp/app.py` (`python app.py`). ריק = `127.0.0.1`; `0.0.0.0` פותח אותו לרשת, כולל הדיבאגר של Werkzeug כש-`DEBUG=true`. בגוניקורן אינו נקרא | לא | ריק (`127.0.0.1`) | `0.0.0.0` | WebApp |
+| `WEB_CONCURRENCY` | מספר ה-workers של Gunicorn ב-WebApp. אם מוגדר, גובר על ברירת המחדל של `scripts/start_webapp.sh` ומקטין `queue_delay` תחת עומס. | לא | `1` | `4` | WebApp |
+| `WEBAPP_GUNICORN_WORKERS` | מספר ה-workers של Gunicorn (חלופה ל-`WEB_CONCURRENCY`) | לא | `1` | `4` | WebApp |
+| `WEBAPP_GUNICORN_THREADS` | מספר Threads לכל worker כאשר משתמשים ב-`gthread` (לא רלוונטי ל-`gevent`) | לא | `4` | `8` | WebApp |
+| `WEBAPP_GUNICORN_WORKER_CLASS` | Worker class של Gunicorn (ברירת מחדל `gevent`) | לא | `gevent` | `gthread` | WebApp |
+| `WEBAPP_GUNICORN_WORKER_CONNECTIONS` | מספר חיבורים מקסימלי ל-worker כאשר משתמשים ב-`gevent` | לא | `100` | `200` | WebApp |
+| `WEBAPP_GUNICORN_TIMEOUT` | Timeout (שניות) לבקשה ב-Gunicorn | לא | `180` | `180` | WebApp |
+| `WEBAPP_GUNICORN_KEEPALIVE` | keep-alive (שניות) לחיבורים ב-Gunicorn | לא | `2` | `5` | WebApp |
+| `OBSERVABILITY_WARMUP_ENABLED` | הפעלה/כיבוי של Warmup “כבד” לדוחות Observability (למילוי קאש ו‑RAM) ברקע אחרי עליית התהליך | לא | `true` | `false` | WebApp |
+| `OBSERVABILITY_WARMUP_DELAY_SECONDS` | השהייה (שניות) לפני תחילת Warmup הדוחות כדי לא להעמיס בזמן העלייה | לא | `5` | `10` | WebApp |
+| `OBSERVABILITY_WARMUP_BUDGET_SECONDS` | תקציב זמן מקסימלי (שניות) ל‑Warmup הדוחות ברקע; מעבר לתקציב נעצור מוקדם | לא | `20` | `30` | WebApp |
+| `OBSERVABILITY_WARMUP_RANGES` | רשימת טווחי זמן (CSV) לחימום `/api/observability/aggregations` (למשל `24h,7d,30d`) | לא | `24h,7d,30d` | `24h,7d` | WebApp |
+| `OBSERVABILITY_WARMUP_SLOW_LIMIT` | ערך `slow_endpoints_limit` עבור החימום (ברירת מחדל כמו ב‑API) | לא | `5` | `10` | WebApp |
+| `ALERT_TAGS_COLLECTION` | שם ה-Collection לתגיות התראות (Manual Alert Tagging) ב-Observability. | לא | `alert_tags` | `alert_tags` | WebApp/Observability |
+| `ALERT_TAGS_DB_DISABLED` | אם `true` מכבה שמירה/שליפה של תגיות להתראות (Manual Alert Tagging) מה-DB. | לא | `false` | `true` | WebApp/Observability |
+| `WEEKLY_TIP_ENABLED` | מתג כללי להצגת רכיב ההכרזות (on/off) | לא | `true` | `true` | WebApp |
+| `FEATURE_CODE_EXECUTION` | הפעלת הרצת קוד (Playground) ב-WebApp (`/api/code/run`) | לא | `false` | `true` | WebApp |
+| `CODE_EXEC_USE_DOCKER` | האם להריץ קוד בתוך Docker sandbox (מומלץ/חובה בפרודקשן) | לא | `true` | `true` | WebApp |
+| `CODE_EXEC_ALLOW_FALLBACK` | האם לאפשר fallback ל-subprocess (לפיתוח בלבד; בפרודקשן מומלץ `false`) | לא | `false` | `false` | WebApp |
+| `CODE_EXEC_MAX_TIMEOUT` | timeout מקסימלי להרצת קוד (שניות) | לא | `30` | `10` | WebApp |
+| `CODE_EXEC_MAX_MEMORY_MB` | זיכרון מקסימלי להרצת קוד (MB) | לא | `128` | `256` | WebApp |
+| `CODE_EXEC_MAX_OUTPUT_BYTES` | כמות מקסימלית של stdout/stderr (bytes) לפני עצירה/קיצוץ | לא | `102400` | `102400` | WebApp |
+| `CODE_EXEC_MAX_CODE_LENGTH` | אורך קוד מקסימלי (bytes) שמותר לשלוח להרצה | לא | `51200` | `51200` | WebApp |
+| `CODE_EXEC_DOCKER_IMAGE` | Docker image להרצת קוד (למשל `python:3.11-slim`) | לא | `python:3.11-slim` | `python:3.11-slim` | WebApp |
+| `PUBLIC_SHARE_TTL_DAYS` | תוקף ברירת מחדל לקישורי שיתוף (ימים) | לא | `7` | `14` | WebApp |
+| `ADMIN_USER_IDS` | מזהי משתמש טלגרם עם הרשאות אדמין (CSV). **גם ה-MCP** נשען עליו: `require_admin` שומר בעזרתו על כלי הריפו | לא | ”“ (ריק) | `123,456` | Bot/WebApp/MCP |
+| `BLOCKED_USER_IDS` | מזהי משתמשים חסומים מהבוט (CSV). רשת ביטחון שמנוהלת כאן בלבד — לא ניתן לשחרר ממנה דרך `/unban`, בשונה מהחסימות שבבסיס הנתונים. אדמינים לעולם אינם נחסמים, גם אם מזהה שלהם מופיע כאן | לא | ”“ (ריק) | `123,456` | Bot |
+| `DB_HEALTH_TOKEN` | טוקן להגנה על נתיבים פנימיים רגישים בשרת ה-aiohttp: `/api/db/*` וגם `/api/jobs/*` (נשלח כ-`Authorization: Bearer <token>`). ללא טוקן ה-API חסום (403) והדשבורד `/db-health` יחזיר 403. בשרת הפנימי של הבוט (`ENABLE_INTERNAL_SHARE_WEB`) הוא מגן גם על `POST /alerts`, `GET /alerts` ו-`GET /incidents`. | כן (DB Health) | ”“ (ריק) | `db_health_super_secret_token` | Bot/WebApp |
+| `DB_HEALTH_SLOW_THRESHOLD_MS` | סף ברירת מחדל לזיהוי slow queries (באלפיות שנייה) עבור `currentOp`. | לא | `1000` | `1500` | Bot/WebApp |
+| `DB_RECONNECT_WAIT_BEFORE_POLL` | זמן המתנה ראשוני (שניות) בעלייה של הבוט עד שה-DB חוזר, לפני שעוברים ל-poll פסיבי. הבוט לא יוצא (SystemExit) אחרי החלון — הוא ממשיך להמתין. | לא | `120` | `120` | Bot |
+| `DB_RECONNECT_POLL_INTERVAL` | מרווח (שניות) בין בדיקות חיבור ב-poll פסיבי לאחר שחלון ההמתנה הראשוני פג. ה-reconnect ברקע ממשיך לנסות עם backoff מעריכי (מקסימום 300 שניות). | לא | `30` | `30` | Bot |
+| `DB_HEALTH_POOL_REFRESH_SEC` | תדירות רענון מומלצת (שניות) לסטטוס ה-pool בדשבורד. (משתנה תיעודי/קונפיגורציה כללית) | לא | `5` | `5` | WebApp |
+| `DB_HEALTH_OPS_REFRESH_SEC` | תדירות רענון מומלצת (שניות) לרשימת slow queries בדשבורד. (משתנה תיעודי/קונפיגורציה כללית) | לא | `10` | `10` | WebApp |
+| `DB_HEALTH_COLLECTIONS_COOLDOWN_SEC` | זמן Cooldown (שניות) בין קריאות ל-`/api/db/collections` (פעולת `collStats`). קריאה נוספת בתוך החלון תחזיר `429` עם Header `Retry-After`. | לא | `30` | `30` | WebApp |
+| `PREMIUM_USER_IDS` | מזהי משתמש טלגרם לסטטוס פרימיום (CSV) | לא | ”“ (ריק) | `123,456` | WebApp |
+| `FA_SRI_HASH` | ערך SRI עבור ספריית אייקונים (למשל FontAwesome) | לא | ”“ (ריק) | `sha384-...` | WebApp |
+| `UPTIME_PROVIDER` | ספק ניטור (למשל `betteruptime`) | לא | ”“ (ריק) | `betteruptime` | WebApp |
+| `UPTIME_API_KEY` | מפתח API לשירות הניטור (אם רלוונטי) | לא | ”“ (ריק) | `bu_apikey_xxx` | WebApp |
+| `UPTIME_MONITOR_ID` | מזהה מוניטור | לא | ”“ (ריק) | `abc123` | WebApp |
+| `UPTIME_STATUS_URL` | קישור לעמוד סטטוס ציבורי | לא | ”“ (ריק) | `https://status.example.com` | WebApp |
+| `UPTIME_WIDGET_SCRIPT_URL` | כתובת סקריפט הווידג’ט לעמודי סטטוס | לא | `https://uptime.betterstack.com/widgets/announcement.js` | `https://.../widget.js` | WebApp |
+| `UPTIME_WIDGET_ID` | מזהה ווידג’ט (data-id) | לא | ”“ (ריק) | `abcd-1234` | WebApp |
+| `UPTIME_CACHE_TTL_SECONDS` | TTL למטמון תוצאות Uptime | לא | `120` (מינימום 30) | `300` | WebApp |
+| `VAPID_PUBLIC_KEY` | מפתח ציבורי ל‑Web Push (VAPID) | לא | ”“ (ריק) | `BExxx...` | WebApp |
+| `VAPID_PRIVATE_KEY` | מפתח פרטי ל‑Web Push (VAPID) | לא | ”“ (ריק) | `xxxxxxxx` | WebApp |
+| `VAPID_SUB_EMAIL` | Subject (דוא“ל) לתביעות VAPID | לא | ”“ (ריק) | `support@example.com` | WebApp |
+| `PUSH_NOTIFICATIONS_ENABLED` | הפעלת שליחת Web Push (רקע) | לא | `true` | `false` | WebApp |
+| `PUSH_LOCAL_TIMEOUT_SECONDS` | תקרת זמן לקריאת `pywebpush` אחת. ‏\`\`pywebpush\`\` מעביר `timeout=None` ל‑requests כשלא נמסר ערך, כלומר ממתין בלי גבול — ו`push-sender` הוא חוט יחיד | לא | `10` | `5` | WebApp |
+| `MCP_PUSH_NOTIFICATIONS_ENABLED` | רישום התראה על קובץ שנשמר דרך ה‑MCP. כיבוי עוצר את **הרישום**, ולכן אינו מותיר תור שאיש אינו קורא | לא | `true` | `false` | MCP |
+| `PUSH_REMOTE_DELIVERY_ENABLED` | שליחה דרך Worker חיצוני (במקום pywebpush) | לא | `false` | `true` | WebApp |
+| `PUSH_DELIVERY_URL` | כתובת בסיס ל‑Worker (ללא `/send`) | לא | ”“ (ריק) | `https://code-keeper-push-worker.onrender.com` | WebApp |
+| `PUSH_DELIVERY_TOKEN` | טוקן Bearer לאימות שרת→Worker | לא | ”“ (ריק) | `s3cr3t-token` | WebApp/Worker |
+| `PUSH_DELIVERY_TIMEOUT_SECONDS` | Timeout לבקשת `/send` ל‑Worker (שניות) | לא | `3` | `2` | WebApp |
+| `PUSH_WORKER_PORT` | פורט פנימי ל‑Sidecar Worker (localhost בלבד) | לא | `18080` | `18080` | WebApp/Worker |
+| `WORKER_VAPID_PUBLIC_KEY` | מפתח ציבורי ל‑VAPID עבור ה‑Worker (Sidecar) | לא | ”“ (ריק) | `BExxx...` | Worker |
+| `WORKER_VAPID_PRIVATE_KEY` | מפתח פרטי ל‑VAPID עבור ה‑Worker (Sidecar) | לא | ”“ (ריק) | `xxxxxxxx` | Worker |
+| `WORKER_VAPID_SUB_EMAIL` | Subject (דוא“ל) לתביעות VAPID עבור ה‑Worker | לא | `support@example.com` | `alerts@example.com` | Worker |
+| `PERSISTENT_LOGIN_DAYS` | תוקף התחברות מתמשכת (ימים) | לא | `180` (מינימום 30) | `365` | WebApp |
+| `PORT` | פורט ההאזנה. ברירת המחדל שונה בין השירותים: `5000` בוובאפ, `10000` בבוט וב-webserver (שם `WEB_PORT` משמש כגיבוי). ברנדר הפורט מוזרק אוטומטית | לא | `5000` (WebApp) / `10000` (Bot, Webserver) | `8080` | Bot/WebApp/MCP/Webserver |
+| `DEBUG` | מצב דיבאג ל-WebApp | לא | `false` | `true` | WebApp |
+| `REDIS_URL` | חיבור ל-Redis. **שני צרכנים, משתנה אחד:** הקאש (בכל השירותים), ובנוסף — ב-WebApp בלבד — אחסון ה-rate limiter. בלעדיו הקאש מושבת לגמרי, וה-limiter נופל ל-`memory://`: המונים נספרים לכל gunicorn worker בנפרד ומתאפסים בכל דיפלוי | לא |   | `redis://localhost:6379` | Bot/WebApp/MCP |
+| `REDIS_CONNECT_TIMEOUT` | Timeout התחברות ל-Redis (שניות). ערך שמוגדר במפורש מנצח גם ב-`SAFE_MODE`; ברירות המחדל מוכרעות ב-`runtime_settings.resolve_redis_timeouts` | לא | `3` (או `1` ב-`SAFE_MODE`) | `2` | Bot/WebApp |
+| `REDIS_SOCKET_TIMEOUT` | Timeout קריאת שקע ל-Redis (שניות). ערך שמוגדר במפורש מנצח גם ב-`SAFE_MODE` | לא | `5` (או `1` ב-`SAFE_MODE`) | `2` | Bot/WebApp |
+| `SAFE_MODE` | מצב שמרני: מוריד ל-`1` את ברירות המחדל של שני ה-Timeouts של Redis, ומדלג על תחזוקת קאש ועל מחיקה מהדיסק | לא | `false` | `true` | Bot/WebApp |
+| `CACHE_ENABLED` | הפעלת קאש פנימי. דורש `REDIS_URL`; `false` מכבה את הקאש בלי למחוק את הכתובת | לא | `true` | `true` | Bot/WebApp |
+| `CACHE_CLEAR_BUDGET_SECONDS` | תקציב זמן לניקוי קאש (מונע תקיעה ב-Redis) | לא | `5` | `1` | Bot/WebApp |
+| `CACHE_DELETE_PATTERN_BUDGET_SECONDS` | תקציב זמן למחיקת תבנית מפתחות בקאש (SCAN+DEL) כדי למנוע תקיעה ב-Redis גדול | לא | `5` (נופל ל-`CACHE_CLEAR_BUDGET_SECONDS` אם לא מוגדר) | `1` | Bot/WebApp |
+| `DISABLE_BACKGROUND_CLEANUP` | דילוג כולל על עבודות ניקוי רקע (קאש/גיבויים) | לא | `false` | `true` | Bot |
+| `JOB_RUNS_TTL_DAYS` | כמה ימים נשמרת הרצת Job ב-`job_runs` לפני מחיקה אוטומטית (אינדקס TTL על `started_at`). מעבר לחלון הזה קישורי `/jobs/monitor?run_id=...` שנשלחו בטלגרם מפסיקים לעבוד, וההיסטוריה של ג’וב שרץ לעיתים רחוקות נעלמת. | לא | `30` | `90` | Bot/WebApp/Webserver |
+| `JOBS_STUCK_THRESHOLD_MINUTES` | סף (בדקות) לזיהוי הרצות Jobs ”תקועות“ והפקת אירוע `job_stuck` (נבדק מול `job_runs` ב-DB). | לא | `20` | `30` | Bot |
+| `JOBS_STUCK_MONITOR_INTERVAL_SECS` | תדירות הריצה (שניות) של מוניטור Jobs ”תקועות“ שמפיק `job_stuck`. | לא | `60` | `120` | Bot |
+| `JOBS_ORPHAN_RECONCILE_ENABLED` | האם לסגור בעלייה הרצות שנשארו `running` ממחזיק מנעול קודם. כיבוי משאיר אותן פתוחות עד שאינדקס ה-TTL מוחק אותן, והן ימשיכו להופיע כהרצות חיות ב-`/api/jobs/active`. | לא | `true` | `false` | Bot |
+| `JOBS_ORPHAN_RECONCILE_DELAY_SECS` | כמה שניות להמתין מעליית התהליך עד הפיוס. ההשהיה נועדה לכסות את חלון הסגירה של Render — התהליך הישן מקבל זמן לסיים הרצה שבאוויר, וכל עוד לא סיים, הפיוס עלול לסמן הרצה חיה ככשל. מי שמעלה את ה-shutdown delay ב-Render חייב להעלות גם את הערך הזה. ערך נמוך מ-90 נחסם מלמטה. | לא | `180` | `240` | Bot |
+| `JOB_TRIGGERS_POLL_INTERVAL_SECS` | תדירות polling (שניות) של processor בבוט שמטפל בבקשות trigger שנוצרו מה-WebApp (`job_trigger_requests`). מינימום 60. | לא | `60` | `120` | Bot |
+| `CACHE_MAINT_INTERVAL_SECS` | מרווח בין ריצות תחזוקת קאש (שניות) | לא | `600` (מינימום 60) | `300` | Bot |
+| `CACHE_MAINT_FIRST_SECS` | דיליי לפני הרצת תחזוקת קאש הראשונה (שניות) | לא | `30` | `10` | Bot |
+| `CACHE_MAINT_MAX_SCAN` | מספר מפתחות מקסימלי לסריקה ב-clear\_stale | לא | `1000` | `5000` | Bot |
+| `CACHE_MAINT_TTL_THRESHOLD` | TTL (בשניות) מתחתיו ייחשב ”שבק״ לניקוי עדין | לא | `60` | `120` | Bot |
+| `BACKUPS_CLEANUP_ENABLED` | הפעלת ניקוי גיבויי ZIP ברקע | לא | `false` (כבוי כברירת מחדל) | `true` | Bot |
+| `BACKUPS_CLEANUP_INTERVAL_SECS` | מרווח בין ריצות ניקוי גיבויים (שניות) | לא | `86400` (מינימום 3600) | `43200` | Bot |
+| `BACKUPS_CLEANUP_FIRST_SECS` | דיליי לפני ריצת ניקוי גיבויים הראשונה (שניות) | לא | `180` | `60` | Bot |
+| `BACKUPS_RETENTION_DAYS` | ימי שמירת ארכיבי גיבוי בדיסק/GridFS לפני מחיקה | לא | `30` (מינימום 1) | `14` | Bot |
+| `BACKUPS_MAX_PER_USER` | מספר גיבויים מקסימלי לשמירה לכל משתמש (מעבר יימחקו הוותיקים) | לא | `None` (ביטול מגבלה) | `10` | Bot |
+| `BACKUPS_CLEANUP_BUDGET_SECONDS` | תקציב זמן לניקוי גיבויים (מונע עומס) | לא | `3` | `5` | Bot |
+| `BACKUPS_DISK_MIN_FREE_BYTES` | סף (ב־bytes) להתראת ”דיסק כמעט מלא“ לפני שמירת ZIP | לא | `209715200` (200MB) | `314572800` (300MB) | Bot |
+| `WEBAPP_BACKUPS_DIR` | תיקיית גיבויי הדיסק של הוובאפ (Persistent Disk); ממנה נבנית גם רשימת ההורדה בהגדרות | לא | `/var/data/repos/backups` | `/var/data/backups` | WebApp |
+| `DISK_BACKUP_RETENTION_DAYS` | גיל (בימים) שממנו גיבוי דיסק נחשב ישן. נמחק רק אם הוא **גם** מעבר ל-`DISK_BACKUP_MAX_PER_USER` | לא | `30` | `14` | WebApp |
+| `DISK_BACKUP_MAX_PER_USER` | כמה גיבויי דיסק אחרונים נשמרים תמיד לכל משתמש; מעבר לזה נמחקים רק אלו שעברו את `DISK_BACKUP_RETENTION_DAYS` | לא | `10` | `5` | WebApp |
+| `BACKUP_SCAN_INTERVAL` | כל כמה שניות סורק ה-scheduler של הוובאפ משתמשים שהגיע זמן הגיבוי שלהם | לא | `300` | `600` | WebApp |
+| `MAX_BACKUPS_PER_SCAN` | מקסימום גיבויים לכל סוג (Drive, דיסק) בסריקה אחת — מונע מגיבויי Drive תקועים להרעיב את גיבויי הדיסק | לא | `10` | `5` | WebApp |
+| `BACKUP_SENTINEL_TTL` | תוקף (בשניות) של תפיסת גיבוי מתוזמן; אחריו הגיבוי נתפס מחדש גם אם התהליך שתפס אותו קרס | לא | `1800` | `900` | WebApp |
+| `DISABLE_BACKUP_SCHEDULER` | `1`/`true` מכבה את ה-scheduler של גיבויי הוובאפ (Drive ודיסק). נקרא בעליית `webapp/app.py` | לא | ריק (פעיל) | `true` | WebApp |
+| `FORCE_BACKUP_SCHEDULER` | `1`/`true` מפעיל את ה-scheduler גם כשזיהוי תהליך הוובאפ נכשל (סביבות לא סטנדרטיות) | לא | ריק | `true` | WebApp |
+| `DISABLE_CACHE_MAINTENANCE` | דילוג על פעולות ניקוי קאש (לוג בלבד) | לא | `false` | `true` | Bot/WebApp |
+| `DISABLE_PREEMPTIVE_ACTIONS` | דילוג על פעולות מנע (PHE) כמו ניקוי קאש | לא | `false` | `true` | Bot/WebApp |
+| `LOG_LEVEL` | רמת logging (`DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL` או ערך מספרי כמו `10`) | לא | `INFO` | `DEBUG` | Bot/WebApp |
+| `LOG_FORMAT` | פורמט לוגים (`text`/`json`) | לא | `text` | `json` | Bot/WebApp |
+| `LOG_INFO_SAMPLE_RATE` | שיעור דגימה ללוגים ברמת `INFO` (0.0–1.0). אירוע שאף שורה שלו לא נשמרה ב-`INFO_SAMPLE_WINDOW_SECONDS` האחרונות נשמר בלי הגרלה, ו-`0` מכבה את כל ה-`INFO` שאינו ב-allowlist — ראו [סכמת לוגים](logging_schema.html) | לא | `1.0` | `0.1` | Bot/WebApp |
+| `LOG_INFO_SAMPLE_ALLOWLIST` | אירועים נוספים שלא נדגמים לעולם (מופרדים בפסיקים). המשתנה **מוסיף** על `INFO_SAMPLE_BUILTIN_ALLOWLIST` שב-`observability.py` ואינו מחליף אותה — ראו [סכמת לוגים](logging_schema.html) | לא | ריק | `event_a,event_b` | Bot/WebApp |
+| `ENVIRONMENT` | שם הסביבה לדיווחי Sentry/לוגים (`production`/`staging`/`dev`) | לא | `production` | `staging` | Bot/WebApp |
+| `MAX_CODE_SIZE` | גודל קוד מקסימלי לשמירה (בתווים) | לא | `100000` | `200000` | Bot |
+| `MAX_FILES_PER_USER` | מגבלת כמות קבצים למשתמש | לא | `1000` | `2000` | Bot |
+| `HIGHLIGHT_THEME` | ערכת צבעים להדגשת תחביר | לא | `github-dark` | `monokai` | WebApp |
+| `DEFAULT_UI_THEME` | ערכת ברירת מחדל לממשק ה-WebApp. תומך בערכות מובנות (למשל `classic`/`ocean`/`dark` וכו«) או בערכה ציבורית בפורמט `shared:<slug>` (ללא רווחים). | לא | `classic` | `shared:monzo_light` | WebApp |
+| `GIT_CHECKPOINT_PREFIX` | קידומת לשמירת checkpoints | לא | `checkpoint` | `ckpt` | Bot |
+| `GOOGLE_CLIENT_ID` | OAuth Client ID של Google | לא |   | `xxx.apps.googleusercontent.com` | Integrations |
+| `GOOGLE_CLIENT_SECRET` | OAuth Client Secret של Google | לא |   | `********` | Integrations |
+| `GOOGLE_OAUTH_SCOPES` | מרחבי OAuth לברירת מחדל | לא | `https://www.googleapis.com/auth/drive.file` | `...` | Integrations |
+| `DRIVE_MENU_V2` | הפעלת תפריט ה-Drive של הבוט (V2) | לא | `true` | `false` | Bot |
+| `DOCUMENTATION_URL` | קישור לאתר התיעוד הרשמי | לא | `https://amirbiron.github.io/CodeBot/` | `https://docs.example.com` | WebApp |
+| `BOT_LABEL` | תווית תצוגה לבוט | לא | `CodeBot` | `CKB` | Bot/WebApp |
+| `CUSTOM_EMOJI_ZIP_ID` | Custom emoji ID לאייקון ZIP בהודעות הבוט (טלגרם פרימיום, לבעל בוט עם מנוי); ריק = אימוג’י רגיל 📁. | לא | (ללא) | `5069094945915142952` | Bot |
+| `DRIVE_ADD_HASH` | הוספת hash לקבצים משותפים | לא | `false` | `true` | Integrations |
+| `MAINTENANCE_MODE` | מצב תחזוקה המדכא פעולות משתמשים | לא | `false` | `true` | Bot/WebApp |
+| `MAINTENANCE_MESSAGE` | הודעה למצב תחזוקה | לא | הודעת ברירת מחדל ידידותית | `"🚀 אנחנו מעלים עדכון חדש!"` | WebApp |
+| `MAINTENANCE_AUTO_WARMUP_SECS` | חימום אוטומטי לאחר יציאה מתחזוקה (שניות) | לא | `30` | `60` | WebApp |
+| `MAINTENANCE_WARMUP_GRACE_SECS` | חלון חסד (שניות) שנוסף ל-warmup כדי לכסות שיהוי איטי בתחילת ריצה | לא | `0.75` | `1.5` | Bot/WebApp |
+| `RATE_LIMIT_PER_MINUTE` | מגבלת קצב בקשות לדקה | לא | `30` | `60` | WebApp |
+| `RECYCLE_TTL_DAYS` | ימי שמירת פריטים בסל המחזור — לכל מסלולי המחיקה, בבוט ובווב | לא | `30` | `30` | Bot/WebApp |
+| `REPORTER_MONGODB_URL` | URI חלופי ל-reporter (עדיפות על `MONGODB_URL`) | לא |   | `mongodb://...` | Reporter |
+| `REPORTER_MONGODB_URI` | שם חלופי ל-URI של reporter | לא |   | `mongodb://...` | Reporter |
+| `REPORTER_SERVICE_ID` | מזהה שירות עבור הדוחות | לא | `srv-d29d72adbo4c73bcuep0` | `srv-xxxx` | Reporter |
+| `ENABLE_INTERNAL_SHARE_WEB` | מעלה את שרת הווב הפנימי (`services/webserver.py`) בתוך תהליך הבוט, מ-`main.py`. השרת מאזין ל-`0.0.0.0`. הדגל הוא המתג היחיד: עד אוקטובר 2026 השרת דרש גם `PUBLIC_BASE_URL`, ולכן דגל דלוק בלי המשתנה השאיר אותו כבוי. מאז שהמשתנה בוטל, `true` מעלה אותו. `POST /alerts`, `GET /alerts` ו-`GET /incidents` בשרת הזה דורשים `DB_HEALTH_TOKEN`, כמו `/api/db/*`: בלעדיו הם חסומים (403). | לא | `false` | `true` | Bot |
+| `ENABLE_INTERNAL_SHARE_LINKS` | הכפתור ”📱 קישור פנימי“ ב-`/share` בבוט: קישור ל-`/share/<id>` ב-WebApp, שמגיש את השיתוף מאותו אוסף (`internal_shares`). מוצג רק כשהדגל `true` **וגם** `WEBAPP_URL` תקין (`_internal_share_links_enabled` ב-`bot_handlers.py`). עד אוקטובר 2026 המתג היה `PUBLIC_BASE_URL`, שלא הוגדר באף שירות, כך שהכפתור לא הוצג. הדגל שומר על אותו מצב עד שמחליטים להדליק אותו. | לא | `false` | `true` | Bot |
+| `AIOHTTP_POOL_LIMIT` | גודל בריכת חיבורים ל‑aiohttp | לא | `50` | `100` | Bot/WebApp |
+| `AIOHTTP_TIMEOUT_TOTAL` | Timeout כולל לשיחות aiohttp (שניות) | לא | `10` | `30` | Bot/WebApp |
+| `AIOHTTP_LIMIT_PER_HOST` | מגבלה פר‑Host לחיבורים במקביל (aiohttp TCPConnector) | לא | `0` (ללא מגבלה פר‑Host) | `25` | Bot/WebApp |
+| `REDIS_MAX_CONNECTIONS` | גודל בריכת חיבורים ל‑Redis | לא | `50` | `200` | Bot/WebApp |
+| `REQUESTS_POOL_CONNECTIONS` | מספר Connection Pools גלובליים ל‑requests (per host) | לא | `20` | `20` | Bot/WebApp |
+| `REQUESTS_POOL_MAXSIZE` | מקס׳ חיבורים בו‑זמנית בכל Pool (requests) | לא | `100` | `100` | Bot/WebApp |
+| `REQUESTS_TIMEOUT` | Timeout ברירת מחדל לבקשות סינכרוניות (requests) | לא | `8` | `8` | Bot/WebApp |
+| `REQUESTS_RETRIES` | מספר ניסיונות Retry על סטטוסים זמניים (5xx) | לא | `2` | `2` | Bot/WebApp |
+| `REQUESTS_RETRY_BACKOFF` | backoff\_factor בין ניסיונות ה‑Retry (שניות) | לא | `0.2` | `0.2` | Bot/WebApp |
+| `SLOW_MS` | סף מילישניות ללוג ”בקשה איטית“ ב‑Flask/WebApp | לא | `0` (מכובה) | `500` | WebApp |
+| `HTTP_SLOW_MS` | סף מילישניות ללוג ”slow\_http“ ב‑http\_sync (requests) | לא | `0` (מכובה) | `400` | Bot/WebApp |
+| `DB_SLOW_MS` | סף מילישניות ללוג ”slow\_mongo“ (MongoDB CommandListener) | לא | `0` (מכובה) | `20` | Bot/WebApp |
+| `PROFILER_ENABLED` | הפעלת Query Performance Profiler (ניטור שאילתות MongoDB איטיות + דשבורד). ראו [Query Performance Profiler](observability/query-performance-profiler.html). | לא | `true` | `false` | Bot/WebApp |
+| `PROFILER_SLOW_THRESHOLD_MS` | סף זמן (מילישניות) להגדרת ”שאילתה איטית“ עבור הפרופיילר. בהיעדרו נעשה שימוש ב-`DB_SLOW_MS`, ואם גם הוא חסר – בברירת המחדל. | לא | `1000` | `250` | Bot/WebApp |
+| `PROFILER_EXPLAIN_MAX_TIME_MS` | תקרת זמן (מילישניות) להרצת `explain` מהפרופיילר. רלוונטי בעיקר ל-`executionStats` ול-`allPlansExecution`, שמריצים את השאילתה בפועל. | לא | `5000` | `2000` | Bot/WebApp |
+| `PROFILER_MAX_BUFFER_SIZE` | מספר מקסימלי של רשומות slow queries שנשמרות בזיכרון (Deque) לצורכי UI מהיר | לא | `1000` | `2000` | Bot/WebApp |
+| `PROFILER_UNREDACTED_USER_IDS` | מזהי משתמשים (CSV) שהשאילתות האיטיות שלהם נשמרות גם עם הערכים האמיתיים (`query_raw`) לצד השלד המנורמל. ריק = כבוי, ואז שום דבר לא משתנה. חל רק על שאילתה שמצהירה על `user_id` יחיד מהרשימה ומכילה שדות ואופרטורים מוכרים בלבד; `$vectorSearch` נדחה תמיד, ובאגרגציה נשמרים ערכי שלבי ה-`$match` בלבד — לצד ערכי המבנה (`$limit`, `$skip`, כיווני `$sort`), שאינם נתוני משתמש ועוברים ולידציה צרה משלהם. תאריך ו-`ObjectId` נשמרים כטיפוסים שלהם: הערכים נוסעים ב-Extended JSON, שנושא את הטיפוס בתוך ה-JSON. כל דחייה נרשמת ב-`raw_withheld_reason` ומוצגת בדשבורד. הערכים חיים ב-DB בלבד — שורת הלוג ממשיכה לשאת את השלד. ראו [Query Performance Profiler](observability/query-performance-profiler.html). | לא | ”“ (ריק) | `6865105071` | Bot/WebApp |
+| `PROFILER_UNREDACTED_MAX_BYTES` | תקרת גודל (בייטים, JSON) לשאילתה שנשמרת עם ערכים אמיתיים. מעבר לה נשמר רק השלד, עם הסיבה `too_large`. | לא | `8192` | `4096` | Bot/WebApp |
+| `PROFILER_AUTH_TOKEN` | טוקן ל-API של הפרופיילר (נשלח כ-Header `X-Profiler-Token`). **אינו משפיע בפועל:** `_profiler_is_authorized` דורשת session של אדמין בכל מסלול, וכשיש כזה היא אינה בודקת את הטוקן כלל — כך שטוקן תקין לבדו אינו מעניק גישה, וטוקן שגוי אינו חוסם אדמין מחובר. אומת בהרצה. | לא | ”“ (ריק) | `replace_me` | Bot/WebApp |
+| `PROFILER_ALLOWED_IPS` | Allowlist של כתובות IP מורשות (CSV) ל-API של הפרופיילר. אם ריק, אין הגבלת IP. | לא | ”“ (ריק) | `127.0.0.1,10.0.0.1` | Bot/WebApp |
+| `PROFILER_RATE_LIMIT` | מגבלת בקשות לדקה ל-endpoints של הפרופיילר (Rate Limiting) | לא | `60` | `30` | Bot/WebApp |
+| `PROFILER_METRICS_ENABLED` | הפעלה/כיבוי של מטריקות Prometheus לפרופיילר (Slow Queries / Buffer Size וכו«) | לא | `true` | `false` | Bot/WebApp |
+| `QUEUE_DELAY_WARN_MS` | סף מילישניות להתראת `queue_delay_high` כאשר התקבלה כותרת `X-Queue-Start`/`X-Request-Start` והשרת מזהה זמן המתנה בתור לפני טיפול בבקשה | לא | `500` | `1000` | WebApp |
+| `COLLECTIONS_API_ITEMS_SLOW_MS` | סף מילישניות ללוג ביצועים ב-API של `GET /api/collections/<id>/items` (כדי לזהות בקשות איטיות וגודל payload) | לא | `500` | `300` | WebApp |
+| `SEARCH_MEMORY_INDEX_EAGER_BUILD` | בניית אינדקס החיפוש בזיכרון גם בסוגי חיפוש שאינם קוראים ממנו (`content`/`regex`/`fuzzy`). `true` משמר את האינדקס חם עבור ההשלמה האוטומטית, במחיר סריקה מלאה של קבצי המשתמש בכל חיפוש | לא | `false` | `true` | WebApp |
+| `SEARCH_MEMORY_INDEX_ENABLED` | הפעלת אינדקס החיפוש בזיכרון התהליך (`SearchIndex`). `false` מכבה את בנייתו, וחיפושי `text` ו-`function` נופלים ל-`$text` של מונגו במקום להישען עליו | לא | `true` | `false` | WebApp |
+| `SEARCH_PAGE_SIZE` | גודל דף חיפוש בצד ה‑DB | לא | `200` | `500` | Bot/WebApp |
+| `UI_PAGE_SIZE` | גודל דף ליסטים ב‑UI | לא | `10` | `20` | WebApp |
+| `ENCRYPTION_KEY` | מפתח הצפנה לנתונים רגישים | לא |   | `32-byte-key` | Bot/WebApp |
+| `SENTRY_DSN` | DSN לשילוב עם Sentry (שגיאות ותובנות) | לא | ”“ (ריק) | `https://xxx@o1234.ingest.sentry.io/5678` | Bot/WebApp |
+| `SENTRY_TRACES_SAMPLE_RATE` | דגימת Traces (0.0–1.0) | לא | `0.0` | `0.1` | Bot/WebApp |
+| `SENTRY_PROFILES_SAMPLE_RATE` | דגימת Profiles (0.0–1.0) | לא | `0.0` | `0.1` | Bot/WebApp |
+| `EMBEDDING_MIN_INTERVAL_SECONDS` | מרווח מינימלי (שניות) בין קריאות ל‑Gemini Embeddings (שער גלובלי למניעת 429) | לא | `1.2` | `2.0` | Bot |
+| `EMBEDDING_RATE_LIMIT_COOLDOWN_SECONDS` | cooldown גלובלי (שניות) שמוחל על כל הקוראים לאחר HTTP 429 מ‑Gemini | לא | `30` | `60` | Bot |
+| `EMBEDDING_WORKER_BATCH_SIZE` | כמות snippets שה‑embedding worker מעבד בכל סבב | לא | `5` | `10` | Bot |
+| `EMBEDDING_WORKER_POLL_INTERVAL` | זמן המתנה (שניות) בין סריקות של ה‑embedding worker כשהתור ריק | לא | `300` | `120` | Bot |
+| `EMBEDDING_WORKER_BATCH_COOLDOWN` | זמן המתנה (שניות) בין באצ’ים שעובדו בהצלחה | לא | `30` | `10` | Bot |
+| `EMBEDDING_QUOTA_PAUSE_SECONDS` | כמה זמן ה‑worker ממתין אחרי ש‑Gemini החזיר 429 גם אחרי מיצוי ה‑retries | לא | `900` | `1800` | Bot |
+| `EMBEDDING_AUTO_TRUNCATE` | כשהערך `false`, נשלח `embedContentConfig.autoTruncate=false`. **נמדד מול ה‑API החי: זה לא משנה דבר.** השדה תקף (מפתח מומצא באותו אובייקט מוחזר ב‑400, ואילו `autoTruncate` עובר), אבל קלט שחורג מחלון המודל נחתך בשקט בשני המצבים — שני טקסטים בני 28,000 תווים עם תחילית זהה וזנבות שונים לגמרי החזירו וקטורים עם קוסינוס `1.000000`. **אין להסתמך על הדגל הזה כרשת ביטחון**; ההגנה היחידה היא תקציב הבייטים ב‑`CHUNK_MAX_BYTES`. הדגל נשאר `true` (בלי שינוי התנהגות) כי השדה תקף וייתכן שיֽמומש בעתיד. לשחזור המדידה: `scripts/probe_embedding_limits.py` | לא | `true` | `false` | Bot/WebApp |
+| `EMBEDDING_MAX_INPUT_BYTES` | תקרת בטיחות על גודל הטקסט שנשלח להטמעה. חריגה מדווחת ככשל ואינה נחתכת | לא | `30000` | `20000` | Bot/WebApp |
+| `CHUNK_MAX_BYTES` | תקציב בייטים (UTF‑8) לכל צ’אנק קוד. חייב להישאר הרבה מתחת לתקרת הקלט של מודל ההטמעה (2,048 טוקנים ב‑`gemini-embedding-001`) | לא | `2000` | `1500` | Bot |
+| `CHUNK_OVERLAP_LINES` | תקרה **משנית** על החפיפה בין צ’אנקים עוקבים, בשורות. החפיפה בפועל היא המחמיר מבין שלושה: 15% מ‑`CHUNK_MAX_BYTES`, חצי מהצ’אנק בפועל, והערך הזה. `0` מבטל חפיפה לגמרי | לא | `40` | `20` | Bot |
+| `SEMANTIC_MIN_VECTOR_SCORE` | רף מינימלי על ציון `$vectorSearch` הגולמי (0..1). `0` = כבוי. **לא** על ציון ה‑RRF, שהוא בסקאלה אחרת לגמרי (מקסימום ~0.036) | לא | `0.0` | `0.62` | WebApp |
+| `SEMANTIC_NUM_CANDIDATES` | רצפה למספר המועמדים שה‑ANN בוחן. הערך האפקטיבי הוא `min(max(limit*20, זה), SEMANTIC_NUM_CANDIDATES_MAX)` | לא | `1000` | `2000` | WebApp |
+| `SEMANTIC_NUM_CANDIDATES_MAX` | תקרה למספר המועמדים שה‑ANN בוחן | לא | `10000` | `5000` | WebApp |
+| `SNIPPET_CHUNKS_CLEANUP_ENABLED` | הפעלת ג’וב ניקוי הצ’אנקים הסמנטיים היתומים | לא | `true` | `false` | Bot |
+| `SNIPPET_CHUNKS_CLEANUP_INTERVAL_SECS` | תדירות ג’וב הניקוי (מינימום נאכף: 3600) | לא | `86400` | `43200` | Bot |
+| `SNIPPET_CHUNKS_CLEANUP_FIRST_SECS` | השהיה מעליית הבוט ועד הריצה הראשונה של ג’וב הניקוי | לא | `600` | `60` | Bot |
+| `ADVISOR_API_KEY` | מפתח ה-API של מודל השפה של היועץ (`/advisor`), למשל מפתח Gemini. שלושת משתני `ADVISOR_` הראשונים יחד מפעילים את היועץ, וחסר באחד מהם מכבה את היועץ בלבד. ראו [מצב היועץ (/advisor)](advisor.html) | לא | ריק | `AIza...` | Bot |
+| `ADVISOR_BASE_URL` | כתובת ה-API התואם OpenAI של מודל השפה, כולל `https://` | לא | ריק | `https://generativelanguage.googleapis.com/v1beta/openai/` | Bot |
+| `ADVISOR_MODEL` | שם המודל שהיועץ פונה אליו | לא | ריק | `gemini-3.8-flash` | Bot |
+| `ADVISOR_CONTACT_URL` | קישור לכפתור ”לדבר עם המפתח“ בתשובות היועץ (`https://` או `tg://`). ריק = בלי הכפתור | לא | ריק | `https://t.me/moominAmir` | Bot |
+| `ADVISOR_CONTEXT_EXCHANGES` | כמה זוגות אחרונים של שאלה ותשובה מזיכרון השיחה נכנסים לכל שאלה ליועץ. מספר שלם, עד `MAX_CONTEXT_EXCHANGES` (`services/advisor_service.py`). ערך לא תקין מכבה את היועץ, והסיבה נרשמת בלוג | לא | `DEFAULT_CONTEXT_EXCHANGES` (5) | `8` | Bot |
+| `SEMANTIC_SEARCH_ENABLED` | הפעלת החיפוש הסמנטי (embeddings). כבוי = חיפוש טקסטואלי בלבד | לא | `true` | `false` | Bot/WebApp |
+| `GEMINI_API_KEY` | מפתח Gemini ליצירת embeddings. בלעדיו החיפוש הסמנטי ובדיקת התקינות שלו אינם רצים | לא | ריק | `AIza...` | Bot/WebApp |
+| `GEMINI_EMBEDDING_MODEL` | מודל ה-embedding. המודל הפעיל נשמר במונגו (`system_config`), וה-ENV הוא ברירת המחדל שממנה מתחילים. שם חלופי נתמך: `GEMINI_MODEL_EMBEDDING` | לא | `text-embedding-004` | `text-embedding-006` | Bot/WebApp |
+| `GEMINI_API_VERSION` | גרסת ה-API של Gemini לקריאות ה-embedding. שם חלופי נתמך: `GEMINI_EMBEDDING_API_VERSION` | לא | `v1beta` | `v1` | Bot/WebApp |
+| `GEMINI_EMBEDDING_MODEL_ALLOWLIST` | רשימת מודלים מותרים למעבר אוטומטי, מופרדת בפסיקים. ריק = `text-embedding-006,text-embedding-005,text-embedding-004`. שם חלופי נתמך: `SEMANTIC_EMBEDDING_MODEL_ALLOWLIST` | לא | ריק | `text-embedding-006,text-embedding-004` | Bot/WebApp |
+| `EMBEDDING_DIMENSIONS` | מספר המימדים של וקטור ה-embedding. שינוי פוסל את הווקטורים הקיימים, ולכן נעשה דרך שדרוג מבוקר | לא | `768` | `1536` | Bot/WebApp |
+| `EMBEDDING_AUTO_DIMENSION_UPGRADE` | מתיר מעבר אוטומטי למודל שמחזיר מספר מימדים אחר. ריק = המעבר מדולג ונרשמת אזהרה | לא | ריק (כבוי) | `1` | Bot/WebApp |
+| `EMBEDDING_MODEL_UPGRADE_LOCK_LEASE_SECONDS` | תוקף הנעילה (שניות) שמונעת משני תהליכים לשדרג את מודל ה-embedding במקביל | לא | `90` | `120` | Bot/WebApp |
+| `EMBEDDING_SELF_HEAL_COOLDOWN_SECONDS` | קירור (שניות) בין ניסיונות התאוששות אוטומטית אחרי כשל מול Gemini | לא | `60` | `120` | Bot/WebApp |
+| `EMBEDDING_SETTINGS_CACHE_TTL_SECONDS` | כמה שניות נשמרות הגדרות ה-embedding בזיכרון לפני קריאה מחודשת מהמונגו | לא | `30` | `60` | Bot/WebApp |
+
+## התראות וניטור (הרחבה)
+
+**Alerts & Observability**
+
+| משתנה | תיאור | חובה | ברירת מחדל | דוגמה | רכיב |
+| --- | --- | --- | --- | --- | --- |
+| `DRILL_MODE_ENABLED` | מפעיל Drill Mode (תרגולים) ב-WebApp/API. כאשר כבוי, `/api/observability/drills/run` יחזיר `drill_disabled`. | לא | `false` | `true` | WebApp/Observability |
+| `ALERTMANAGER_WEBHOOK_SECRET` | טוקן שצריך להופיע בכותרת `X-Alertmanager-Token` או בפרמטר `token` כדי לאמת קריאות ל־`/alertmanager/webhook`. | לא | ”“ (ריק) | `secret123` | WebApp |
+| `SENTRY_WEBHOOK_SECRET` | סוד לאימות קריאות ל־`/webhooks/sentry` (אם ריק, השירות מאפשר קריאות ללא אימות – מומלץ להגדיר). נבדק כ-`Authorization: Bearer` או `?token=` וגם תומך בחתימת HMAC כאשר קיימת. | לא | ”“ (ריק) | `secret123` | Webserver |
+| `SENTRY_WEBHOOK_DEDUP_WINDOW_SECONDS` | חלון דה-דופליקציה (בשניות) להתראות Sentry שמגיעות ב-Webhook כדי למנוע burst (`0` מנטרל). | לא | `300` | `600` | Webserver |
+| `ALERTMANAGER_IP_ALLOWLIST` | רשימת IPs (מופרדים בפסיק) שמורשים לצרוך את ה-webhook; נבדק מול `X-Forwarded-For`/`remote_addr`. | לא | ”“ (ריק) | `10.0.0.5,10.0.0.6` | WebApp |
+| `ALLOWED_WEBHOOK_HOSTS` | Allowlist אופציונלי ליעדי `webhook` (Visual Rule Engine). אם מוגדר, יישלח webhook רק ל-hostnames שמופיעים ברשימה (CSV, התאמה מדויקת). | לא | ”“ (ריק) | `hooks.slack.com,api.example.com` | Bot/WebApp |
+| `ALLOWED_WEBHOOK_SUFFIXES` | Allowlist אופציונלי ליעדי `webhook` לפי סיומות דומיין (CSV). אם מוגדר, יישלח webhook רק לדומיינים שמסתיימים באחת הסיומות (למשל `.example.com`). | לא | ”“ (ריק) | `.example.com,.mycompany.net` | Bot/WebApp |
+| `SLACK_WEBHOOK_URL` | כתובת Incoming Webhook של Slack לשליחת התראות. | לא | ”“ (ריק) | `https://hooks.slack.com/services/...` | Bot |
+| `ALERT_TELEGRAM_BOT_TOKEN` | טוקן בוט ייעודי לשליחת התראות לטלגרם (נפרד מהבוט הראשי אם רוצים). | לא |   | `123456:ABC-DEF...` | Bot/WebApp |
+| `ALERT_TELEGRAM_CHAT_ID` | Chat ID/Channel שאליו נשלחות התראות (לדוגמה `-100123` או `@myteam`). | לא |   | `-1001234567890` | Bot/WebApp |
+| `ALERT_TELEGRAM_MIN_SEVERITY` | דרגת החומרה המינימלית שתישלח לטלגרם (`info`/`warning`/`error`/`critical`). | לא | `info` | `warning` | Bot/WebApp |
+| `ALERT_STARTUP_GRACE_PERIOD_SECONDS` | חלון חסד (שניות) לאחר אתחול התהליך שבו מושתקים רק alerts ”רועשים“ מתוך allowlist (Mongo/Latency/EWMA) כדי למנוע רעשי דיפלוי. | לא | `1200` | `1200` | Bot/WebApp |
+| `ALERTS_TEXT_INCLUDE_DASHBOARD_LINK_TELEGRAM` | אם `true` מוסיף שורת `📊 Dashboard: ...` לגוף ההודעה בטלגרם. ברירת מחדל כבוי כדי להימנע מכפילות (יש כפתור Inline). | לא | `false` | `true` | Bot/WebApp |
+| `ALERTS_TEXT_INCLUDE_DASHBOARD_LINK_SLACK` | אם `true` מוסיף שורת `📊 Dashboard: ...` לגוף ההודעה ב-Slack (ברירת מחדל פעיל כי אין כפתור). | לא | `true` | `false` | Bot/WebApp |
+| `GRAFANA_URL` | בסיס ה-URL של Grafana לכתיבת annotations על התראות. | לא | ”“ (ריק) | `https://grafana.example.com` | Bot |
+| `GRAFANA_API_TOKEN` | אסימון Bearer ל-Grafana כשמוסיפים annotations דרך ה-API. | לא | ”“ (ריק) | `glsa_xxx` | Bot |
+| `ALERTS_DB_ENABLED` | מפעיל כתיבה/קריאה ל-MongoDB עבור לוג התראות וסיילנסים. | לא | `false` | `true` | Bot/Observability |
+| `DRILLS_DB_ENABLED` | מפעיל שמירת היסטוריית Drill ב-MongoDB (ברירת מחדל נסמכת על `ALERTS_DB_ENABLED`/`METRICS_DB_ENABLED`). | לא | ”“ (ריק = יורש מ-ALERTS\_DB\_ENABLED/METRICS\_DB\_ENABLED) | `true` | WebApp/Observability |
+| `ALERTS_COLLECTION` | שם הקולקשן שבו נשמרות התראות מנורמלות. | לא | `alerts_log` | `alerts_log_prod` | Bot/Observability |
+| `ALERT_TYPES_CATALOG_COLLECTION` | שם הקולקשן שבו נשמר Catalog (Registry) של כל `alert_type` שנצפה אי פעם. משמש ל-Coverage Report כ-To-Do קבוע ל-Runbooks/Quick Fixes. | לא | `alert_types_catalog` | `alert_types_catalog_prod` | Bot/Observability |
+| `DRILLS_COLLECTION` | שם הקולקשן שבו נשמרת היסטוריית Drill Mode (תרגולים). | לא | `drill_history` | `drill_history_prod` | WebApp/Observability |
+| `ALERTS_SILENCES_COLLECTION` | שם הקולקשן לסיילנסים (pattern + TTL). | לא | `alerts_silences` | `alerts_silences_eu` | Bot/Observability |
+| `ALERTS_TTL_DAYS` | כמה ימים נשמרת התראה לפני מחיקה אוטומטית (TTL index). | לא | `30` | `14` | Bot/Observability |
+| `DRILLS_TTL_DAYS` | כמה ימים נשמרת היסטוריית Drill לפני מחיקה אוטומטית (TTL index). | לא | `90` | `30` | WebApp/Observability |
+| `ALERTS_GROUPING_CONFIG` | נתיב ל־YAML שמגדיר איך לאגד אירועים לקטגוריות התראה (log aggregator). | לא | `config/alerts.yml` | `config/custom_alerts.yml` | Bot/Observability |
+| `ALERTS_USE_POOLED_HTTP` | כאשר ערכו `true`/`1` משתמשים ב-`http_sync` המאוחד בעת שליחת Slack/Telegram. | לא | `false` | `true` | Bot |
+| `ALERT_ANOMALY_BATCH_WINDOW_SECONDS` | חלון זמן (שניות) לאיגוד התראות anomaly דומות לפני הודעה מרוכזת. | לא | `180` | `120` | Bot |
+| `ALERT_ERRORS_PER_MINUTE` | סף כמות שגיאות לדקה שמעורר `anomaly_detected` מהמודול metrics. | לא | `20` | `40` | Bot |
+| `ALERT_AVG_RESPONSE_TIME` | רף ה-EWMA של זמן תגובה (שניות) שמעורר התראת latency (`0` מנטרל). | לא | `3.0` | `2.5` | Bot |
+| `ANOMALY_IGNORE_ENDPOINTS` | רשימת נתיבי URL (CSV/JSON list) שמוחרגים מעדכון EWMA ומדגימת `slow_endpoints` (המטריקות הרגילות עדיין נרשמות לגרפים). | לא | `""` | `/api/observability/aggregations,/api/observability/timeseries` | WebApp/Observability |
+| `ALERT_AVG_RESPONSE_TIME_DEPLOY` | רף חלופי לאותה התראה בזמן חלון חסד לאחר Deploy. | לא | `10.0` | `6.0` | Bot |
+| `DEPLOY_GRACE_PERIOD_SECONDS` | אורך חלון החסד (שניות) שבו משתמשים ברף Deploy. | לא | `120` | `180` | Bot |
+| `ALERT_COOLDOWN_SECONDS` | קירור מינימלי בין שתי התראות מאותו סוג. | לא | `300` | `600` | Bot |
+| `ALERT_DISPATCH_LOG_MAX` | מספר הרשומות שנשמרות בזיכרון עבור מעקב שליחות. | לא | `500` | `200` | Bot |
+| `ALERT_EACH_ERROR` | מפעיל fallback שמוציא התראה נפרדת עבור כל שגיאה (עם קירור קשיח). | לא | `false` | `true` | Bot |
+| `ALERT_EACH_ERROR_COOLDOWN_SECONDS` | קירור בין התראות fallback מאותה חתימת שגיאה. | לא | `120` | `60` | Bot |
+| `ALERT_EACH_ERROR_TTL_SECONDS` | TTL לחתימות במאגר הדה-דופליקציה (ברירת המחדל: שעה או פי 10 מהקירור). | לא | `3600` | `7200` | Bot |
+| `ALERT_EACH_ERROR_MAX_KEYS` | כמות החתימות שנשמרות במקביל לפני שמסירים את הוותיקות. | לא | `1000` | `2000` | Bot |
+| `ALERT_QUICK_FIX_PATH` | קובץ JSON עם פתרונות/צעדים קצרים שמוצמדים להתראות בצ’אט. | לא | `config/alert_quick_fixes.json` | `config/custom_fixes.json` | Bot/WebApp |
+| `ALERTS_CONFIG_PATH` | נתיב ל-YAML של חוקי ההתראות מבוססות אירוע (`alerts:` בקובץ). ריק = `config/alerts.yml` יחסית לשורש הריפו. שם חלופי נתמך: `LOG_ALERTS_CONFIG_PATH` | לא | ריק (`config/alerts.yml`) | `/etc/codebot/alerts.yml` | Bot/WebApp/Webserver |
+| `ALERT_GRAPH_SOURCES_PATH` | נתיב ל-JSON שממפה סוג התראה לגרף שמוצג לצידה בדשבורד ה-Observability | לא | `config/alert_graph_sources.json` | `config/custom_graphs.json` | WebApp/Observability |
+| `OBSERVABILITY_RUNBOOK_PATH` | נתיב חלופי ל-`observability_runbooks.yml` שמזין את ה-Runbooks וה-Quick Fix הדינמי. | לא | `config/observability_runbooks.yml` | `/etc/codebot/runbooks.yml` | WebApp/Observability |
+| `OBS_RUNBOOK_STATE_TTL` | משך (בשניות) לשמירת סטטוס הצעדים שסומנו כ“בוצעו“ ב-Runbook. | לא | `14400` | `7200` | WebApp/Observability |
+| `OBS_RUNBOOK_EVENT_TTL` | זמן שמירת אירועי ה-Replay במטמון צד שרת לצורך שליפות Runbook (שניות). | לא | `900` | `1800` | WebApp/Observability |
+| `ALERT_EXTERNAL_SERVICES` | רשימת מחרוזות (CSV) של שירותים חיצוניים שיזוהו כ-`external` במדד High Error Rate (למשל `uptimerobot`/`github api`); שגיאות מהמקורות האלה ייצרו רק התרעת Warning ולא יריצו Auto-Remediation. | לא | `uptime,uptimerobot,uptime_robot,betteruptime,statuscake,pingdom,external_monitor,github api,github_api` | `uptimerobot,github api,statuspage` | WebApp/Observability |
+| `OBS_AI_EXPLAIN_URL` | Endpoint לשירות ההסבר החכם של הדשבורד (מקבל `POST` עם `context` ומחזיר `root_cause`/`actions`/`signals`). | לא | ”“ (ריק) | `https://ai.example.com/explain` | WebApp/Observability |
+| `OBS_AI_EXPLAIN_INTERNAL_PORT` | פורט פנימי כאשר מריצים את שירות ה-AI Explain באותו קונטיינר עם ה-WebApp (למשל דרך `scripts/run_all.sh`). בשימוש יחד עם `OBS_AI_EXPLAIN_URL=http://127.0.0.1:<port>/api/ai/explain`. | לא | `11000` | `11000` | WebApp/Observability |
+| `OBS_AI_EXPLAIN_TOKEN` | אסימון Bearer שנשלח ב-Header `Authorization` כאשר השירות מוגן (אופציונלי). | לא | ”“ (ריק) | `sk-live-123` / `bearer-xyz` | WebApp/Observability |
+| `OBS_AI_EXPLAIN_TIMEOUT` | Timeout (שניות) לפנייה לשירות ה-AI לפני נפילה לניתוח היוריסטי. | לא | `12` | `20` | WebApp/Observability |
+| `OBS_AI_EXPLAIN_CACHE_TTL` | חיי המטמון (שניות) לתוצאות AI לפי `alert_uid` ב-Observability. | לא | `600` | `900` | WebApp/Observability |
+| `AI_EXPLAIN_URL` | שם חלופי ל-`OBS_AI_EXPLAIN_URL`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `http://127.0.0.1:11000/api/ai/explain` | WebApp/Observability |
+| `AI_EXPLAIN_TOKEN` | שם חלופי ל-`OBS_AI_EXPLAIN_TOKEN`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `bearer-token` | WebApp/Webserver |
+| `ANTHROPIC_API_KEY` | מפתח Anthropic לשירות ”הסבר AI“ של ההתראות. בלעדיו הבקשה נכשלת ב-`anthropic_api_key_missing`. שם חלופי נתמך: `CLAUDE_API_KEY` | לא | ריק | `sk-ant-...` | Webserver |
+| `ANTHROPIC_API_URL` | כתובת ה-API שאליה נשלחת בקשת ההסבר | לא | `https://api.anthropic.com/v1/messages` | `https://api.anthropic.com/v1/messages` | Webserver |
+| `OBS_AI_EXPLAIN_MODEL` | מזהה המודל להסבר ההתראות. ריק = `CLAUDE_MODEL`, ואם גם הוא ריק — ברירת המחדל שבקוד. שם חלופי נתמך: `CLAUDE_MODEL` | לא | ריק | `claude-sonnet-4-5-20250929` | Webserver |
+| `OBS_AI_EXPLAIN_MODEL_FALLBACKS` | רשימת מודלים חלופיים (מופרדת בפסיקים) שינוסו לפי הסדר כשהמודל הראשי נכשל. ריק = הרשימה שבקוד | לא | ריק | `claude-opus-4-5-20251101` | Webserver |
+| `OBS_AI_EXPLAIN_MAX_TOKENS` | תקרת הטוקנים לתשובת ההסבר | לא | `800` | `1200` | Webserver |
+| `OBS_AI_EXPLAIN_TEMPERATURE` | טמפרטורת הדגימה של ההסבר; נמוך = תשובות עקביות יותר | לא | `0.2` | `0` | Webserver |
+| `OBS_AI_PROVIDER_LABEL` | התווית שמוצגת בדשבורד כמקור ההסבר | לא | `claude-sonnet-4.5` | `claude-opus` | Webserver |
+| `INCIDENT_STORY_DB_ENABLED` | שמירת סיפורי אירוע במונגו. ריק = יורש מ-`ALERTS_DB_ENABLED`, ואם גם הוא כבוי — הסיפורים נשמרים לקובץ | לא | ריק (יורש) | `true` | WebApp/Observability |
+| `INCIDENT_STORIES_COLLECTION` | שם האוסף שבו נשמרים סיפורי האירוע | לא | `incident_stories` | `incidents` | WebApp/Observability |
+| `INCIDENT_STORY_FILE` | קובץ הגיבוי לסיפורי אירוע כשהשמירה למונגו כבויה | לא | `tmp/incident_stories.json` | `/var/data/incident_stories.json` | WebApp/Observability |
+| `OBSERVABILITY_THREADPOOL_WORKERS` | מספר הת’רדים להרצת שאילתות Observability כבדות מחוץ ל-request. נאכף לטווח 2–16 | לא | `6` | `10` | WebApp |
+| `LOG_ALERTS_CONFIG_PATH` | שם חלופי ל-`ALERTS_CONFIG_PATH`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `/etc/codebot/alerts.yml` | Bot/WebApp/Webserver |
+| `SILENCE_MAX_DAYS` | מגבלת ימים לסיילנס יחיד שנוצר דרך ChatOps. | לא | `7` | `3` | Bot |
+| `SILENCES_MAX_ACTIVE` | מספר הסיילנסים הפעילים המקסימלי לפני שיצירת חדשים נחסמת. | לא | `50` | `100` | Bot |
+| `SENSITIVE_COMMAND_COOLDOWN_SEC` | קירור ברירת מחדל (שניות) לפקודות אדמין רגישות בצ’אט. | לא | `5` | `10` | Bot/ChatOps |
+| `ALLOWED_CHAT_IDS` | CSV של Chats/Channels שמורשים להשתמש ביכולות אדמין (לדוגמה ערוצי ניהול). | לא | ”“ (ריק = אין הגבלה) | `-1001,-1002` | Bot/ChatOps |
+| `INTERNAL_ALERTS_BUFFER` | כמות ההתראות הפנימיות שנשמרות בזיכרון לבקרה. | לא | `200` | `500` | Bot |
+| `SENTRY_API_URL` | בסיס ה-API של Sentry (אם משתמשים ב-self-hosted). | לא | `https://sentry.io/api/0` | `https://sentry.example.com/api/0` | Bot/ChatOps |
+| `SENTRY_AUTH_TOKEN` | אסימון Bearer לקריאות API (נדרש ל-ChatOps / integrations). | לא | ”“ (ריק) | `sentry_pat_xxx` | Bot/ChatOps |
+| `SENTRY_DASHBOARD_URL` | URL מלא לאזור ה-Issues בסקופ ארגוני; גובר על לינקים שנבנים מה-DSN. | לא | ”“ (ריק) | `https://sentry.io/organizations/acme/issues` | Bot/WebApp |
+| `SENTRY_ORG`/`SENTRY_ORG_SLUG` | ה-slug של הארגון ב-Sentry (משמש לבניית URLs וקריאות API). | לא | ”“ (ריק) | `codebot` | Bot/ChatOps |
+| `SENTRY_PROJECT`/`SENTRY_PROJECT_SLUG` | פרויקט ברירת מחדל לסינון Issues/Events. | לא | ”“ (ריק) | `codebot-web` | Bot/ChatOps |
+| `SENTRY_PROJECT_URL` | URL ישיר לפרויקט ספציפי במקרה שאין Dashboard ארגוני. | לא | ”“ (ריק) | `https://sentry.io/organizations/acme/projects/codebot` | Bot/ChatOps |
+| `SENTRY_POLL_ENABLED` | מפעיל Polling תקופתי ל-Sentry (חלופה כאשר אין אפשרות Webhook ב-Sentry). הבוט ימשוך Issues אחרונים וייצר `internal_alerts` מסוג `alert_type=sentry_issue`. | לא | `false` | `true` | Bot |
+| `SENTRY_POLL_INTERVAL_SECS` | כל כמה שניות לבצע Polling ל-Sentry (מינימום 30). | לא | `300` | `120` | Bot |
+| `SENTRY_POLL_FIRST_SECS` | דיליי לפני ריצת ה-Poll הראשונה לאחר עלייה (שניות). | לא | `20` | `5` | Bot |
+| `SENTRY_POLL_LIMIT` | כמה Issues למשוך בכל Poll (מינימום 1, מקסימום 100). | לא | `10` | `25` | Bot |
+| `SENTRY_POLL_SEVERITY` | דרגת החומרה שתישלח כ-`internal_alerts` עבור Sentry Poll (`info`/`warning`/`error`/`critical`). | לא | `error` | `warning` | Bot |
+| `SENTRY_POLL_SEED_SILENT` | אם `true` ההרצה הראשונה רק ”זורעת“ מצב (Seed) ולא שולחת התראות על Issues קיימים; רק פעילות חדשה בהמשך תייצר התראה. | לא | `true` | `false` | Bot |
+| `SENTRY_POLL_DEDUP_SECONDS` | חלון דה-דופליקציה (בשניות) לכל Issue כדי למנוע הצפה (`0` מנטרל). | לא | `900` | `300` | Bot |
+| `SENTRY_TEST_NOTIFICATIONS_JOB` | 1/`true` מפעיל Job מדמה ששולח אירוע בדיקה ל-Sentry לצורכי ניטור. | לא | `false` | `true` | Bot/ChatOps |
+
+## מדדים, OTEL וחיזוי
+
+**Metrics & Predictive Controls**
+
+| משתנה | תיאור | חובה | ברירת מחדל | דוגמה | רכיב |
+| --- | --- | --- | --- | --- | --- |
+| `ENABLE_METRICS` | מפעיל/מכבה יצוא Metrics דרך OTLP (OpenTelemetry Metrics). כדי לא להרעיש, יצוא OTLP דורש גם `OTEL_EXPORTER_OTLP_ENDPOINT`. | לא | `false` | `true` | Bot/WebApp |
+| `ENABLE_PROMETHEUS_METRICS` | מפעיל OpenTelemetry Prometheus exporter (pull/scrape). כשהוא פעיל, מדדים של OTEL נחשפים דרך ה-`/metrics` הקיים. (Alias נתמך: `ENABLE_PROMETHEUS_OTEL_METRICS`) | לא | `false` | `true` | Bot/WebApp |
+| `METRICS_DB_ENABLED` | מפעיל כתיבה של מדדי בקשות ל-MongoDB (`monitoring/metrics_storage.py`) בכל שירות שמגדיר אותו — מסמך מסכם לכל נתיב בכל חלון של `METRICS_ROLLUP_SECONDS`, ולא מסמך לכל בקשה. `DISABLE_METRICS_WRITES` ו-`DISABLE_DB` גוברים עליו. מה הכותב עושה כשכתיבה נכשלת: `_flush_once` באותו מודול. | לא | `false` | `true` | Bot/Observability |
+| `METRICS_COLLECTION` | שם הקולקשן לכתיבת metrics כש-DB מופעל. | לא | `service_metrics` | `service_metrics_eu` | Bot/Observability |
+| `METRICS_BATCH_SIZE` | גודל הבאצ« (מספר דגימות) שנשלחות בכל flush. | לא | `50` | `200` | Bot/Observability |
+| `METRICS_FLUSH_INTERVAL_SEC` | כל כמה שניות לרוקן את הבאפר של metrics — וגם כמה זמן לחכות אחרי כתיבה שנכשלה, לפני הניסיון הבא. | לא | `5` | `10` | Bot/Observability |
+| `METRICS_EWMA_ALPHA` | מקדם EWMA (0-1) לחישוב אנומליות latency/error-rate. | לא | `0.2` | `0.1` | Bot |
+| `METRICS_MAX_BUFFER` | מספר הדגימות המקסימלי שנשמר בזיכרון לפני שמתחילים לדלג. | לא | `5000` | `10000` | Bot |
+| `METRICS_ROLLUP_SECONDS` | גודל חלון הצבירה (שניות) שלפיו דגימות מאוחדות לפני כתיבה למונגו | לא | `60` | `300` | Bot/WebApp/Webserver |
+| `METRICS_TTL_DAYS` | כמה ימים נשמר מדד ב-`service_metrics` לפני מחיקה אוטומטית (אינדקס TTL על `ts`). חייב לכסות את הטווח הארוך ביותר שדשבורד ה-Observability מציע ואת `OBSERVABILITY_WARMUP_RANGES` — אחרת התצוגות האלה יתרוקנו בלי שגיאה. לכן דוגמה קצרה מברירת המחדל אינה מופיעה כאן. | לא | `30` | `45` | Bot/WebApp/Webserver |
+| `ERROR_HISTORY_SECONDS` | חלון זמן (בשניות) לשמירת errors לצורך תרשימי חום. | לא | `600` | `900` | Bot |
+| `ERROR_HISTORY_MAX_SAMPLES` | מספר מקסימלי של רשומות שגיאה שנשמרות בחלון. | לא | `2000` | `5000` | Bot |
+| `ERROR_SIGNATURES_PATH` | נתיב לקובץ החתימות (YAML) שמשמש את log aggregator לסיווג שגיאות. | לא | `config/error_signatures.yml` | `config/custom_error_signatures.yml` | Bot |
+| `HTTP_SAMPLE_BUFFER` | כמות דגימות HTTP שנשמרות ב־deque לצורך סטטיסטיקות. | לא | `2000` | `4000` | Bot/WebApp |
+| `HTTP_SAMPLE_RETENTION_SECONDS` | זמן שמירת הדגימות (שניות) לפני שמנקים אותן. | לא | `600` | `1200` | Bot/WebApp |
+| `RECENT_ERRORS_BUFFER` | מספר השגיאות האחרונות שמוצגות ב-ChatOps (Deque). | לא | `200` | `400` | Bot/ChatOps |
+| `MEMORY_USAGE_THRESHOLD_PERCENT` | אחוז שימוש בזיכרון שמפעיל התראות חיזוי (למשל 85%). | לא | `85` | `90` | Bot |
+| `OTEL_EXPORTER_INSECURE` | כאשר `true` מאפשר שימוש ב-OTLP gRPC ללא TLS (למטרות לוקאליות). | לא | `false` | `true` | Bot/WebApp |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | כתובת OTLP כללית (gRPC/HTTP) לייצוא traces/metrics אם אין חלוקה. | לא | ”“ (ריק) | `https://otel-collector:4317` | Bot/WebApp |
+| `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | כתובת ייעודית למטריקות OTLP (אם שונה מה-endpoint הראשי). | לא | ”“ (ריק) | `https://otel-collector:4318/v1/metrics` | Bot/WebApp |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | כתובת ייעודית ל-traces OTLP. | לא | ”“ (ריק) | `https://otel-collector:4318/v1/traces` | Bot/WebApp |
+| `PROMETHEUS_URL` | בסיס URL ל-Prometheus HTTP API. אם מוגדר, דשבורד ה-Observability ישתמש ב-Prometheus ל-timeseries במקום קריאה מ-MongoDB. | לא | ”“ (ריק) | `https://prometheus.example.com` | WebApp/Observability |
+| `PROMETHEUS_RATE_WINDOW` | חלון ברירת מחדל ל-`rate()`/`histogram_quantile()` ב-PromQL (למשל `5m`). משפיע על החלקת גרפים בדשבורד. | לא | `5m` | `1m` | WebApp/Observability |
+| `PREDICTION_MAX_AGE_SECONDS` | כמה זמן לשמור קבצי חיזוי/תקריות לפני ניקוי (ברירת מחדל 24 שעות). | לא | `86400` | `43200` | Bot |
+| `PREDICTIVE_MODEL` | סוג המודל לחיזוי (`exp_smoothing` או `linear`). | לא | `exp_smoothing` | `linear` | Bot |
+| `PREDICTIVE_HALFLIFE_MINUTES` | זמן מחצית החיים בדקות ל-weighting של EW regression. | לא | `30` | `15` | Bot |
+| `PREDICTIVE_HORIZON_SECONDS` | טווח החיזוי (שניות קדימה) לפני שמכריזים על סכנה קרובה. | לא | `900` | `600` | Bot |
+| `PREDICTIVE_FEEDBACK_INTERVAL_SEC` | כל כמה שניות נמדדת דיוק ההחיזוי (feedback loop). | לא | `300` | `120` | Bot |
+| `PREDICTIVE_CLEANUP_INTERVAL_SEC` | כל כמה זמן לנקות חיזויים ו-incidents ישנים. | לא | `3600` | `900` | Bot |
+| `PREDICTIVE_SAMPLER_ENABLED` | מפעיל את ה-sampler שרץ ברקע ואוסף מדידות לטובת החיזוי. | לא | `true` | `false` | Bot |
+| `PREDICTIVE_SAMPLER_METRICS_URL` | בסיס ה-URL שממנו הסמפולר קורא סטטיסטיקות. עקיפה מפורשת, שיכולה להיות כתובת פנימית. ריק = `WEBAPP_URL` (`webapp_url.py`), ובלי כתובת תקינה ההרצה מדולגת. | לא | ”“ (auto) | `https://internal-observability/api` | Bot |
+| `PREDICTIVE_SAMPLER_INTERVAL_SECS` | תדירות ריצה של הסמפולר (שניות). | לא | `60` | `30` | Bot |
+| `PREDICTIVE_SAMPLER_FIRST_SECS` | דילי לפני ריצת הסמפולר הראשונה. | לא | `10` | `5` | Bot |
+| `PREDICTIVE_SAMPLER_RUN_IN_TESTS` | כאשר `true` הסמפולר רץ גם במהלך Pytest (ברירת מחדל כבוי כדי לא להאריך טסטים). | לא | `false` | `true` | Bot |
+
+## תפעול, אינטגרציות ופיצ’רים
+
+**Operations & Feature Flags**
+
+| משתנה | תיאור | חובה | ברירת מחדל | דוגמה | רכיב |
+| --- | --- | --- | --- | --- | --- |
+| `BACKUPS_STORAGE` | בחירת מנגנון גיבוי: `mongo` (GridFS) או `fs` (מערכת קבצים מקומית). | לא | `mongo` | `fs` | Bot |
+| `BACKUPS_DIR` | נתיב גיבויים בלוקאל (אם `BACKUPS_STORAGE=fs`); אחרת נבחר אוטומטית. | לא | נתיב ברירת מחדל (`/app/backups`) | `/var/lib/codebot/backups` | Bot |
+| `SKILLS_MAX_PER_USER` | מכסת מספר סקילים מרבי למשתמש (`0` = בלי מגבלה); לסקילים אין retention. | לא | `100` | `50` | Bot |
+| `SKILLS_MAX_TOTAL_BYTES` | מכסת נפח סקילים כוללת למשתמש בבייטים (`0` = בלי מגבלה). | לא | `1073741824` (1GB) | `536870912` | Bot |
+| `BACKUPS_SHOW_ALL_IF_EMPTY` | כאשר `true` מאפשר לממשק להציג את כל הקבצים גם כשאין פילטר (שימושי ל-ops). | לא | `false` | `true` | Bot |
+| `CACHE_WARMING_ENABLED` | מפעיל חימום קאש מתוזמן לאחר אתחול. | לא | `true` | `false` | Bot |
+| `CACHE_WARMING_BUDGET_SECONDS` | תקציב הזמן המרבי ללופ החימום (מונע עיכובים ארוכים). | לא | `5.0` | `0.2` | Bot |
+| `CACHE_WARMING_INTERVAL_SECS` | כל כמה זמן (שניות) להריץ warming job. | לא | `900` | `300` | Bot |
+| `CACHE_WARMING_FIRST_SECS` | דילי לפני ריצת ה-warming הראשונה אחרי עלייה. | לא | `45` | `5` | Bot |
+| `DISABLE_ACTIVITY_REPORTER` | 1/`true` מדליק קצר את דיווחי activity (שימושי בטסטים/לוקאל). | לא | `0` | `1` | Bot |
+| `DISABLE_DB` | עוקף כל אינטראקציה עם MongoDB (בדרך כלל לטסטים). | לא | `false` | `true` | Bot/WebApp |
+| `DISABLE_WEEKLY_REPORTS` | מדליק/מכבה שליחת דו“חות שבועיים (reminders). | לא | `false` | `true` | Bot |
+| `DISABLE_ALERTS_READS` | עוצר גם את קריאת ההתראות מהמונגו. בלעדיו הקריאה נשארת פעילה גם כשהכתיבה מושבתת, כדי שדשבורד ה-Observability יציג היסטוריה | לא | ריק (קריאה פעילה) | `true` | Bot/WebApp/Webserver |
+| `DISABLE_METRICS_WRITES` | עוצר מיידית כתיבת מדדים למונגו, גם כאשר `METRICS_DB_ENABLED` דלוק | לא | ריק (לא חוסם) | `true` | Bot/WebApp/Webserver |
+| `DISABLE_METRICS_READS` | עוצר קריאת מדדים מהמונגו | לא | ריק (לא חוסם) | `true` | Bot/WebApp/Webserver |
+| `DISABLE_STARTUP_WARMUP` | מכבה בעליית הוובאפ **שני** חימומים: זה של ה-Observability וזה של אינדקסי הפתקים הדביקים. **דלוק כברירת מחדל**, כלומר החימומים כבויים ובניית האינדקסים קורית בבקשה הראשונה; `false` מפעיל אותם. ראו [Sticky Notes Warmup – פתרון ביצועים משולב](performance-sticky-notes.html) | לא | `true` | `false` | WebApp |
+| `DUMMY_BOT_TOKEN` | טוקן בדיקה שמשמש סביבות שבהן אין צורך להתחבר לטלגרם (למשל docs build). | לא | `dummy_token` | `test_token` | Bot |
+| `DRIVE_RESCHEDULE_BOOTSTRAP_DELAY` | כמה שניות להמתין לפני תחילת משימות ה-Drive rescheduler. | לא | `5` | `1` | Bot |
+| `DRIVE_RESCHEDULE_FIRST_DELAY` | דילי לכל משימת שמירה/Keepalive הראשונה. | לא | `60` | `10` | Bot |
+| `DRIVE_RESCHEDULE_INTERVAL` | הפרש זמנים בין הריצות הבאות של ה-Drive rescheduler. | לא | `900` | `300` | Bot |
+| `WEEKLY_REPORT_DELAY_SECS` | כמה זמן להמתין אחרי עלייה לפני הפעלת job הדו“חות השבועיים. | לא | `3600` | `600` | Bot |
+| `RATE_LIMIT_SHADOW_MODE` | במצב `true` המגביל רק סופר חריגות ולא חוסם משתמשים (לבדיקות/דרג). | לא | `false` | `true` | Bot/WebApp |
+| `ALLOW_SEED_NON_LOCAL` | מאפשר לסקריפט ה-seed לרוץ גם כשכתובת ה-Mongo אינה לוקאלית (לברירת מחדל אסור). | לא | `false` | `true` | Scripts |
+| `CHATOPS_ALLOW_ALL_IF_NO_ADMINS` | כאשר `true` ואם `ADMIN_USER_IDS` ריק, כל משתמש נחשב אדמין (מתאים לסביבות dev). | לא | `false` | `true` | Bot/ChatOps |
+| `USE_NEW_SAVE_FLOW` | מפעיל את מסלול השמירה המחודש (ניסיוני) בהנדלרים של save. | לא | `false` | `true` | Bot |
+| `REFACTOR_LAYERED_MODE` | 1/`true` מחייב את מנוע הרה-פקטור לפעול במצב IA Layered (בדיקות/POC). | לא | `false` | `true` | Bot |
+| `PASTEBIN_API_KEY` | מפתח API עבור Pastebin ליצירת לינקים שיתופיים. | לא | ”“ (ריק) | `pastebin_key` | Bot/WebApp |
+| `WEBAPP_LOGIN_SECRET` | סוד משותף בין הבוט לוובאפ לטובת אימות single-sign-on. | לא | ”“ (ריק) | `super-shared-secret` | WebApp/Bot |
+| `SUPPORT_EMAIL` | כתובת דוא“ל שמוצגת בהודעות ומספקת fallback ל-`VAPID_SUB_EMAIL`. | לא | ”“ (ריק) | `support@example.com` | Bot/WebApp |
+| `TOKEN_ENC_KEY` | מפתח Fernet (Base64) להצפנת טוקנים רגישים במסד (ראה `docs/SECURITY_TOKENS`). גם הוובאפ מצפין בו: הטוקנים של חיבור ה-Drive שלו נשמרים דרך `encrypt_secret`, ובלי מפתח הם נשמרים בלי הצפנה. | לא | ”“ (ריק) | `Cr4ZEXxx...` | Bot/WebApp |
+| `PUSH_CLAIM_TTL_SECONDS` | משך הזמן שבו claim של תזכורת push נחשב בתוקף לפני שמשחררים אותו. | לא | `60` | `120` | Bot/WebApp |
+| `PUSH_DELIVERY_URGENCY` | Urgency header לברירת מחדל ב-Web Push (`very-low`/`low`/`normal`/`high`). | לא | `high` | `low` | WebApp |
+| `PUSH_SEND_INTERVAL_SECONDS` | מרווח ההמתנה בין סריקות מתוזמנות של תזכורות push. | לא | `60` (מינימום 20) | `30` | WebApp |
+| `GITHUB_API_BASE_DELAY` | דילי בסיסי בין בקשות GitHub כדי להישאר מתחת לרף rate-limit. | לא | `2.0` | `1.0` | Bot/ChatOps |
+| `GITHUB_BACKOFF_DELAY` | מקדם backoff (שניות) שמתווסף בכל ניסיון כושל לקריאות GitHub. | לא | `5.0` | `3.0` | Bot/ChatOps |
+| `GITHUB_NOTIFICATIONS_PR_MIN_COOLDOWN` | קירור (דקות) בין שליחת התראות PR באותו ערוץ כדי למנוע הצפה. | לא | `30` | `10` | Bot/ChatOps |
+| `LOG_AGG_ECHO` | כאשר `true` סקריפט `run_log_aggregator` ידפיס לשגיאה כל שורה שנקלטה כ-match (לדיבוג). | לא | `0` | `1` | Scripts |
+| `LOG_AGG_RELOAD_SECONDS` | כל כמה שניות סקריפט הלוג-אגגרטור יטען מחדש את קבצי החתימות. | לא | `60` | `10` | Scripts |
+| `LOCK_MAX_WAIT_SECONDS` | (Legacy) כמה זמן לחכות ללוק לפני שמתייאשים (`0` = המתנה אינסופית). הוחלף ע“י `LOCK_ACQUIRE_MAX_WAIT`. | לא | `0` | `15` | Bot |
+| `LOCK_RETRY_INTERVAL_SECONDS` | זמן המתנה בין ניסיונות נעילה חוזרים (בעיקר במצב המתנה אקטיבית). נשמר לתאימות. | לא | `1` | `1` | Bot |
+| `SERVICE_ID` | מזהה ייחודי לשירות/סביבה עבור נעילה מבוזרת (משמש כ־`_id` במסמך הנעילה). אם לא מוגדר, נופל ל־`code_keeper_bot_lock`. | לא | `code_keeper_bot_lock` (fallback) | `codebot-prod` | Bot |
+| `RENDER_INSTANCE_ID` | מזהה אינסטנס בפלטפורמת Render (נשמר במסמך הנעילה לצורכי תחקור). ה-`owner` בפועל הוא מזהה תהליך ייחודי: `RENDER_INSTANCE_ID:pid`. אם לא מוגדר, ה-`owner` נופל ל־`hostname:pid`. | לא | `hostname:pid` (fallback) | `srv-abc123` | Bot |
+| `RENDER_SERVICE_NAME` | תווית host/service לתחקור במסמך הלוק. אם לא מוגדר, נופל ל־`HOSTNAME`/hostname. | לא | ערך מערכת (fallback) | `codebot` | Bot |
+| `LOCK_LEASE_SECONDS` | משך ה־lease (שניות) של נעילה מבוזרת ב־MongoDB. | לא | `10` | `10` | Bot |
+| `LOCK_HEARTBEAT_INTERVAL` | תדירות heartbeat (שניות) לרענון ה־lease. ברירת מחדל: `3` (מינימום 3). | לא | `3` | `3` | Bot |
+| `LOCK_WAIT_FOR_ACQUIRE` | אם `true`: המתנה אקטיבית ללוק עם retries קצרים; אם `false`: המתנה פסיבית עם jitter (ברירת מחדל) כדי למנוע restart-loop. | לא | `false` | `true` | Bot |
+| `LOCK_ACQUIRE_MAX_WAIT` | מגבלת זמן (שניות) במצב המתנה אקטיבית. `0` = ללא מגבלה. (אליאס תאימות: `LOCK_MAX_WAIT_SECONDS`). | לא | `0` | `90` | Bot |
+| `LOCK_WAIT_MIN_SECONDS` | מינימום זמן המתנה (שניות) במצב המתנה פסיבית עם jitter. | לא | `15` | `10` | Bot |
+| `LOCK_WAIT_MAX_SECONDS` | מקסימום זמן המתנה (שניות) במצב המתנה פסיבית עם jitter. | לא | `45` | `60` | Bot |
+| `LOCK_FAIL_OPEN` | אם `true` מאפשר עלייה ”ללא לוק“ במקרה חריגות ברכישת נעילה (לא מומלץ). ברירת מחדל: fail-closed. | לא | `false` | `true` | Bot |
+| `LOCK_WAIT_HEALTH_SERVER_ENABLED` | אם `true` ובקיום `PORT`: בעת המתנה ללוק מופעל שרת HTTP מינימלי עם `/health` ו־`/healthz` כדי לעבור health checks. | לא | `true` | `false` | Bot |
+| `LOCK_PORT_GUARD_ENABLED` | אם `true`: תופס פורט לוקאלי כדי למנוע שני תהליכים באותו worker. אם הפורט תפוס → יציאה. | לא | `false` | `true` | Bot |
+| `LOCK_PORT_GUARD_PORT` | פורט לוקאלי לשמירה על בלעדיות תהליך (נדרש רק אם `LOCK_PORT_GUARD_ENABLED=true`). | לא | `9999` | `9999` | Bot |
+| `LOCK_COLLECTION` | שם קולקציית ה־locks ב־MongoDB (ברירת מחדל legacy: `locks`). | לא | `locks` | `bot_locks` | Bot |
+| `APP_VERSION` | מחרוזת גרסה שמוזנת מהפלטפורמה (Render/Heroku) לצורכי Telemetry. | לא | ”“ (ריק) | `2025.12.1` | Bot/WebApp |
+| `ASSET_VERSION` | מזהה לצורך cache-busting של קבצי סטטיק (נוסף ל-query param). | לא | ”“ (ריק) | `78f3dea` | WebApp |
+| `DEPLOYMENT_TYPE` | מחרוזת תיאור (למשל `render`, `kubernetes`) שמופיעה בלוגים/טופס סטטוס. | לא | ”“ (ריק) | `kubernetes` | Bot/WebApp |
+| `ENV` | שם סביבת הריצה (fallback כאשר `ENVIRONMENT` לא מוגדר). | לא | `production` | `staging` | Bot/WebApp |
+| `GIT_COMMIT` / `RENDER_GIT_COMMIT` / `HEROKU_SLUG_COMMIT` / `SOURCE_VERSION` | מזהי הקומיט כפי שמוזנים ע“י הפלטפורמה; מופיעים בדוחות גרסה. | לא | ”“ (ריק) | `cafe123` | Bot/WebApp |
+| `ALERT_TELEGRAM_SUPPRESS_ALERTS` | שמות התראות (מופרדים בפסיקים) שלא יישלחו לטלגרם. ריק = כולן נשלחות | לא | `AppLatencyEWMARegression` | `AppLatencyEWMARegression,HighErrorRate` | Bot/WebApp/MCP/Webserver |
+| `FEATURE_COLLECTIONS_TAGS` | הפעלת תגיות באוספים | לא | `true` | `false` | Bot/WebApp |
+| `WEBAPP_GUNICORN_GRACEFUL_TIMEOUT` | כמה שניות Gunicorn ממתין ל-worker לסיים בקשה לפני שהוא נהרג (`--graceful-timeout`). ריק = `GUNICORN_GRACEFUL_TIMEOUT`, ואז `GUNICORN_TIMEOUT` | לא | `180` | `60` | WebApp |
+| `HOSTNAME` | שם המכונה המדווח בלוגים / ב-claim של push (לרוב מוזן ע“י התשתית, אבל ניתן לעקוף). | לא | ערך מערכת | `codebot-worker-1` | Bot/WebApp |
+| `MONGODB_COMPRESSORS` | רשימת הקומפרסורים שהקליינט יבקש מ-Mongo (למשל `zstd,snappy`). | לא | ”“ (Auto) | `zstd,snappy` | Bot/WebApp |
+| `MONGO_URI` / `MONGO_DB_NAME` | אליאסים המשמשים סקריפטי עזר (כמו setup\_bookmarks) כאשר אין `MONGODB_URL`/`DATABASE_NAME`. | לא | `""` / `code_keeper_bot` | `mongodb://localhost:27017` / `my_db` | Scripts |
+| `MCP_SERVER_URL` | ה-URL הציבורי (https) של שירות ה-MCP. בבוט: בניית פקודת `/connect_claude`. בשירות ה-MCP: issuer של OAuth (מדליק מצב OAuth יחד עם `WEBAPP_URL`), וה-host בפקודת ההעלאה שתיאורי הכלים מציגים (`PUT /api/agent/upload`; בלעדיו, או כשאינו כתובת `http`/`https` נקייה — `<mcp-host>`, והמקרה השני עם WARNING בעלייה). בוובאפ: שער open-redirect ב-`/oauth/identify`, והכתובת שמוצגת בהגדרות בסעיף ”חיבור סוכן AI“ (`_mcp_connect_url` ב-`webapp/routes/settings_routes.py`: הערך ואחריו `MCP_ENDPOINT_PATH`; בלעדיו, או כשאינו כתובת `http`/`https` נקייה — הסעיף מוצג בלי שורת הכתובת, והמקרה השני עם WARNING בכל טעינה של העמוד). | לא | `https://YOUR-MCP-HOST` | `https://codekeepermcp.onrender.com` | Bot/MCP/WebApp |
+| `MCP_SERVER_NAME` | שם התצוגה של שרת ה-MCP (מוצג ללקוח כשם ה-Connector). | לא | `CodeKeeper` | `CodeKeeper` | MCP |
+| `MCP_DOCS_REPO` | רשימת הריפואים המותרים (CSV allowlist) שכלי `codekeeper_docs_get_section` הציבורי רשאי לקרוא מהם קובצי תיעוד — RST או Markdown, לפי מדיניות הנתיבים של כל ריפו ב-`mcp_server/docs_handlers.py`. גבול אבטחה — ארגומנט `repo` שאינו ברשימה נדחה, וריפו שנמצא ברשימה ואין לו מדיניות נתיבים נדחה ב-`repo_not_configured`. **הכניסה הראשונה היא ברירת המחדל, ולכן היא קובעת גם את הפורמט** של קריאה שאינה נוקבת בריפו. ברירת מחדל `CodeBot`. | לא | `CodeBot` | `CodeBot,amir-bug-patterns` | MCP |
+| `MCP_ALLOWED_HOSTS` | רשימת Host מותרים לשרת ה-MCP (CSV; תומך wildcard כמו `*.onrender.com`). ריק = הגנת DNS-rebinding כבויה (מתאים לשרת ציבורי מוגן-טוקן). | לא | ”“ (כבוי) | `codekeepermcp.onrender.com` | MCP |
+| `MCP_ALLOWED_ORIGINS` | רשימת Origin מותרים לשרת ה-MCP (CSV). רלוונטי רק כשמפעילים הגנה דרך `MCP_ALLOWED_HOSTS`. | לא | ”“ | `https://claude.ai` | MCP |
+| `MCP_REPO_DENYLIST_EXTRA` | תבניות glob נוספות (CSV) ל-denylist הסודות של כלי דפדפן הריפו ב-MCP, מעל רשימת הבסיס המובנית (`.env*`, `*.pem`, `id_rsa*` וכו«). ההתאמה case-insensitive על הנתיב המלא וה-basename. | לא | ”“ | `*.sqlite, private/*` | MCP |
+| `MCP_REPO_AUTOSYNC` | רענון אוטומטי של ה-mirrors המקומיים בשירות ה-MCP (thread רקע, כמו ה-worker בוובאפ): משכפל ריפו חסר מ-`repo_metadata.repo_url`, מריץ fetch כשה-`last_synced_sha` ב-Mongo שונה מהמקומי, ומוחק מראה מקומית שאין לה רשומה ב-`repo_metadata` (ראו [רענון אוטומטי (autosync)](mcp-server.html#mcp-repo-autosync)). `0` מכבה את שלושתם. | לא | `1` (פעיל) | `1` | MCP |
+| `MCP_REPO_AUTOSYNC_INTERVAL` | מרווח (שניות) בין מעברי הרענון של ה-autosync. מינימום 30. | לא | `300` | `120` | MCP |
+| `MCP_MAX_REQUEST_BYTES` | תקרת גודל (בתים) לגוף בקשה לשרת ה-MCP, במתודות שנושאות גוף (`POST`/`PUT`/`PATCH`) ולכל הכלים. ברירת המחדל **נגזרת** מ-`MAX_CODE_SIZE` (`request_bytes_for` ב-`mcp_server/limits.py`: פי שישה ועוד מעטפת, מעוגל ל-MiB שלם — 1MiB על ברירת המחדל של `MAX_CODE_SIZE`), והמשתנה הזה רק מעלה אותה בלי דיפלוי; הוא אינו kill switch — `0` אינו מכבה, המינימום `65536` חל. `Content-Length` מעל התקרה נדחה ב-`413` עם `{"error": "body_too_large", "max_bytes": ...}` בלי שנקרא בית; גוף בלי אורך מוצהר נספר עד התקרה תחת דדליין של 30 שניות (`408 body_read_timeout`). ערך שאינו מספר — ברירת המחדל, עם WARNING. ראו ”גבולות הבקשה“ ב-[שרת ה-MCP — חיבור Claude ל-CodeKeeper](mcp-server.html). | לא | `1048576` | `2097152` | MCP |
+| `MCP_RATE_LIMIT_PER_MINUTE` | כמה קריאות כלים מותרות לזהות אחת (משתמש מאומת) בחלון מתגלגל של דקה, בשרת ה-MCP. קריאה מעבר לזה מחזירה `{"ok": false, "error": "rate_limited", "limit_per_minute": ..., "retry_after_seconds": ...}` בלי לתפוס חוט. ‏\`\`0\`\` מכבה במפורש (WARNING בעלייה); ערך שאינו מספר — ברירת המחדל. ‏\`\`/healthz\`\` ושאר נתיבי ה-HTTP אינם נספרים. ברירת המחדל היא `DEFAULT_RATE_LIMIT_PER_MINUTE` ב-`mcp_server/limits.py`, ואיך היא נגזרת — ”גבולות הבקשה“ ב-[שרת ה-MCP — חיבור Claude ל-CodeKeeper](mcp-server.html). | לא | `45` | `120` | MCP |
+| `POSTHOG_PROJECT_TOKEN` | טוקן הפרויקט ב-PostHog (`phc_...`) עבור מדידת השימוש בשרת ה-MCP. חסר (או חסר `POSTHOG_HOST`) — בפרודקשן המדידה כבויה והשרת עולה רגיל; בסביבת פיתוח העלייה נכשלת ברעש. ראו [מדידת שימוש (PostHog MCP Analytics)](mcp-server.html#mcp-analytics). | לא | ”“ (מדידה כבויה) | `phc_XXXXXXXX` | MCP |
+| `POSTHOG_HOST` | כתובת PostHog. **הערך שונה בין השירותים ואינו ניתן להעתקה ביניהם:** בשירות ה-MCP זו כתובת שליחת האירועים (`https://us.i.posthog.com` ל-US Cloud, `https://eu.i.posthog.com` ל-EU), ובוובאפ זו כתובת קריאת הנתונים (`https://us.posthog.com`) עבור [MCP Analytics (מדידת השימוש בכלי ה-MCP)](webapp/mcp-analytics.html). בוובאפ ערך חסר מוצג כשגיאת קונפיגורציה ואינו נופל לברירת מחדל; ערך שהוא כתובת שליחה נדחה בהודעה ייעודית, כדי שלא ייראה כאנדפוינט חסר. ראו [מדידת שימוש (PostHog MCP Analytics)](mcp-server.html#mcp-analytics). | לא | ”“ (המדידה כבויה ב-MCP; העמוד מציג שגיאת קונפיגורציה בוובאפ) | `https://us.i.posthog.com` (MCP) · `https://us.posthog.com` (WebApp) | MCP/WebApp |
+| `POSTHOG_PERSONAL_API_KEY` | מפתח אישי של PostHog (`phx_...`) לקריאת נתוני המדידה במסך `/admin/mcp`. דורש את ה-scope `endpoint:read`. אינו מחליף את `POSTHOG_PROJECT_TOKEN`, שהוא מפתח כתיבה של שירות אחר. ריק — העמוד מציג שהמדידה אינה מוגדרת. ראו [MCP Analytics (מדידת השימוש בכלי ה-MCP)](webapp/mcp-analytics.html). | לא | ”“ (העמוד מציג שהמדידה אינה מוגדרת) | `phx_XXXXXXXX` | WebApp |
+| `POSTHOG_PROJECT_ID` | מזהה הפרויקט המספרי ב-PostHog, לבניית נתיב ה-API של `/admin/mcp`. מופיע בכתובת של הפרויקט בממשק PostHog. **ספרות בלבד** — ערך אחר נדחה לפני שנשלחת בקשה, מפני שהוא נכנס לנתיב הכתובת שנרשמת כ-`http.url` על ה-span. ראו [MCP Analytics (מדידת השימוש בכלי ה-MCP)](webapp/mcp-analytics.html). | לא | ”“ (העמוד מציג שהמדידה אינה מוגדרת) | `567754` | WebApp |
+| `SUPPORTED_LANGUAGES` | רשימת שפות התכנות הנתמכות. ריק = הרשימה שבקוד (python, javascript, html ועוד) | לא | ריק (רשימת ברירת המחדל) | `python,javascript` | Bot/WebApp/Webserver |
+| `CHUNK_SIZE_LINES` | מספר השורות בכל צ’אנק קוד לחיפוש הסמנטי | לא | `220` | `150` | Bot/WebApp/Webserver |
+| `FEATURE_MY_COLLECTIONS` | הפעלת פיצ’ר האוספים (My Collections) | לא | `true` | `false` | Bot/WebApp/Webserver |
+| `COMMUNITY_LIBRARY_ENABLED` | הפעלת ספריית הקהילה (סניפטים משותפים) | לא | `true` | `false` | Bot/WebApp/Webserver |
+| `RATE_LIMIT_ENABLED` | הפעלת הגבלת קצב גלובלית | לא | `true` | `false` | Bot/WebApp/Webserver |
+| `RATE_LIMIT_STRATEGY` | אסטרטגיית הגבלת הקצב | לא | `moving-window` | `fixed-window` | Bot/WebApp/Webserver |
+| `SENTRY_TEST_BUTTON_ENABLED` | הצגת כפתור האדמין ששולח אירוע בדיקה ל-Sentry | לא | `false` | `true` | Bot/WebApp/Webserver |
+| `TELEGRAM_BOT_TOKEN` | שם חלופי ל-`BOT_TOKEN`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `123456:ABC-DEF...` | Bot |
+| `REQUEST_CONTEXT_WINDOW_SECONDS` | חלון הזמן (שניות) שממנו נאסף הקשר הבקשות שמצורף להתראה (מינימום אפקטיבי 60) | לא | `900` | `600` | Bot/WebApp/Webserver |
+| `RULES_VERBOSE_LOGGING` | מרחיב את הלוגים של מנוע החוקים (כל התאמה וכל דילוג) | לא | ריק (כבוי) | `true` | WebApp |
+| `PROM_RATE_WINDOW` | שם חלופי ל-`PROMETHEUS_RATE_WINDOW`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `5m` | WebApp |
+| `OTEL_SERVICE_NAME` | שם השירות ב-OpenTelemetry. ריק = שם קבוע לכל שירות (למשל `codebot-webapp`) | לא | ריק | `codebot-bot` | Bot/WebApp/Webserver |
+| `SERVICE_VERSION` | גרסת השירות לטלמטריה. ריק = `RENDER_GIT_COMMIT` | לא | ריק | `2026.09.06` | Bot/WebApp/Webserver |
+| `PUSH_LEGACY_SCAN_ENABLED` | מחזיר את סריקת המנויים הישנים ב-Web Push. יקר, ולכן כבוי כברירת מחדל | לא | ריק (כבוי) | `true` | WebApp |
+| `PUSH_LEGACY_SCAN_CHECK_TTL_SECONDS` | כמה שניות נשמרת תוצאת בדיקת הסריקה הישנה לפני בדיקה חוזרת | לא | `600` | `300` | WebApp |
+| `PUSH_SENDER_LOCK_FILE` | קובץ הנעילה שמונע משני תהליכים לשלוח את אותה התראת Push | לא | `/tmp/codebot-push-sender.lock` | `/var/data/push.lock` | WebApp |
+| `LOCAL_CACHE_MAX_ENTRIES` | מספר הרשומות המקסימלי במטמון המקומי שבתוך התהליך (לא Redis) | לא | `2000` | `5000` | Bot/WebApp |
+| `COLLECTIONS_GET_ITEMS_SLOW_MS` | סף (מילישניות) שמעליו שליפת פריטי אוסף נרשמת כשאילתה איטית. ריק = אין רישום | לא | ריק | `300` | Bot/WebApp |
+| `WEBHOOK_SECRET` | שם חלופי ל-`SENTRY_WEBHOOK_SECRET`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `s3cr3t` | Webserver |
+| `WEB_HOST` | כתובת ההאזנה בהרצה ישירה של `services/webserver.py`. ריק = `HOST` ואז `0.0.0.0`. אינו נקרא בייבוא רגיל | לא | ריק (`0.0.0.0`) | `127.0.0.1` | Webserver |
+| `HOST` | שם חלופי ל-`WEB_HOST`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `127.0.0.1` | Webserver |
+| `WEB_PORT` | פורט ההאזנה בהרצה ישירה של `services/webserver.py`. נקרא רק כאשר `PORT` אינו מוגדר; בהיעדר שניהם `10000` | לא | ריק (`10000`) | `8080` | Webserver |
+| `CLAUDE_API_KEY` | שם חלופי ל-`ANTHROPIC_API_KEY`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `sk-ant-...` | Webserver |
+| `CLAUDE_MODEL` | שם חלופי ל-`OBS_AI_EXPLAIN_MODEL`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `claude-sonnet-4-5-20250929` | Webserver |
+| `GEMINI_MODEL_EMBEDDING` | שם חלופי ל-`GEMINI_EMBEDDING_MODEL`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `text-embedding-004` | Bot/WebApp |
+| `GEMINI_EMBEDDING_API_VERSION` | שם חלופי ל-`GEMINI_API_VERSION`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `v1beta` | Bot/WebApp |
+| `SEMANTIC_EMBEDDING_MODEL_ALLOWLIST` | שם חלופי ל-`GEMINI_EMBEDDING_MODEL_ALLOWLIST`; נקרא רק כשהראשון אינו מוגדר | לא | ריק | `text-embedding-006` | Bot/WebApp |
+
+::: note
+**הפריימר לסוכן** (`GET /api/agent/primer`) אינו מוסיף אף משתנה סביבה. תקרת ה-24KB ומשך ה-cache (60 שניות) הם קבועים ב-`mcp_server/primer.py` במכוון — התקרה היא תקציב מול חלון ההקשר של המודל ולא כוונון תפעולי, ומצב הכשל של העלאתה בלתי-נראה (הקשר נאכל בשקט). שינוי דורש PR. תוכן הפריימר נערך מהדפדפן ב-`/settings` ונשמר ב-`user_preferences`, לא ב-ENV. ראו [שרת ה-MCP — חיבור Claude ל-CodeKeeper](mcp-server.html).
+
+ההוק שמושך את הפריימר בפתיחת סשן — בפלאגין `codekeeper-memory`, `codekeeper-memory/hooks/session_start.sh` בריפו amirbiron/codekeeper-plugin — קורא משתנים משלו, בסביבה של סשן Claude Code ולא בשירות, ולכן הם אינם בטבלאות של העמוד הזה. ה-README של הפלאגין הוא הבעלים שלהם: `CODEKEEPER_PAT`, `CODEKEEPER_PRIMER_URL`, ושתי דריסות לטסטים בלבד, `CODEKEEPER_PRIMER_RETRY_INTERVAL_SECONDS` ו-`CODEKEEPER_PRIMER_RETRY_BUDGET_SECONDS`. ראו [פריימר לסוכן — GET /api/agent/primer](mcp-server.html#agent-primer).
+:::
+
+## דגלי בדיקות ופיתוח
+
+**Dev & Testing Flags**
+
+| משתנה | תיאור | חובה | ברירת מחדל | דוגמה | רכיב |
+| --- | --- | --- | --- | --- | --- |
+| `ONLY_LIGHT_PERF` | כאשר `1` תוסף הביצועים מריץ רק טסטים מסומנים כ“קלים“ ומדלג על כבדים. | לא | `0` | `1` | Tests |
+| `PERF_HEAVY_PERCENTILE` | אחוזון שמפריד בין טסטים ”כבדים“ ל“קלים“ (ברירת מחדל 90). | לא | `90` | `75` | Tests |
+| `PYTEST` / `PYTEST_CURRENT_TEST` / `PYTEST_RUNNING` | דגלים שמאותתים לקוד שאנו בתוך Pytest (למשל כדי לנטרל Jobs). Pytest מגדיר אותם אוטומטית. | לא | ”“ (ריק) | `1` | Bot/WebApp |
+| `CODEBOT_DISABLE_GEVENT_PATCH` | מכבה את ה-monkey patch של gevent בעליית הבוט. נקרא בשורה הראשונה של `main.py`, לפני כל ייבוא אחר. לבדיקות בלבד — בפרודקשן כיבוי שלו משבש סגירת סוקטים | לא | ריק (ה-patch פעיל) | `1` | Bot |
+| `SPHINX_MOCK_IMPORTS` | 1/`true` גורם ל-build של התיעוד למקם מודולים בעזרת mocks במקום לייבא בפועל. | לא | `false` | `true` | Docs |
+| `SANITY_USER_ID` | מזהה משתמש לדגימת בדיקת latency בסקריפט `scripts/db_manager_sanity_check.py` (לא משפיע על ריצה רגילה של המערכת). | לא | `123` | `6865105071` | Scripts |
+| `PIP_NO_SETUPTOOLS` / `PIP_NO_WHEEL` | דגלים של סקריפט `get-pip.py` בלבד; השאירו כבויים אלא אם מריצים את הסקריפט כחלק מאוטומציה. | לא | ”“ (ריק) | `1` | Tooling |
+| `FLASK_DEBUG` | מדליק מצב דיבוג של Flask. **אין להפעיל בפרודקשן** | לא | ריק (כבוי) | `1` | WebApp |
+| `FLASK_ENV` | סביבת Flask (`development`/`production`); משפיע יחד עם `FLASK_DEBUG` | לא | ריק | `development` | WebApp |
+
+## דוגמאות קונפיגורציה
+
+Development:
+
+```
+BOT_TOKEN=your_bot_token_here
+MONGODB_URL=mongodb://localhost:27017
+DATABASE_NAME=code_keeper_dev
+LOG_LEVEL=DEBUG
+```
+
+Staging:
+
+```
+BOT_TOKEN=staging_bot_token
+MONGODB_URL=mongodb+srv://user:pass@cluster.mongodb.net
+DATABASE_NAME=code_keeper_staging
+LOG_LEVEL=INFO
+REDIS_URL=redis://staging-redis:6379
+```
+
+Production:
+
+```
+BOT_TOKEN=prod_bot_token
+MONGODB_URL=mongodb+srv://user:pass@prod-cluster.mongodb.net
+DATABASE_NAME=code_keeper_prod
+LOG_LEVEL=WARNING
+REDIS_URL=redis://prod-redis:6379
+ENCRYPTION_KEY=your-32-byte-encryption-key
+```
+
+## קישורים
+
+-   [התקנה והגדרה](installation.html)
+    
+-   [Rate Limiting](configuration.html)
+    
+-   SECURITY\_TOKENS (מסמך ריפו) <[https://github.com/amirbiron/CodeBot/blob/main/docs/SECURITY\_TOKENS.md](https://github.com/amirbiron/CodeBot/blob/main/docs/SECURITY_TOKENS.md)\>\`\_
+    
+
+## טבלת Scopes לפיצ’רים של GitHub
+
+**Feature → Required Scopes**
+
+| Feature | Required Scopes |
+| --- | --- |
+| Create Pull Request | `repo`, `workflow` |
+| Write files (Trees/Contents API) | `repo` |
+| Read repository metadata (branches, commits, PRs) | `repo` |
+| Trigger workflows / read checks status | `workflow` |
+
+הערה: הקפידו להעניק הרשאות מינימליות בלבד. לפרטים נוספים ראו [Integrations](integrations.html).
