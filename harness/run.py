@@ -20,7 +20,7 @@ from pathlib import Path
 from harness import labels as labels_mod
 from harness.reader import read_pages
 from harness.textdiff import closest_line, normalize, split_lines, visible
-from prototype.hebrew_pdf_prototype import score_final_letters, score_punct_at_start
+from hebrew_pdf.indirect_checks import score_final_letters, score_punct_at_start
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PDFS = ROOT / "testset" / "pdfs"
