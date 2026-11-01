@@ -33,15 +33,31 @@ KNOWN_FAILURES = {
     # קובץ הטבלאות: תאים שבמקור יש בהם קטעי קוד, למשל "אחרי עליית Gunicorn (`1`/`0`)", שבעמוד
     # מצויר "(0/1) Gunicorn". WeasyPrint הציגה כל קטע קוד כאילו הוא מבודד משאר הטקסט, ולכן
     # ה-/ לא נחשב מפריד בין שתי ספרות (כלל W4), וסוגריים אחרי קטע קוד לא שייכים לו (N0).
-    # נבדק בכל אחת מהשורות: python-bidi, עם בידוד (U+2068, U+2069) סביב כל קטע קוד לפי המקור
-    # (testset/sources/env-vars.md), מציג בדיוק את מה שבעמוד; בלי בידוד, לא. לפי התקן, בלי
-    # בידוד, אין טקסט לוגי שמוצג כך.
-    ("env-vars_weasyprint.pdf", 7): 1,  # Gunicorn (`1`/`0`)
-    ("env-vars_weasyprint.pdf", 8): 1,  # `webapp/app.py` (`python app.py`).
-    ("env-vars_weasyprint.pdf", 29): 1,  # `DEFAULT_CONTEXT_EXCHANGES` (5), השורה השנייה של התא
-    ("env-vars_weasyprint.pdf", 34): 1,  # כאשר ערכו `true`/`1` משתמשים
-    ("env-vars_weasyprint.pdf", 48): 1,  # `hostname:pid` (fallback)
-    ("env-vars_weasyprint.pdf", 57): 1,  # `https://us.posthog.com` (WebApp)
+    # נבדק בסבב 5ב, אחרי שהקובץ נבנה מחדש בלי שבירה באמצע מילה, בכל אחת מהשורות: הטקסט הנכון של
+    # השורה מהמקור (testset/sources/env-vars.md), עם בידוד (U+2068, U+2069) סביב כל קטע קוד, מוצג
+    # ב-python-bidi בדיוק כמו בעמוד (בלי הבחנה בצורת הסוגר: python-bidi לא משקף), ובלי בידוד לא.
+    # כך ב-13 מתוך 20 השורות. ב-7 האחרות (מסומנות "לא הוסבר") קטע קוד מתחיל או נגמר בלוכסן, בנקודה
+    # או בסוגר ("(`/api/code/run`)"), ואף אחת משתי הקריאות לא מוצגת כמו העמוד; לא נחקר הלאה (סבב 6,
+    # "קטעי קוד מבודדים" במסמך האפיון). בקובץ הקודם (63 עמודים) היו 6 שורות כאלה: הטור של התיאור
+    # רחב יותר עכשיו, ויותר קטעי קוד נכנסים בשורה אחת עם הסוגריים שסביבם.
+    ("env-vars_weasyprint.pdf", 2): 1,  # (`/oauth/consent/` → `oauth/identify`); לא הוסבר
+    ("env-vars_weasyprint.pdf", 3): 3,  # Gunicorn (`1`/`0`); ו-(`Org1=ghp_...`) ו-`webapp/app.py` (`python app.py`), לא הוסברו
+    ("env-vars_weasyprint.pdf", 4): 1,  # (`/api/code/run`); לא הוסבר
+    ("env-vars_weasyprint.pdf", 7): 1,  # (`0.0`–`1.0`)
+    ("env-vars_weasyprint.pdf", 11): 2,  # `DEFAULT_CONTEXT_EXCHANGES` (5); (`services/advisor_service.py`)
+    ("env-vars_weasyprint.pdf", 13): 1,  # כאשר ערכו `true`/`1` משתמשים
+    ("env-vars_weasyprint.pdf", 17): 1,  # (`monitoring/metrics_storage.py`)
+    ("env-vars_weasyprint.pdf", 19): 1,  # `mongo` (GridFS)
+    ("env-vars_weasyprint.pdf", 20): 2,  # (`high`/`normal`/...); `hostname:pid` (fallback)
+    ("env-vars_weasyprint.pdf", 21): 1,  # (`*.onrender.com`); לא הוסבר
+    ("env-vars_weasyprint.pdf", 22): 4,  # Content-Length; `us.posthog.com` (WebApp); ו-(`POSTHOG_HOST`) ו-`/admin/mcp`, לא הוסברו
+    ("env-vars_weasyprint.pdf", 24): 1,  # (`production`/`development`)
+    # מסמך האפיון מ-Chrome: "שהומר ל-PDF (63 עמודים לרוחב, 6" בסוף שורה, והסוגר נסגר בשורה הבאה.
+    # Chrome מזווג סוגריים בפסקה כולה, לפני השבירה לשורות (UAX #9, BD16: הזוגות נמצאים ברצף של
+    # הפסקה), ולכן "(" מקבל את הכיוון של מה שבתוכו (עברית) ומצויר "63) PDF". הבדיקה מציגה כל שורה
+    # כפסקה משלה, ובשורה לבדה אין ל-"(" זוג. הקורא מוציא את הטקסט הנכון; ב-WeasyPrint אותה שורה עוברת
+    # ("PDF (63", זיווג בתוך השורה בלבד).
+    ("spec_chrome.pdf", 2): 1,
 }
 
 
@@ -96,7 +112,9 @@ class WholeSetTest(unittest.TestCase):
                             cls.lines.append((path.name, number, line, old))
 
     def test_the_whole_set_is_checked(self):
-        self.assertGreater(len(self.lines), 5000)  # נמדד: 5531 שורות עם טקסט (3541 בלי קובץ הטבלאות)
+        # נמדד (סבב 5ב): 5107 שורות עם טקסט: 3541 ב-12 הקבצים האמיתיים, 946 בקובץ הטבלאות, ו-310 בכל
+        # אחד משני הקבצים של מסמך האפיון
+        self.assertGreater(len(self.lines), 5000)
 
     def test_prototype_output_fails_the_check(self):
         # כל שורה מוצגת בכיוון שהאב-טיפוס התכוון אליו: מימין לשמאל רק כשיש בה עברית

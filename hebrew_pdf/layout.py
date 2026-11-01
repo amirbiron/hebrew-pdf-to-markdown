@@ -25,6 +25,17 @@
    מקבלות תא לכל עמודה, ותא ריק לעמודה שאין בה טקסט בשורה. איחוד שורות בעמוד לשורת
    טבלה אחת נמצא ב-lines.table_rows.
 
+5. איפה טבלה נגמרת (_rows_of_the_table): שורה קצרה, כמו כותרת בצד ימין, לא חוצה את העמודות
+   שמשמאלה, ולכן המסדרון ממשיך לתוכה. מה שמבדיל אותה הוא גודל האות: שורה במסדרון שאין בה פער
+   של ממש (לא שורה של הטבלה עצמה), ושהגודל שלה (החציון של Char.size) לא שווה (chars.SAME_SIZE)
+   לאף גודל של אות בשורות שתומכות במסדרון, מסיימת אותו. "אף גודל" ולא "הגודל של השורות": בשורה של
+   טבלה יש כמה גדלים (בקובץ הטבלאות טקסט ב-6 נקודות וקוד ב-5.5).
+   ובטבלה שיש בה קווי מסגרת (קו בין שורה שלה לשורה שמעליה), גודל אחר לבדו לא מספיק: צריך גם קו בין
+   השורה לשורה הסמוכה של הטבלה. כך שורת המשך בתוך תא, שכולה קוד בטבלה שאין בשורות שלה קוד ("דרך
+   FPDFText_GetCharOrigin" במסמך האפיון), נשארת בטבלה: בתוך תא אין קו. כותרת אחרי טבלה מופרדת ממנה
+   בקו התחתון של השורה האחרונה. קווי המסגרת לבדם לא מספיקים: כותרת בין שתי טבלאות יושבת בין הקו
+   התחתון של האחת לקו העליון של השנייה, כמו שורה של שורה אחת.
+
 בלי שום סף לתוכנה מסוימת: כל הספים יחסיים לפער הרגיל בעמוד ולגובה השורה.
 """
 
@@ -34,17 +45,17 @@ import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from hebrew_pdf.chars import Char
+from hebrew_pdf.chars import Char, same_size
 
 # בדיקת רגישות (סבב 5, כל הסט): לכל ערך של COMPONENT_GAP בין 7.4 ל-13.25 התוצאה זהה (35 מתוך
 # 40 תיוגים, אותם תאים בקובץ הטבלאות, אותה בדיקת תצוגה). שני הקצוות הם שני פערים מדודים: ב-7.3
 # הפער של פי 7.3 בשורה 13 נהיה גבול, ומ-13.5 הגבול של שורה 31 בפלאייר (פי 13.43) נעלם. 10 באמצע.
 COMPONENT_GAP = 10.0
-# בדיקת רגישות (סבב 5, כל הסט): לכל ערך של COLUMN_GAP בין 1.9 ל-3.3 התוצאה זהה. הערך 2.0 קרוב
-# לקצה התחתון: ב-1.85 פער בין מילים בתא של קובץ הטבלאות ("*.sqlite, private/*") נהיה גבול עמודה,
-# ו-4 תאים משתנים; מ-3.4 הריפוד בין תאים (מפי 3) כבר לא נחשב גבול, ו-27 תאים משתנים. התיוגים
-# ובדיקת התצוגה זהים בכל הטווח מ-1.25 עד 4. הערך לא שונה בסבב 5: דווח, וממתין להחלטה.
-COLUMN_GAP = 2.0
+# בדיקת רגישות (סבב 5ב, כל הסט כולל קובץ הטבלאות החדש ומסמך האפיון, אחרי שכלל הרוחב ירד): לכל ערך
+# של COLUMN_GAP בין 1.5 ל-2.9 התוצאה זהה (התיוגים, התאים בשלושת הקבצים עם דף תשובות, הטבלאות, הכותרות
+# והפסקאות). ב-1.4 פסקה אחת משתנה, ומ-3.0 הריפוד בין תאים במסמך האפיון מ-Chrome כבר לא נחשב גבול (2
+# תאים, ו-24 ב-3.6). הערך באמצע הטווח. (בסבב 5, על קובץ הטבלאות הקודם, הטווח היה 1.9 עד 3.3 והערך 2.0.)
+COLUMN_GAP = 2.2
 # שני פערים "שווים" כשהיחס ביניהם עד 1.25: כך מתקבצים הרווחים של גופן אחד (ב-WeasyPrint הם
 # זהים, וביישור לשני הצדדים של Google Docs הם משתנים בעד כ-20%)
 _SAME_GAP = 1.25
@@ -80,6 +91,12 @@ class PageLine:
     def right(self) -> float:
         return max(c.right for c in self.chars)
 
+    @property
+    def size(self) -> float:
+        """החציון של גודל האות (Char.size) בתווים שיש להם גודל; 0 כשאין כאלה."""
+        sizes = [c.size for c in self.chars if c.size > 0]
+        return statistics.median(sizes) if sizes else 0.0
+
 
 def page_line(chars: list[Char]) -> PageLine:
     heights = [c.height for c in chars if c.height > 0]
@@ -110,31 +127,40 @@ class PageLayout:
     tables: list[int | None]  # לכל שורה: מספר הטבלה (שורות רצופות עם עמודות), או None
 
 
-def page_layout(lines: Sequence[PageLine], word_gap: float | None) -> PageLayout:
-    """הגבולות בין רכיבים בכל שורה של העמוד, והעמודות של הטבלאות. word_gap: הפער הרגיל (usual_word_gap)."""
+def page_layout(lines: Sequence[PageLine], word_gap: float | None,
+                rules: Sequence[tuple[float, float, float]] = ()) -> PageLayout:
+    """הגבולות בין רכיבים בכל שורה של העמוד, והעמודות של הטבלאות. word_gap: הפער הרגיל (usual_word_gap).
+    rules: הקווים האופקיים שמצוירים בעמוד (lines.horizontal_rules), לסוף של טבלה (סעיף 5)."""
     boundaries: list[set[int]] = [set() for _ in lines]
     columns: list[tuple[tuple[float, float], ...] | None] = [None] * len(lines)
     if not word_gap:
         return PageLayout(boundaries, columns, [None] * len(lines))
     spans: list[tuple[int, int, tuple[float, float], set[int]]] = []
+    found = []  # (שורת הזרע, הבלוק, המסדרונות, התמיכה) לכל פער גדול
     for i, line in enumerate(lines):
         for gap in line.gaps:
             if gap.ratio < COMPONENT_GAP * word_gap:
                 continue
             boundaries[i].add(gap.index)
-            block, corridors, support = _corridor(lines, i, gap, word_gap)
-            for j in block:
-                for other in lines[j].gaps:
-                    if other.ratio >= COLUMN_GAP * word_gap and any(other.left <= a and b <= other.right
-                                                                     for a, b in corridors):
-                        boundaries[j].add(other.index)
-            for corridor in corridors:
-                rows = sorted(support[corridor])
-                # טבלה: פער של ממש באותו מסדרון בשתי שורות לפחות. הטווח שלה מהשורה הראשונה
-                # שתומכת בו ועד סוף המסדרון למטה: שורות ההמשך של שורת הטבלה האחרונה (תיאור
-                # שנשבר) לא חוצות אותו, אבל גם אין בהן פער בתוכו
-                if len(rows) >= 2:
-                    spans.append((rows[0], max(rows[-1], block[-1]), corridor, support[corridor]))
+            found.append((i, *_corridor(lines, i, gap, word_gap)))
+    # השורות של הטבלאות בעמוד: כל שורה שתומכת במסדרון כלשהו בעמוד, גם אם לא במסדרון שהיא בו (שורת
+    # היחידות "באלפי ש\"ח" בדוח הכספי ריקה בעמודה הראשונה, אבל תומכת במסדרונות שבין העמודות האחרות)
+    table_rows = set().union(*(rows for *_, support in found for rows in support.values()))
+    for i, block, corridors, support in found:
+        block = _rows_of_the_table(lines, block, i, table_rows, rules)
+        support = {corridor: rows & set(block) for corridor, rows in support.items()}
+        for j in block:
+            for other in lines[j].gaps:
+                if other.ratio >= COLUMN_GAP * word_gap and any(other.left <= a and b <= other.right
+                                                                 for a, b in corridors):
+                    boundaries[j].add(other.index)
+        for corridor in corridors:
+            rows = sorted(support[corridor])
+            # טבלה: פער של ממש באותו מסדרון בשתי שורות לפחות. הטווח שלה מהשורה הראשונה
+            # שתומכת בו ועד סוף המסדרון למטה: שורות ההמשך של שורת הטבלה האחרונה (תיאור
+            # שנשבר) לא חוצות אותו, אבל גם אין בהן פער בתוכו
+            if len(rows) >= 2:
+                spans.append((rows[0], max(rows[-1], block[-1]), corridor, support[corridor]))
     for i in range(len(lines)):
         here = sorted((corridor, rows) for first, last, corridor, rows in spans if first <= i <= last)
         if here:
@@ -183,6 +209,42 @@ def _corridor(lines: Sequence[PageLine], seed: int, gap: Gap, word_gap: float):
             previous = j
             j += step
     return sorted(block), corridors, support
+
+
+def _rows_of_the_table(lines: Sequence[PageLine], block: list[int], seed: int, table_rows: set[int],
+                       rules) -> list[int]:
+    """השורות הרצופות סביב seed במסדרון, עד השורה הראשונה (בכל כיוון) שלא שייכת לטבלה (סעיף 5 בראש
+    הקובץ): שורה שלא תומכת באף מסדרון בעמוד (table_rows), שהגודל שלה לא שווה לאף גודל של אות בשורות
+    של הטבלה שבמסדרון, ובטבלה עם קווי מסגרת, שיש קו בינה לבין השורה הסמוכה של הטבלה. שורה בלי גודל
+    (0) לא מסיימת."""
+    rows = table_rows & set(block)
+    sizes = {c.size for j in rows for c in lines[j].chars if c.size > 0}
+    framed = any(rule_between(lines[j - 1], lines[j], rules) for j in rows if j - 1 in block)
+
+    def foreign(j: int, neighbor: int) -> bool:
+        size = lines[j].size
+        if j in rows or size <= 0 or any(same_size(size, s) for s in sizes):
+            return False
+        if not framed:
+            return True
+        above, below = (lines[neighbor], lines[j]) if neighbor < j else (lines[j], lines[neighbor])
+        return rule_between(above, below, rules)
+
+    start = block.index(seed)
+    end = start
+    while start > 0 and not foreign(block[start - 1], block[start]):
+        start -= 1
+    while end + 1 < len(block) and not foreign(block[end + 1], block[end]):
+        end += 1
+    return block[start:end + 1]
+
+
+def rule_between(above: PageLine, below: PageLine, rules: Sequence[tuple[float, float, float]]) -> bool:
+    """האם קו אופקי (lines.horizontal_rules: שמאל, ימין, y) מצויר בין שתי שורות בעמוד, בתחום האופקי של
+    השורה התחתונה: מתחת לקו הבסיס של העליונה בחמישית מגובה השורה (מתחת לאותיות היורדות), ומעל קו
+    הבסיס של התחתונה בשש עשיריות מגובה השורה. (הועבר כמו שהוא מ-lines._new_rows, סבב 4.)"""
+    top, bottom = below.baseline + 0.6 * below.height, above.baseline - 0.2 * above.height
+    return any(top < y < bottom and left < below.right and right > below.left for left, right, y in rules)
 
 
 def _distinct(lines: Sequence[PageLine], corridors) -> tuple[tuple[float, float], ...]:

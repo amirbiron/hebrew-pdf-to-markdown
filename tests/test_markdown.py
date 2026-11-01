@@ -16,8 +16,8 @@ LEFT, RIGHT = 100.0, 500.0  # רוחב המסגרת: 400
 
 
 def line(text: str, y: float, *, left: float = LEFT, right: float = RIGHT, size: float = 10.0,
-         glyph: float = 5.0) -> Line:
-    return Line(text, text[::-1], True, geometry=Geometry(y, left, right, size, glyph))
+         glyph: float = 5.0, font: str = "") -> Line:
+    return Line(text, text[::-1], True, geometry=Geometry(y, left, right, size, glyph, font))
 
 
 def page(*lines: Line, rows=None, sources=None) -> PageText:
@@ -116,13 +116,42 @@ class ParagraphTest(unittest.TestCase):
 
 
 class HeadingTest(unittest.TestCase):
+    BODY = [line("גוף הטקסט עם הרבה מאוד אותיות כדי שיהיה הנפוץ", 600 - 40 * k, font="Body") for k in range(5)]
+
     def test_levels_by_size_from_the_largest(self):
-        body = [line("גוף הטקסט עם הרבה מאוד אותיות כדי שיהיה הנפוץ", 600 - 40 * k) for k in range(5)]
-        built = build_markdown([page(line("כותרת ראשית", 760, size=20.0), line("כותרת משנה", 720, size=15.0),
-                                     line("כמעט בגודל הגוף", 690, size=10.5), *body)])
+        built = build_markdown([page(line("כותרת ראשית", 760, size=20.0, font="Body-Bold"),
+                                     line("כותרת משנה", 720, size=15.0, font="Body-Bold"),
+                                     line("כמעט בגודל הגוף", 690, size=10.5, font="Body"), *self.BODY)])
         parsed = html(built)
         self.assertEqual(parsed.headings, [(1, "כותרת ראשית"), (2, "כותרת משנה")])
         self.assertIn("כמעט בגודל הגוף", [t for tag, t in parsed.blocks if tag == "p"])
+
+    def test_larger_text_in_the_body_font_is_a_paragraph(self):
+        # כמו פסקת הפתיחה של MentorOS: גדולה מהגוף פי 1.1, בגופן של הגוף. עד סבב 5ב (סף של פי 1.1 על
+        # הגודל) גם היא הייתה כותרת. אותו גודל בגופן אחר (מודגש) הוא כותרת
+        built = build_markdown([page(line("פסקת פתיחה בגופן של הגוף", 760, size=11.0, font="Body", left=300.0),
+                                     *self.BODY,
+                                     line("כותרת בגופן מודגש", 380, size=11.0, font="Body-Bold", left=300.0))])
+        parsed = html(built)
+        self.assertEqual(parsed.headings, [(1, "כותרת בגופן מודגש")])
+        self.assertIn("פסקת פתיחה בגופן של הגוף", [t for tag, t in parsed.blocks if tag == "p"])
+
+    def test_without_font_names_the_size_decides(self):
+        # ב-Chrome השם של הגופן ריק לכל האותיות: אין ראיה מהגופן
+        body = [line("גוף הטקסט עם הרבה מאוד אותיות כדי שיהיה הנפוץ", 600 - 40 * k) for k in range(5)]
+        built = build_markdown([page(line("כותרת", 760, size=14.0), *body)])
+        self.assertEqual(html(built).headings, [(1, "כותרת")])
+
+    def test_a_numbered_line_in_heading_size_alone_is_a_heading(self):
+        # כמו "1. הקבצים תקינים" במסמך האפיון: עד סבב 5ב כל שורה שמתחילה ב-"1." הייתה פריט ברשימה
+        built = build_markdown([page(line("1. כותרת ממוספרת", 760, size=12.0, font="Body-Bold"), *self.BODY)])
+        self.assertEqual(html(built).headings, [(1, "1. כותרת ממוספרת")])
+
+    def test_numbered_lines_in_heading_size_together_are_a_list(self):
+        built = build_markdown([page(line("1. ראשון", 760, size=12.0, font="Body-Bold"),
+                                     line("2. שני", 740, size=12.0, font="Body-Bold"), *self.BODY)])
+        parsed = html(built)
+        self.assertEqual((parsed.headings, parsed.items), ([], 2))
 
 
 class ListTest(unittest.TestCase):

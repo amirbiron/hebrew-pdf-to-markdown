@@ -56,7 +56,7 @@ class AngleBracketsInTableFileTest(unittest.TestCase):
     """
 
     def test_angle_brackets_follow_the_truth(self):
-        tables = load_truth(DEFAULT_TRUTH / "env-vars_weasyprint.truth.json")
+        tables = load_truth(DEFAULT_TRUTH / "env-vars.truth.json")
         truth = {normalize(row[0]): row for table in tables for row in table.rows}
         with pdfium.PdfDocument(str(DEFAULT_PDFS / "env-vars_weasyprint.pdf")) as pdf:
             rows = [row for page in read_document(pdf) for row in page.rows]

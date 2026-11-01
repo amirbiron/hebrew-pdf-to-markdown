@@ -20,31 +20,37 @@ WIDTH, HEIGHT, WORD = 5.0, 10.0, 2.0
 USUAL = WORD / HEIGHT
 
 
-def chars(segments: list[tuple[float, str]], baseline: float) -> list[Char]:
-    """תווים של שורה בעמוד: כל קטע מתחיל ב-x שלו, והתווים שלו לפי הסדר בעמוד משמאל לימין."""
+def chars(segments: list[tuple[float, str]], baseline: float, size: float = 0.0) -> list[Char]:
+    """תווים של שורה בעמוד: כל קטע מתחיל ב-x שלו, והתווים שלו לפי הסדר בעמוד משמאל לימין.
+    size: גודל האות (Char.size); 0 כמו תו בלי גודל."""
     out = []
     for x, text in segments:
         for ch in text:
             if ch == " ":
                 x += WORD
                 continue
-            out.append(Char(ch, x + WIDTH / 2, baseline, x, x + WIDTH, HEIGHT))
+            out.append(Char(ch, x + WIDTH / 2, baseline, x, x + WIDTH, HEIGHT, size))
             x += WIDTH
     return out
 
 
-def build(page: list[list[tuple[float, str]]], rtl: bool = False, rules_above: tuple[int, ...] = ()):
+def build(page: list[list[tuple[float, str]]], rtl: bool = False, rules_above: tuple[int, ...] = (),
+          sizes: tuple[float, ...] = (), verticals: tuple[float, ...] = ()):
     """השורות של עמוד (מלמעלה למטה, 15 נקודות בין שורה לשורה), אחרי חלוקה לרכיבים.
 
     rules_above: השורות שמעליהן מצויר קו אופקי לרוחב כל העמוד (קו מסגרת של טבלה).
+    sizes: גודל האות של כל שורה (Char.size); בלי: 0 לכל השורות.
+    verticals: ה-x של קווים אנכיים לגובה כל העמוד (גבולות של תאים ברשת).
     """
-    spaced = [space_by_gaps(chars(segments, -15.0 * i)) for i, segments in enumerate(page)]
+    sizes = sizes or (0.0,) * len(page)
+    spaced = [space_by_gaps(chars(segments, -15.0 * i, size)) for i, (segments, size) in enumerate(zip(page, sizes))]
     lines = [page_line(s.chars) for s in spaced]
-    layout = page_layout(lines, USUAL)
+    rules = [(-10.0, 400.0, -15.0 * i + 9) for i in rules_above]
+    layout = page_layout(lines, USUAL, rules)
     built = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts) for i, (line, s) in
              enumerate(zip(lines, spaced))]
-    rules = [(-10.0, 400.0, -15.0 * i + 9) for i in rules_above]
-    return [b[0] for b in built], table_rows([b[0] for b in built], [b[1] for b in built], layout.tables, lines, rules)
+    vertical = [(x, -15.0 * len(page), 15.0) for x in verticals]
+    return built, table_rows(built, layout.tables, lines, rules, vertical)
 
 
 def gap(words: float) -> float:
@@ -116,24 +122,23 @@ class TableTest(unittest.TestCase):
         self.assertEqual(rows, [("c1", "desc", "ABCDEFGH"), ("c2", "next", "KL")])
 
     def test_frame_lines_decide_where_a_row_starts(self):
-        # כמו MONGODB_SOCKET_TIMEOUT_M / S: שם שנשבר באמצע, ובשורת ההמשך יש טקסט בעמודה
-        # הראשונה. קו בין שורות הטבלה מראה שזו אותה שורה. החלק הראשון ממלא את רוחב העמודה,
-        # ולכן מתחבר בלי רווח
+        # ברשת (קווים אופקיים בין השורות וקווים אנכיים בין העמודות), שורת ההמשך שייכת לשורה שמעליה כי אין
+        # קו ביניהן, גם כשיש בה טקסט בכמה עמודות
         page = [[(0, "c1"), (60, "desc"), (200, "ABCDEFGH")],
                 [(60, "more"), (200, "IJ")],
                 [(0, "c2"), (60, "a wider one"), (200, "KL")],
                 [(0, "c3"), (60, "last"), (200, "MN")]]
-        _, rows = build(page, rules_above=(0, 2, 3))
-        self.assertEqual(rows, [("c1", "desc more", "ABCDEFGHIJ"), ("c2", "a wider one", "KL"), ("c3", "last", "MN")])
+        _, rows = build(page, rules_above=(0, 2, 3), verticals=(50.0, 190.0))
+        self.assertEqual(rows, [("c1", "desc more", "ABCDEFGH IJ"), ("c2", "a wider one", "KL"), ("c3", "last", "MN")])
 
-    def test_known_limit_a_single_word_as_wide_as_its_column(self):
-        # מילה אחת שהיא גם הטקסט הרחב ביותר בעמודה נראית כמו שבירה באמצע מילה: מהגיאומטריה
-        # לבדה אי אפשר להבדיל (ראו _breaks_inside_a_word)
+    def test_a_single_word_as_wide_as_its_column_joins_with_a_space(self):
+        # עד סבב 5ב מילה אחת שממלאת את רוחב העמודה נחשבה מילה שנשברה באמצע, וחוברה בלי רווח
+        # ("descmore"). מחוץ לקובץ הטבלאות הכלל הזה טעה ב-41 מתוך 45 פעמים, והוא ירד
         page = [[(0, "c1"), (60, "desc"), (200, "AB")],
                 [(60, "more")],
                 [(0, "c2"), (60, "next"), (200, "KL")]]
         _, rows = build(page, rules_above=(0, 2))
-        self.assertEqual(rows[0], ("c1", "descmore", "AB"))
+        self.assertEqual(rows[0], ("c1", "desc more", "AB"))
 
     def test_a_frame_line_under_the_header_only_is_not_row_lines(self):
         page = [[(0, "h1"), (60, "head"), (200, "HEAD")],
@@ -147,6 +152,82 @@ class TableTest(unittest.TestCase):
                          [(60, "word")],
                          [(0, "c2"), (60, "next"), (200, "OTHER")]])
         self.assertEqual(rows[0], ("c1", "to-word", "NAME"))
+
+
+class TableEndTest(unittest.TestCase):
+    """איפה טבלה נגמרת (hebrew_pdf/layout.py, סעיף 5): כותרת קצרה בצד ימין לא חוצה את העמודות
+    שמשמאלה, והמסדרון של הטבלה ממשיך לתוכה. גודל האות מסיים אותה."""
+    TABLES = [[(0, "a1"), (60, "desc"), (200, "N1")],
+              [(0, "a2"), (60, "more"), (200, "N2")],
+              [(200, "HEAD")],
+              [(0, "b1"), (60, "text"), (200, "M1")],
+              [(0, "b2"), (60, "last"), (200, "M2")]]
+
+    def test_a_heading_between_two_tables_ends_the_first(self):
+        lines, rows = build(self.TABLES, sizes=(10, 10, 20, 10, 10))
+        self.assertIsNone(lines[2].columns)
+        self.assertEqual(rows, [("a1", "desc", "N1"), ("a2", "more", "N2"), ("HEAD",),
+                                ("b1", "text", "M1"), ("b2", "last", "M2")])
+
+    def test_without_a_size_the_heading_is_a_row(self):
+        # כך היה עד סבב 5ב בכל גודל: הכותרת נבלעה בטבלה
+        lines, _ = build(self.TABLES)
+        self.assertIsNotNone(lines[2].columns)
+
+    def test_in_a_framed_table_a_continuation_in_another_size_stays(self):
+        # טבלה עם קווי מסגרת בין השורות: שורת המשך בתוך תא, בלי קו מעליה, בגודל אחר (קוד), שייכת לטבלה.
+        # הכותרת, שיש קו מעליה (הקו התחתון של הטבלה), מסיימת אותה
+        page = [[(0, "a1"), (60, "desc"), (200, "N1")],
+                [(60, "code")],
+                [(0, "a2"), (60, "more"), (200, "N2")],
+                [(200, "HEAD")]]
+        lines, rows = build(page, rules_above=(0, 2, 3), sizes=(10, 8, 10, 20))
+        self.assertIsNotNone(lines[1].columns)
+        self.assertIsNone(lines[3].columns)
+        self.assertEqual(rows, [("a1", "desc code", "N1"), ("a2", "more", "N2"), ("HEAD",)])
+
+
+class TableRowsTest(unittest.TestCase):
+    """שורה חדשה בטבלה (hebrew_pdf/lines.py, _new_rows ו-_merged_rows), לפי הדפוסים בדוח הכספי."""
+
+    def test_in_a_grid_the_frame_lines_decide(self):
+        # כמו עמודים 14 ו-15: תווית בשלוש שורות, והמספרים בשורה משלהם בין שורות התווית. יש קו רק בין
+        # שורות הטבלה, לא בתוך התא. עד סבב 5ב "יש קווים" נקבע לפי רוב הזוגות שהשורה השנייה בהם מתחילה
+        # בעמודה הראשונה, וכאן רק 2 מתוך 4 (בתוך התא אין קו): הטבלה נחשבה בלי קווים, והתווית התפרקה
+        page = [[(0, "R1"), (60, "11"), (200, "21")],
+                [(0, "lab")],
+                [(0, "two")],
+                [(60, "12"), (200, "22")],
+                [(0, "three")],
+                [(0, "R3"), (60, "13"), (200, "23")]]
+        _, rows = build(page, rules_above=(0, 1, 5), verticals=(50.0, 190.0))
+        self.assertEqual(rows, [("R1", "11", "21"), ("lab two three", "12", "22"), ("R3", "13", "23")])
+
+    def test_without_a_grid_a_line_that_fills_filled_columns_is_a_new_row(self):
+        # כמו עמוד 33: שורת סכום בלי תווית אחרי שורה מלאה. עד סבב 5ב היא נדבקה אליה ("143,875 452,600")
+        page = [[(0, "L1"), (60, "11"), (200, "21")],
+                [(0, "L2"), (60, "12"), (200, "22")],
+                [(60, "13"), (200, "23")]]
+        _, rows = build(page)
+        self.assertEqual(rows, [("L1", "11", "21"), ("L2", "12", "22"), ("", "13", "23")])
+
+    def test_without_a_grid_numbers_under_a_broken_label_stay_with_it(self):
+        # כמו עמוד 44: המספרים בשורה משלהם מתחת לתווית, בעמודות שעוד ריקות בשורת הטבלה: לא שורה חדשה
+        page = [[(0, "L1"), (60, "11"), (200, "21")],
+                [(0, "lab")],
+                [(60, "12"), (200, "22")],
+                [(0, "L3"), (60, "13"), (200, "23")]]
+        _, rows = build(page)
+        self.assertEqual(rows, [("L1", "11", "21"), ("lab", "12", "22"), ("L3", "13", "23")])
+
+    def test_short_bars_without_horizontal_lines_are_not_a_grid(self):
+        # כמו תוכן העניינים של MentorOS: פס אנכי ליד כל כותרת, בלי אף קו אופקי. ברשת, בלי קווים בין השורות,
+        # כל השורות היו מתאחדות לשורה אחת
+        page = [[(0, "2"), (200, "first")],
+                [(0, "3"), (200, "second")],
+                [(200, "more")]]
+        _, rows = build(page, verticals=(190.0,))
+        self.assertEqual(rows, [("2", "first"), ("3", "second more")])
 
 
 class RealLinesTest(unittest.TestCase):
@@ -169,10 +250,10 @@ class RealLinesTest(unittest.TestCase):
         self.assertIn(("הכנסות ממכירות", "", "366,343", "300,306*", "178,881", "145,921*", "633,833*"), cells)
 
     def test_table_row_broken_over_three_lines(self):
-        # בעמוד שם המשתנה נשבר באמצע (MONGODB_SOCKET_TIMEOUT_M / S) והתיאור בשתי שורות
-        rows = [tuple(normalize(c) for c in row) for row in read_pages(DEFAULT_PDFS / "env-vars_weasyprint.pdf")[1].rows]
-        self.assertIn(("MONGODB_SOCKET_TIMEOUT_MS", "זמן קצוב לקריאת/כתיבת שקע (socketTimeoutMS)", "לא", "45000",
-                       "45000", "Bot/WebApp"), rows)
+        # בעמוד עמודת הרכיב נשברת אחרי הלוכסנים ל-"Bot/WebApp/", "MCP/" ו-"Webserver", והתיאור בשתי שורות
+        rows = [tuple(normalize(c) for c in row) for row in read_pages(DEFAULT_PDFS / "env-vars_weasyprint.pdf")[0].rows]
+        self.assertIn(("MONGODB_HEARTBEAT_FREQUENCY_MS", "תדירות בדיקת החיים של הדרייבר מול שרתי מונגו (heartbeatFrequencyMS)",
+                       "לא", "10000", "20000", "Bot/WebApp/MCP/Webserver"), rows)
 
     def test_the_table_file_is_a_hebrew_document(self):
         # רוב האותיות בו לטיניות (שמות משתנים), אבל רוב השורות עבריות

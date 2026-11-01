@@ -1,10 +1,31 @@
 {
- "source": "environment.md (CodeBot docs/environment-variables)",
- "producer": "WeasyPrint",
- "note": "header row is rows[0] of each table; cell text = what the rendered cell shows",
- "tables": [
+ "source": "env-vars.md",
+ "note": "the page's structure in order, derived from the HTML the PDF was built from (harness/html_structure.py)",
+ "blocks": [
   {
-   "section": "טבלה מרכזית",
+   "kind": "heading",
+   "level": 1,
+   "text": "משתני סביבה - רפרנס"
+  },
+  {
+   "kind": "paragraph",
+   "text": "בכל פעם שמוסיפים או משנים משתני סביבה בקוד/Infra חייבים לעדכן עמוד זה (רפרנס משתני הסביבה) וכן לציין זאת ב-PR. בכך אנו מבטיחים שהמידע הופך ל-Single Source of Truth גם למפתחים וגם לאנשי DevOps."
+  },
+  {
+   "kind": "paragraph",
+   "text": "Config Inspector (סקירת משתני סביבה) — כלי האדמין שמציג את המשתנים בזמן ריצה. שם מתועדים גם הכללים להוספת משתנה: איך קובעים לאיזה שירות הוא שייך, איך נמנעים מסטטוס Modified שגוי, ומה צריך לתעד כשמשתנה משרת כמה שירותים."
+  },
+  {
+   "kind": "heading",
+   "level": 2,
+   "text": "טבלה מרכזית"
+  },
+  {
+   "kind": "paragraph",
+   "text": "Environment Variables"
+  },
+  {
+   "kind": "table",
    "rows": [
     [
      "משתנה",
@@ -1873,7 +1894,16 @@
    ]
   },
   {
-   "section": "התראות וניטור (הרחבה)",
+   "kind": "heading",
+   "level": 2,
+   "text": "התראות וניטור (הרחבה)"
+  },
+  {
+   "kind": "paragraph",
+   "text": "Alerts & Observability"
+  },
+  {
+   "kind": "table",
    "rows": [
     [
      "משתנה",
@@ -2550,7 +2580,16 @@
    ]
   },
   {
-   "section": "מדדים, OTEL וחיזוי",
+   "kind": "heading",
+   "level": 2,
+   "text": "מדדים, OTEL וחיזוי"
+  },
+  {
+   "kind": "paragraph",
+   "text": "Metrics & Predictive Controls"
+  },
+  {
+   "kind": "table",
    "rows": [
     [
      "משתנה",
@@ -2835,7 +2874,16 @@
    ]
   },
   {
-   "section": "תפעול, אינטגרציות ופיצ’רים",
+   "kind": "heading",
+   "level": 2,
+   "text": "תפעול, אינטגרציות ופיצ’רים"
+  },
+  {
+   "kind": "paragraph",
+   "text": "Operations & Feature Flags"
+  },
+  {
+   "kind": "table",
    "rows": [
     [
      "משתנה",
@@ -3696,7 +3744,24 @@
    ]
   },
   {
-   "section": "דגלי בדיקות ופיתוח",
+   "kind": "paragraph",
+   "text": "הפריימר לסוכן (GET /api/agent/primer) אינו מוסיף אף משתנה סביבה. תקרת ה-24KB ומשך ה-cache (60 שניות) הם קבועים ב-mcp_server/primer.py במכוון — התקרה היא תקציב מול חלון ההקשר של המודל ולא כוונון תפעולי, ומצב הכשל של העלאתה בלתי-נראה (הקשר נאכל בשקט). שינוי דורש PR. תוכן הפריימר נערך מהדפדפן ב-/settings ונשמר ב-user_preferences, לא ב-ENV. ראו שרת ה-MCP — חיבור Claude ל-CodeKeeper."
+  },
+  {
+   "kind": "paragraph",
+   "text": "ההוק שמושך את הפריימר בפתיחת סשן — בפלאגין codekeeper-memory, codekeeper-memory/hooks/session_start.sh בריפו amirbiron/codekeeper-plugin — קורא משתנים משלו, בסביבה של סשן Claude Code ולא בשירות, ולכן הם אינם בטבלאות של העמוד הזה. ה-README של הפלאגין הוא הבעלים שלהם: CODEKEEPER_PAT, CODEKEEPER_PRIMER_URL, ושתי דריסות לטסטים בלבד, CODEKEEPER_PRIMER_RETRY_INTERVAL_SECONDS ו-CODEKEEPER_PRIMER_RETRY_BUDGET_SECONDS. ראו פריימר לסוכן — GET /api/agent/primer."
+  },
+  {
+   "kind": "heading",
+   "level": 2,
+   "text": "דגלי בדיקות ופיתוח"
+  },
+  {
+   "kind": "paragraph",
+   "text": "Dev & Testing Flags"
+  },
+  {
+   "kind": "table",
    "rows": [
     [
      "משתנה",
@@ -3781,7 +3846,65 @@
    ]
   },
   {
-   "section": "טבלת Scopes לפיצ’רים של GitHub",
+   "kind": "heading",
+   "level": 2,
+   "text": "דוגמאות קונפיגורציה"
+  },
+  {
+   "kind": "paragraph",
+   "text": "Development:"
+  },
+  {
+   "kind": "code",
+   "text": "BOT_TOKEN=your_bot_token_here\nMONGODB_URL=mongodb://localhost:27017\nDATABASE_NAME=code_keeper_dev\nLOG_LEVEL=DEBUG"
+  },
+  {
+   "kind": "paragraph",
+   "text": "Staging:"
+  },
+  {
+   "kind": "code",
+   "text": "BOT_TOKEN=staging_bot_token\nMONGODB_URL=mongodb+srv://user:pass@cluster.mongodb.net\nDATABASE_NAME=code_keeper_staging\nLOG_LEVEL=INFO\nREDIS_URL=redis://staging-redis:6379"
+  },
+  {
+   "kind": "paragraph",
+   "text": "Production:"
+  },
+  {
+   "kind": "code",
+   "text": "BOT_TOKEN=prod_bot_token\nMONGODB_URL=mongodb+srv://user:pass@prod-cluster.mongodb.net\nDATABASE_NAME=code_keeper_prod\nLOG_LEVEL=WARNING\nREDIS_URL=redis://prod-redis:6379\nENCRYPTION_KEY=your-32-byte-encryption-key"
+  },
+  {
+   "kind": "heading",
+   "level": 2,
+   "text": "קישורים"
+  },
+  {
+   "kind": "item",
+   "level": 0,
+   "text": "התקנה והגדרה"
+  },
+  {
+   "kind": "item",
+   "level": 0,
+   "text": "Rate Limiting"
+  },
+  {
+   "kind": "item",
+   "level": 0,
+   "text": "SECURITY_TOKENS (מסמך ריפו) <https://github.com/amirbiron/CodeBot/blob/main/docs/SECURITY_TOKENS.md>`_"
+  },
+  {
+   "kind": "heading",
+   "level": 2,
+   "text": "טבלת Scopes לפיצ’רים של GitHub"
+  },
+  {
+   "kind": "paragraph",
+   "text": "Feature → Required Scopes"
+  },
+  {
+   "kind": "table",
    "rows": [
     [
      "Feature",
@@ -3804,6 +3927,10 @@
      "workflow"
     ]
    ]
+  },
+  {
+   "kind": "paragraph",
+   "text": "הערה: הקפידו להעניק הרשאות מינימליות בלבד. לפרטים נוספים ראו Integrations."
   }
  ]
 }

@@ -23,7 +23,7 @@ from harness import markdown_check
 from harness.display_check import displays_like_page
 from harness.label_order import MISSING, NOT_CHECKED, OrderCheck, check_label_order
 from harness.reader import read_pages
-from harness.tables import TRUTH_SUFFIX, TableScore, TruthFileError, load_truth, pdf_name, score_tables
+from harness.tables import TRUTH_SUFFIX, TableScore, TruthFileError, load_blocks, load_truth, pdf_names, score_tables
 from harness.textdiff import CELL_BOUNDARY, closest_line, join_cells, normalize, split_lines, visible
 from hebrew_pdf.lines import PageText
 from hebrew_pdf.markdown import build_markdown, escape_text
@@ -34,8 +34,6 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PDFS = ROOT / "testset" / "pdfs"
 DEFAULT_LABELS = ROOT / "testset" / "labels.md"
 DEFAULT_TRUTH = ROOT / "testset" / "ground_truth"
-# המקור (Markdown) של כל קובץ טבלאות: testset/sources/<השם בלי התוכנה>.md (tools/build_table_pdf.py)
-DEFAULT_SOURCES = ROOT / "testset" / "sources"
 # ה-Markdown של כל קובץ, לעין. התיקייה ב-.gitignore: יש בה טקסט של המסמכים
 DEFAULT_MARKDOWN_DIR = ROOT / "output"
 DEFAULT_OUTPUT = ROOT / "testset" / "report.md"
@@ -103,12 +101,14 @@ class MarkdownResult:
 
 @dataclass(frozen=True)
 class SourceScore:
-    """קובץ טבלאות מול המקור שלו, אחרי סיבוב מלא ב-Markdown."""
+    """קובץ עם דף תשובות מול המקור שלו, אחרי סיבוב מלא ב-Markdown (harness/markdown_check.py)."""
     pdf: str
     tables_source: int  # טבלאות בדף התשובות
     tables_output: int  # טבלאות שהמפרסר מצא ב-Markdown
     cells: TableScore  # התאים כמו שהמפרסר מוציא אותם, מול דף התשובות
-    headings: markdown_check.HeadingMatch | None  # None: אין מקור Markdown
+    headings: markdown_check.BlockMatch
+    items: markdown_check.BlockMatch
+    paragraphs: markdown_check.BlockMatch
 
 
 @dataclass(frozen=True)
@@ -123,7 +123,7 @@ class Evaluation:
     orders: dict[int, OrderCheck] = field(default_factory=dict)
     tables: list[TableScore] = field(default_factory=list)  # טבלאות מול דף תשובות (harness/tables.py)
     markdown: list[MarkdownResult] = field(default_factory=list)  # לכל קובץ, לפי הסדר
-    sources: list[SourceScore] = field(default_factory=list)  # קובצי הטבלאות מול המקור, דרך ה-Markdown
+    sources: list[SourceScore] = field(default_factory=list)  # קבצים עם דף תשובות מול המקור, דרך ה-Markdown
 
     @property
     def order_ok_count(self) -> int:
@@ -169,10 +169,9 @@ def creator_of(file_name: str) -> str:
 
 
 def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
-             truth_dir: Path | None = DEFAULT_TRUTH, sources_dir: Path | None = DEFAULT_SOURCES) -> Evaluation:
-    """truth_dir: תיקיית דפי התשובות של הטבלאות. כל דף תשובות חייב קובץ PDF בסט
-    (tables.pdf_name), אחרת TruthFileError. None: בלי מדידת טבלאות.
-    sources_dir: המקורות של קובצי הטבלאות, להשוואת הכותרות ב-Markdown (source_of)."""
+             truth_dir: Path | None = DEFAULT_TRUTH) -> Evaluation:
+    """truth_dir: תיקיית דפי התשובות. כל דף תשובות חייב לפחות קובץ PDF אחד בסט (tables.pdf_names),
+    אחרת TruthFileError. None: בלי מדידה מול דפי תשובות."""
     pdf_paths = sorted(pdf_dir.glob("*.pdf"))
     known = frozenset(p.name for p in pdf_paths)
     all_labels, problems = labels_mod.parse_labels(labels_path.read_text(encoding="utf-8"), known)
@@ -227,33 +226,25 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
     sources: list[SourceScore] = []
     if truth_dir is not None:
         for truth_path in sorted(truth_dir.glob("*" + TRUTH_SUFFIX)):
-            name = pdf_name(truth_path)
-            if name not in read_files:
-                raise TruthFileError(f"{truth_path.name}: אין קובץ {name} בתיקיית ה-PDF ({pdf_dir})")
+            names = pdf_names(truth_path, list(read_files))
+            if not names:
+                raise TruthFileError(f"{truth_path.name}: אין לו קובץ <שם>_<תוכנה>.pdf בתיקיית ה-PDF ({pdf_dir})")
             truth = load_truth(truth_path)
-            output = [row for page in read_files[name] for row in page.rows]
-            tables.append(score_tables(name, truth, output))
-            parsed = parsed_files[name]
-            round_trip = score_tables(name, truth, [row for table in parsed.tables for row in table])
-            source = source_of(name, sources_dir)
-            headings = None
-            if source is not None:
-                headings = markdown_check.match_headings(
-                    markdown_check.source_headings(source.read_text(encoding="utf-8")), parsed.headings)
-            sources.append(SourceScore(name, len(truth), len(parsed.tables), round_trip, headings))
+            blocks = load_blocks(truth_path)
+            for name in names:
+                if truth:  # בלי טבלאות במקור אין ציון טבלאות (0 מתוך 0); המבנה נמדד בכל מקרה
+                    output = [row for page in read_files[name] for row in page.rows]
+                    tables.append(score_tables(name, truth, output))
+                parsed = parsed_files[name]
+                round_trip = score_tables(name, truth, [row for table in parsed.tables for row in table])
+                structure = parsed.structure
+                sources.append(SourceScore(name, len(truth), len(parsed.tables), round_trip,
+                                           *(markdown_check.match_blocks(kind, blocks, structure)
+                                             for kind in ("heading", "item", "paragraph"))))
 
     reader_name = f"{reader.__module__}.{reader.__qualname__}"
     return Evaluation(reader_name, files, approved, pending, unclear, sorted(problems, key=lambda p: p.source_line),
                       orders, tables, markdown, sources)
-
-
-def source_of(pdf: str, sources_dir: Path | None) -> Path | None:
-    """המקור של קובץ טבלאות: <השם בלי התוכנה>.md בתיקיית המקורות (env-vars_weasyprint.pdf ← env-vars.md)."""
-    if sources_dir is None:
-        return None
-    stem = Path(pdf).stem
-    path = sources_dir / ((stem.rsplit("_", 1)[0] if "_" in stem else stem) + ".md")
-    return path if path.exists() else None
 
 
 def _candidates(label: labels_mod.Label, lines: list) -> list[str]:
@@ -347,8 +338,9 @@ def render_report(ev: Evaluation) -> str:
         complete = sum(m.completeness.ok for m in ev.markdown)
         add(f"| קבצים שה-Markdown שלהם שלם (כל האותיות של הקורא, ורק הן) | {complete} מתוך {len(ev.markdown)} |")
     for score in ev.sources:
-        add(f"| תאים זהים אחרי סיבוב ב-Markdown ({score.pdf}) | "
-            f"{_count_and_share(score.cells.identical_cells, score.cells.cells)} מתוך {score.cells.cells} |")
+        add(f"| מבנה אחרי סיבוב ב-Markdown ({score.pdf}): תאים זהים, טבלאות, כותרות, פריטים, פסקאות | "
+            f"{_count_and_share(score.cells.identical_cells, score.cells.cells)} מתוך {score.cells.cells}; "
+            f"{score.tables_output} טבלאות מתוך {score.tables_source}; {_structure_counts(score)} |")
     add(f"| אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | {ev.skipped_chars} |")
     add(f"| סוגריים שהצורה שלהם לא נקבעה מהציור (בכל הסט) | {ev.unknown_brackets} |")
     add(f"| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | {ev.display_failures} מתוך {ev.line_count} |")
@@ -469,6 +461,12 @@ def render_report(ev: Evaluation) -> str:
     return "\n".join(out)
 
 
+def _structure_counts(score: SourceScore) -> str:
+    """"כותרות 5/9, פריטים 3/3, פסקאות 10/14": הזהים באותו סדר, מתוך מה שבדף התשובות."""
+    return ", ".join(f"{name} {match.in_order}/{match.source}" for name, match in
+                     (("כותרות", score.headings), ("פריטים", score.items), ("פסקאות", score.paragraphs)))
+
+
 def _markdown_section(ev: Evaluation, add) -> None:
     add("## Markdown")
     add("")
@@ -494,18 +492,23 @@ def _markdown_section(ev: Evaluation, add) -> None:
         add(f"| {m.name} | {m.pages} | {m.headings} | {m.paragraphs} | {m.items} | {m.tables} | {c.dropped_units} "
             f"| {c.repeated_headers} | {c.list_markers} | {complete} | {d.ltr_blocks} מתוך {d.blocks} | {d.ltr_cells} מתוך {d.cells} |")
     add("")
+    if ev.sources:
+        add("### מבנה מול דף התשובות")
+        add("")
+        add("לכל קובץ שיש לו דף תשובות (testset/ground_truth): המבנה שהמפרסר מוציא מה-Markdown, מול המבנה שבדף התשובות, שנגזר מה-HTML שממנו נבנה ה-PDF (harness/html_structure.py, אותו פירוק בשני הצדדים). \"זהים\": באותו סדר (התת-סדרה המשותפת הארוכה ביותר), עם אותו טקסט ובאותה רמה: בכותרת h1 עד h6, ובפריט עומק הקינון. פסקה בתוך ציטוט נמדדת כפסקה. התאים: כמו בסעיף הטבלאות, אבל מהתאים שהמפרסר מוציא מה-Markdown.")
+        add("")
     for score in ev.sources:
-        add(f"### {score.pdf} מול המקור")
+        add(f"#### {score.pdf}")
         add("")
         add("| | |")
         add("|---|---|")
         add(f"| טבלאות (במקור / ב-Markdown) | {score.tables_source} / {score.tables_output} |")
-        if score.headings is not None:
-            h = score.headings
-            add(f"| כותרות במקור / ב-Markdown | {h.source} / {h.output} |")
-            add(f"| כותרות של המקור שנמצאו באותו סדר, באותה רמה ובאותו טקסט | {h.in_order} מתוך {h.source} |")
-            add(f"| כנ\"ל, בלי תנאי על הרמה | {h.in_order_any_level} מתוך {h.source} |")
-        add(f"| תאים זהים אחרי סיבוב ב-Markdown (כמו בסעיף הטבלאות, אבל מהתאים שהמפרסר מוציא) | "
+        for name, match in (("כותרות", score.headings), ("פריטי רשימה", score.items), ("פסקאות", score.paragraphs)):
+            add(f"| {name} במקור / ב-Markdown | {match.source} / {match.output} |")
+            add(f"| {name} זהות באותו סדר | {_count_and_share(match.in_order, match.source)} מתוך {match.source} |")
+            if match.kind != "paragraph":
+                add(f"| כנ\"ל, בלי תנאי על הרמה | {_count_and_share(match.in_order_any_level, match.source)} מתוך {match.source} |")
+        add(f"| תאים זהים אחרי סיבוב ב-Markdown | "
             f"{_count_and_share(score.cells.identical_cells, score.cells.cells)} מתוך {score.cells.cells} |")
         add(f"| שורות זהות אחרי סיבוב ב-Markdown | {_count_and_share(score.cells.identical_rows, score.cells.rows)} |")
         add("")
@@ -517,12 +520,11 @@ def main(argv: list[str] | None = None, reader: Reader = read_pages) -> int:
     parser.add_argument("--labels", type=Path, default=DEFAULT_LABELS, help="טבלת התיוג")
     parser.add_argument("--truth", type=Path, default=DEFAULT_TRUTH, help="תיקיית דפי התשובות של הטבלאות")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="לאן לכתוב את הדוח")
-    parser.add_argument("--sources", type=Path, default=DEFAULT_SOURCES, help="המקורות של קובצי הטבלאות")
     parser.add_argument("--markdown-dir", type=Path, default=DEFAULT_MARKDOWN_DIR,
                         help="לאן לכתוב את ה-Markdown של כל קובץ (<שם>.md)")
     args = parser.parse_args(argv)
 
-    ev = evaluate(args.pdfs, args.labels, reader, args.truth, args.sources)
+    ev = evaluate(args.pdfs, args.labels, reader, args.truth)
     args.output.write_text(render_report(ev), encoding="utf-8")
     args.markdown_dir.mkdir(parents=True, exist_ok=True)
     for m in ev.markdown:
@@ -540,6 +542,9 @@ def main(argv: list[str] | None = None, reader: Reader = read_pages) -> int:
     if ev.markdown:
         print(f"Markdown: שלם ב-{sum(m.completeness.ok for m in ev.markdown)} מתוך {len(ev.markdown)} קבצים | "
               f"נכתב ל-{args.markdown_dir}")
+    for score in ev.sources:
+        print(f"מבנה ({score.pdf}): תאים זהים {score.cells.identical_cells} מתוך {score.cells.cells} | "
+              f"טבלאות {score.tables_output} מתוך {score.tables_source} | {_structure_counts(score)}")
     print(f"הדוח: {args.output}")
     if ev.problems:
         print(f"יש {len(ev.problems)} שורות פגומות בטבלת התיוג; הפירוט בדוח.", file=sys.stderr)
