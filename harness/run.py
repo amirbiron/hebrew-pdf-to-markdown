@@ -232,8 +232,9 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
             truth = load_truth(truth_path)
             blocks = load_blocks(truth_path)
             for name in names:
-                output = [row for page in read_files[name] for row in page.rows]
-                tables.append(score_tables(name, truth, output))
+                if truth:  # בלי טבלאות במקור אין ציון טבלאות (0 מתוך 0); המבנה נמדד בכל מקרה
+                    output = [row for page in read_files[name] for row in page.rows]
+                    tables.append(score_tables(name, truth, output))
                 parsed = parsed_files[name]
                 round_trip = score_tables(name, truth, [row for table in parsed.tables for row in table])
                 structure = parsed.structure

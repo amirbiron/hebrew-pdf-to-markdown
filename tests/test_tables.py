@@ -7,6 +7,7 @@
 """
 
 import json
+import shutil
 import tempfile
 import unicodedata
 import unittest
@@ -15,7 +16,8 @@ from pathlib import Path
 import pypdfium2 as pdfium
 
 from harness.reader import read_pages
-from harness.run import DEFAULT_PDFS, DEFAULT_TRUTH
+from harness.labels import COLUMNS
+from harness.run import DEFAULT_PDFS, DEFAULT_TRUTH, evaluate, render_report
 from harness.html_structure import HtmlBlock
 from harness.tables import TruthFileError, TruthTable, load_blocks, load_truth, pdf_names, score_tables
 from prototype import hebrew_pdf_prototype as prototype
@@ -71,13 +73,16 @@ class LoadTruthTest(unittest.TestCase):
             blocks({"kind": "table", "rows": [[], ["X"]]}): "שורת הכותרת ריקה",
             blocks({"kind": "table", "rows": [["א", "ב"], ["X"]]}): "1 תאים במקום 2",
             blocks({"kind": "table", "rows": [["א"], ["  "]]}): "התא הראשון ריק",
-            blocks({"kind": "paragraph", "text": "בלי טבלה"}): "אין בו טבלאות",
         }
         for data, message in cases.items():
             with self.subTest(data=data):
                 with self.assertRaises(TruthFileError) as caught:
                     self.load(data)
                 self.assertIn(message, str(caught.exception))
+
+    def test_a_document_without_tables_has_no_tables(self):
+        # דף התשובות הוא של כל המבנה; מסמך בלי טבלאות הוא מסמך רגיל, ולא דף תשובות פגום
+        self.assertEqual(self.load({"blocks": [{"kind": "paragraph", "text": "בלי טבלה"}]}), [])
 
     def test_a_truth_file_belongs_to_every_pdf_of_its_source(self):
         pdfs = ["spec_weasyprint.pdf", "spec_chrome.pdf", "spec-other_weasyprint.pdf", "spec.pdf", "env-vars_weasyprint.pdf"]
@@ -142,6 +147,27 @@ class ScoreTest(unittest.TestCase):
         truth = [table(("A_VAR", "א", "1")), table(("B_VAR", "ב", "2"))]
         score = score_tables("x.pdf", truth, [])
         self.assertEqual([(c.name, c.cells) for c in score.columns], [(name, 2) for name in HEADER])
+
+
+class SourceWithoutTablesTest(unittest.TestCase):
+    """מקור בלי טבלאות נמדד במבנה, דרך אותו evaluate ואותו דוח ש-python -m harness מריץ."""
+
+    def test_its_structure_is_measured_and_no_table_score_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pdfs, truth, labels = Path(tmp) / "pdfs", Path(tmp) / "truth", Path(tmp) / "labels.md"
+            pdfs.mkdir()
+            truth.mkdir()
+            shutil.copy(DEFAULT_PDFS / "doc-2p_weasyprint.pdf", pdfs / "plain_weasyprint.pdf")
+            labels.write_text("| " + " | ".join(COLUMNS) + " |\n|" + "---|" * len(COLUMNS) + "\n", encoding="utf-8")
+            (truth / "plain.truth.json").write_text(
+                json.dumps({"blocks": [{"kind": "paragraph", "text": "פסקה"}]}), encoding="utf-8")
+            ev = evaluate(pdfs, labels, truth_dir=truth)
+            report = render_report(ev)
+        self.assertEqual(ev.tables, [])  # אין טבלאות במקור: אין ציון טבלאות של 0 מתוך 0
+        self.assertEqual([(s.pdf, s.tables_source, s.paragraphs.source) for s in ev.sources],
+                         [("plain_weasyprint.pdf", 0, 1)])
+        self.assertIn("#### plain_weasyprint.pdf", report)
+        self.assertNotIn("## טבלאות מול דף תשובות", report)
 
 
 class RepoTruthFileTest(unittest.TestCase):

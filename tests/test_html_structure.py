@@ -40,6 +40,13 @@ class StructureTest(unittest.TestCase):
         self.assertEqual(page.structure, [HtmlBlock("paragraph", "טקסט")])
         self.assertEqual("".join(page.text), "טקסט")
 
+    def test_blocks_inside_what_is_not_shown_are_not_blocks(self):
+        # תוכן של template לא מוצג בעמוד, גם כשיש בו כותרת, פסקה ורשימה: אסור שיהיו בדף התשובות בלוקים ריקים
+        page = parse("<template><h2>סודי</h2><p>גם</p><ul><li>פריט</li></ul><table><tr><td>א</td></tr></table>"
+                     "</template><p>גלוי</p>")
+        self.assertEqual(page.structure, [HtmlBlock("paragraph", "גלוי")])
+        self.assertEqual((page.headings, page.items, page.blocks, page.tables), ([], 0, [("p", "גלוי")], []))
+
     def test_text_outside_any_block_is_one_paragraph(self):
         self.assertEqual(parse("<div>טקסט <b>מודגש</b> חופשי</div><p>פסקה</p>").structure,
                          [HtmlBlock("paragraph", "טקסט מודגש חופשי"), HtmlBlock("paragraph", "פסקה")])

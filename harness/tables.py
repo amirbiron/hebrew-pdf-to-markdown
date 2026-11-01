@@ -121,7 +121,8 @@ def _table_rows(rows, where: str) -> tuple[tuple[str, ...], ...]:
 
 
 def load_truth(path: Path) -> list[TruthTable]:
-    """הטבלאות שבדף התשובות (load_blocks), כל אחת עם הכותרת האחרונה לפניה."""
+    """הטבלאות שבדף התשובות (load_blocks), כל אחת עם הכותרת האחרונה לפניה. במסמך בלי טבלאות:
+    רשימה ריקה, כי דף התשובות הוא של כל המבנה ומסמך בלי טבלאות נמדד במבנה בלבד."""
     tables = []
     section = None
     for block in load_blocks(path):
@@ -129,8 +130,6 @@ def load_truth(path: Path) -> list[TruthTable]:
             section = block.text
         elif block.kind == "table":
             tables.append(TruthTable(section, block.rows[0], block.rows[1:]))
-    if not tables:
-        raise TruthFileError(f"{path.name}: אין בו טבלאות")
     return tables
 
 

@@ -121,6 +121,8 @@ class ParsedHtml(HTMLParser):
         if tag in _HIDDEN:
             self._hidden += 1
             return
+        if self._hidden:
+            return  # תגית בתוך מה שלא מוצג (template וכו'): לא טקסט ולא בלוק
         if tag not in _INLINE:
             self._stray = None
         if tag == "table":
@@ -166,6 +168,8 @@ class ParsedHtml(HTMLParser):
     def handle_endtag(self, tag):
         if tag in _HIDDEN:
             self._hidden = max(0, self._hidden - 1)
+            return
+        if self._hidden:
             return
         if tag not in _INLINE:
             self._stray = None
