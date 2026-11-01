@@ -10,10 +10,19 @@
    בעמוד, ברוב העמודים, יורדת. "כמעט זהה": ספרות נחשבות זהות (מספר העמוד). רק מהקצוות: מלמעלה כל עוד
    השורות חוזרות, ומלמטה כך. שורה של טבלה לא נבדקת (הכותרת החוזרת של טבלה יורדת באיחוד, סעיף 6).
 
-2. גוף הטקסט וכותרות (_size_levels): גודל האות (Char.size, em) של כל שורה. הגוף הוא הגודל
-   שיש בו הכי הרבה אותיות, מחוץ לטבלאות. כותרת היא שורה בגודל גדול מהגוף פי HEADING_RATIO לפחות,
-   והרמות לפי הגדלים השונים מהגדול לקטן (# לגדול). משקל הגופן לא בשימוש: FPDFText_GetFontWeight
-   מחזיר 400 גם לגופן מודגש ב-WeasyPrint, 0 ב-Chrome ו-812 לטקסט רגיל ב-Canva (נמדד בסבב 5).
+2. גוף הטקסט וכותרות (_Sizes): גודל האות (Char.size, em) של כל שורה, והגופן שרוב האותיות שלה
+   מצוירות בו (Char.font). הגוף הוא קבוצת הגודל (chars.SAME_SIZE) שיש בה הכי הרבה אותיות, מחוץ
+   לטבלאות, וגופן הגוף הוא הגופן הנפוץ בה. כותרת היא שורה בקבוצת גודל גדולה מהגוף, שמצוירת בגופן אחר
+   מגופן הגוף; הרמות לפי קבוצות הגודל מהגדולה לקטנה (# לגדולה).
+   למה לא סף על היחס לגוף (עד סבב 5ב, פי 1.1): בסט יש הרבה טקסט רץ בגודל שקצת גדול מהגוף (פסקת
+   פתיחה ב-MentorOS, פי 1.1; טקסט במצגת, פי 1.14), ומספר הכותרות השתנה בכל צעד של הסף (340 ב-1.02,
+   216 ב-1.3). מה שמבדיל ביניהם הוא הגופן: כותרת מצוירת בגופן מודגש, שהוא גופן אחר בקובץ ("Heebo-Bold"
+   מול "Heebo"), וטקסט רץ גדול בגופן של הגוף. לא נבדק שהשם מכיל "Bold": רק שהוא שונה משם גופן הגוף.
+   כשהשם לא ידוע (ב-Chrome הוא ריק לכל האותיות), אין ראיה מהגופן, והכותרת לפי הגודל בלבד. משקל
+   הגופן (FPDFText_GetFontWeight) לא בשימוש: הוא מחזיר 400 גם לגופן מודגש ב-WeasyPrint, 0 ב-Chrome
+   ו-812 לטקסט רגיל ב-Canva (נמדד בסבב 5).
+   ושורה שמתחילה במספור ("1.") בגודל ובגופן של כותרת, בלי שורה כזו לידה, היא כותרת ממוספרת ולא
+   פריט ברשימה (_numbered_heading).
 
 3. פסקאות (_runs, _continues): שורות רצופות באותו גודל, שחופפות אופקית, הן "גוש". המרווח הרגיל
    בין השורות של גוש הוא המרווח הקטן ביותר בו בין שורה שנשברה בגלל רוחב לשורה שאחריה (_wrapped).
@@ -22,8 +31,8 @@
    הרגיל הוא של אותו גודל במסמך כולו (_document_steps); ובלי זה, השורות נפרדות.
    למה לא המרווח הנפוץ במסמך: באותו מסמך ובאותו גודל יש גושים עם מרווחים שונים (בדוח הכספי
    0.99 ו-1.48 מגודל האות), ובמסמך של פסקאות בנות שורה אחת הנפוץ הוא דווקא המרווח בין פסקאות.
-   החיבור בין שורות של פסקה הוא אותו כלל שמחבר שורות בתא (lines.join_pieces), כשהרוחב הוא
-   הרוחב של המסגרת: השורה הרחבה ביותר בעמוד.
+   החיבור בין שורות של פסקה הוא אותו כלל שמחבר שורות בתא (lines.join_lines): ברווח, חוץ מאחרי
+   מקף או לוכסן שצמודים למילה.
 
 4. רשימות (_marker): תבליט (תו מהגושים Geometric Shapes או תבליט מ-General Punctuation, או -, *,
    +, –) או מספור ("1.", "1)", "א.", "א)") בתחילת השורה הלוגית, ואחריו רווח וטקסט. רמת הקינון לפי
@@ -52,19 +61,10 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from hebrew_pdf.lines import Geometry, PageText, Piece, join_pieces
+from hebrew_pdf.chars import SAME_SIZE
+from hebrew_pdf.lines import Geometry, PageText, join_lines
 from hebrew_pdf.logical_order import bidi_class
 
-# שני גדלים של אות "שווים" כשהיחס ביניהם עד 1.02: הגודל מגיע מהקובץ (גודל הגופן כפול המטריצה),
-# וגדלים של אותו סגנון שווים בו עד כדי עיגול. בדיקת רגישות (סבב 5, כל הסט): מ-1.005 עד 1.05 מספר
-# הכותרות משתנה בעד 6 מתוך 276, והפסקאות בעד 3
-SAME_SIZE = 1.02
-# כותרת: גדולה מגוף הטקסט פי 1.1 לפחות. ב-CSS, h3 הוא פי 1.17 מהגוף; וריאציות של טקסט רגיל
-# באותו מסמך קטנות מזה (בסט: עד פי 1.05, טקסט בתיבה או שורת פתיחה). כותרת בגודל הגוף (h4 בברירת
-# המחדל של דפדפן) לא מזוהה בלי משקל גופן, ונשארת פסקה. בדיקת רגישות (סבב 5, כל הסט): אין טווח
-# שבו התוצאה זהה, כי הגדלים בסט מפוזרים: 306 כותרות ב-1.03, 286 ב-1.06 עד 1.08, 276 ב-1.1, 249
-# ב-1.15. ההתאמה לכותרות במקור של קובץ הטבלאות זהה בכל הטווח
-HEADING_RATIO = 1.1
 # מרווח "רגיל" בגוש: עד פי 1.15 מהמרווח של השורות שנשברו. בתוך פסקה המרווח זהה עד כדי עיגול,
 # חוץ משורה שיש בה תו גבוה יותר (נמדד ב-Google Docs: עד פי 1.09); פסקה חדשה מוסיפה רווח
 # (נמדד בדוח הכספי: פי 1.17 בגבול בין פסקאות). בדיקת רגישות (סבב 5, כל הסט): מ-1.02 עד 1.3 מספר
@@ -175,15 +175,15 @@ def build_markdown(pages: Sequence[PageText]) -> Markdown:
     dropped = _running_lines(pages, units)
     kept = [[u for u in page_units if not (isinstance(u, _Unit) and (number, *u.key) in dropped)]
             for number, page_units in enumerate(units, 1)]
-    levels, size_of = _size_levels(kept)
+    sizes = _Sizes.of(kept)
     rtl = pages[0].rtl_document if pages else True
-    runs = [_runs(page_units, size_of) for page_units in kept]
+    runs = [_runs(page_units, sizes.size_of) for page_units in kept]
     document_steps = _document_steps(runs)
     blocks: list[Block] = []
     repeated: list[tuple[str, ...]] = []
     for number, (page_units, page_runs) in enumerate(zip(kept, runs), 1):
         continues = _continues(page_runs, document_steps)
-        _page_blocks(number, page_units, levels, size_of, rtl, continues, blocks, repeated)
+        _page_blocks(number, page_units, sizes, rtl, continues, blocks, repeated)
     text, markers = _render(blocks, len(pages))
     return Markdown(text, tuple(blocks), tuple(sorted(dropped)), tuple(markers), tuple(repeated))
 
@@ -254,31 +254,53 @@ def _visible_length(text: str) -> int:
     return sum(1 for char in text if char != "\t" and unicodedata.category(char) != "Zs")
 
 
-def _size_levels(pages: list[list]) -> tuple[dict[float, int], dict]:
-    """רמת הכותרת לכל גודל (0: גוף או קטן ממנו), והגודל המייצג של כל גודל (גדלים שווים עד SAME_SIZE)."""
-    weight: Counter = Counter()
-    for page_units in pages:
-        for unit in page_units:
-            if isinstance(unit, _Unit) and unit.geometry.size > 0:
-                weight[unit.geometry.size] += _visible_length(unit.text)
-    clusters: list[list[float]] = []
-    for size in sorted(weight):
-        if clusters and size <= clusters[-1][0] * SAME_SIZE:
-            clusters[-1].append(size)
-        else:
-            clusters.append([size])
-    size_of = {}
-    representative = []
-    for cluster in clusters:
-        main = max(cluster, key=lambda s: (weight[s], s))
-        representative.append((main, sum(weight[s] for s in cluster)))
-        for size in cluster:
-            size_of[size] = main
-    if not representative:
-        return {}, size_of
-    body = max(representative, key=lambda item: (item[1], -item[0]))[0]
-    larger = sorted((s for s, _ in representative if s >= body * HEADING_RATIO), reverse=True)
-    return {size: min(i + 1, MAX_LEVEL) for i, size in enumerate(larger)}, size_of
+@dataclass(frozen=True)
+class _Sizes:
+    """קבוצות הגודל של המסמך (סעיף 2 בראש הקובץ): הגודל המייצג של כל גודל (גדלים שווים עד SAME_SIZE),
+    רמת הכותרת של כל קבוצה שגדולה מהגוף, וגופן הגוף."""
+    size_of: dict
+    levels: dict
+    body_font: str
+
+    @staticmethod
+    def of(pages: list[list]) -> "_Sizes":
+        weight: Counter = Counter()
+        for page_units in pages:
+            for unit in page_units:
+                if isinstance(unit, _Unit) and unit.geometry.size > 0:
+                    weight[unit.geometry.size] += _visible_length(unit.text)
+        clusters: list[list[float]] = []
+        for size in sorted(weight):
+            if clusters and size <= clusters[-1][0] * SAME_SIZE:
+                clusters[-1].append(size)
+            else:
+                clusters.append([size])
+        size_of = {}
+        representative = []
+        for cluster in clusters:
+            main = max(cluster, key=lambda s: (weight[s], s))
+            representative.append((main, sum(weight[s] for s in cluster)))
+            for size in cluster:
+                size_of[size] = main
+        if not representative:
+            return _Sizes(size_of, {}, "")
+        body = max(representative, key=lambda item: (item[1], -item[0]))[0]
+        fonts: Counter = Counter()
+        for page_units in pages:
+            for unit in page_units:
+                if isinstance(unit, _Unit) and size_of.get(unit.geometry.size) == body:
+                    fonts[unit.geometry.font] += _visible_length(unit.text)
+        body_font = max(fonts, key=lambda f: (fonts[f], f)) if fonts else ""
+        larger = sorted((s for s, _ in representative if s > body), reverse=True)
+        return _Sizes(size_of, {size: min(i + 1, MAX_LEVEL) for i, size in enumerate(larger)}, body_font)
+
+    def level(self, geometry: Geometry) -> int:
+        """רמת הכותרת של שורה (0: לא כותרת): קבוצת גודל גדולה מהגוף, בגופן אחר מגופן הגוף. כשאחד
+        מהשמות לא ידוע ("") אין ראיה מהגופן, והגודל מכריע לבד."""
+        level = self.levels.get(self.size_of.get(geometry.size, geometry.size), 0)
+        if level and geometry.font and self.body_font and geometry.font == self.body_font:
+            return 0
+        return level
 
 
 def _marker(text: str) -> tuple[str, str] | None:
@@ -316,7 +338,7 @@ class _Draft:
     """בלוק בבנייה: היחידות שלו, ובפריט גם הסימן וההזחה."""
     kind: str
     level: int
-    pieces: list[Piece]
+    pieces: list[str]  # הטקסט של כל שורה בעמוד שבבלוק
     marker: str = ""
     indent: float = 0.0
     glyph: float = 0.0
@@ -327,37 +349,52 @@ def _frame(units: list) -> float:
     return max((u.geometry.width for u in units if isinstance(u, _Unit) and not u.alone), default=0.0)
 
 
-def _page_blocks(number: int, units: list, levels: dict, size_of: dict, rtl: bool, continues: dict[int, bool],
+def _page_blocks(number: int, units: list, sizes: "_Sizes", rtl: bool, continues: dict[int, bool],
                  blocks: list[Block], repeated: list[tuple[str, ...]]) -> None:
     text_units = [u for u in units if isinstance(u, _Unit) and not u.alone]
-    frame = _frame(units)
     # הקצה שממנו מתחילה הקריאה: ההזחה של פריט נמדדת ממנו
     start_edge = (max((u.geometry.right for u in text_units), default=0.0) if rtl
                   else min((u.geometry.left for u in text_units), default=0.0))
     drafts: list = []  # _Draft או _Table, לפי הסדר
+    numbered_heading = [_numbered_heading(unit, sizes) for unit in units]
     for i, unit in enumerate(units):
         if isinstance(unit, _Table):
             drafts.append(unit)
             continue
         marked = _marker(unit.text)
+        if marked is not None and numbered_heading[i] and not (
+                (i > 0 and numbered_heading[i - 1] == numbered_heading[i])
+                or (i + 1 < len(units) and numbered_heading[i + 1] == numbered_heading[i])):
+            marked = None  # מספור בגודל של כותרת, בלי שורה ממוספרת באותו גודל לידו: כותרת ממוספרת
         # continues נכון רק כשהיחידה הקודמת היא שורה רגילה (לא טבלה ולא רכיב), ולכן drafts[-1] הוא שלה
         if marked is None and continues.get(i):
-            drafts[-1].pieces.append(_piece(unit.text, unit.geometry))
+            drafts[-1].pieces.append(unit.text)
             continue
         geometry = unit.geometry
         if marked is not None:
             indent = start_edge - geometry.right if rtl else geometry.left - start_edge
-            drafts.append(_Draft("item", 0, [_piece(marked[1], geometry)], marked[0], indent, geometry.glyph))
+            drafts.append(_Draft("item", 0, [marked[1]], marked[0], indent, geometry.glyph))
         else:
-            level = levels.get(size_of.get(geometry.size, geometry.size), 0)
-            drafts.append(_Draft("heading" if level else "paragraph", level, [_piece(unit.text, geometry)]))
+            level = sizes.level(geometry)
+            drafts.append(_Draft("heading" if level else "paragraph", level, [unit.text]))
     _nest(drafts)
     for draft in drafts:
         if isinstance(draft, _Table):
             _add_table(number, draft, draft is drafts[0], blocks, repeated)
         else:
-            text = join_pieces(draft.pieces, frame) if len(draft.pieces) > 1 else draft.pieces[0].text
+            text = join_lines(draft.pieces)
             blocks.append(Block(draft.kind, number, text, draft.level, draft.marker))
+
+
+def _numbered_heading(unit, sizes: "_Sizes") -> int | None:
+    """רמת הכותרת של שורה שמתחילה במספור ("1.", "3)") ושהיא בגודל ובגופן של כותרת (_Sizes.level);
+    אחרת None. שתי שורות סמוכות עם אותה רמה הן רשימה ממוספרת, לא כותרות (_page_blocks)."""
+    if not isinstance(unit, _Unit) or unit.alone:
+        return None
+    marked = _marker(unit.text)
+    if marked is None or not _NUMBERED.fullmatch(marked[0]):
+        return None
+    return sizes.level(unit.geometry) or None
 
 
 def _nest(drafts: list) -> None:
@@ -380,10 +417,6 @@ def _nest(drafts: list) -> None:
         for item in items:
             item.level = max(k for k, value in enumerate(indents) if item.indent - value >= -glyph)
         i = end
-
-
-def _piece(text: str, geometry: Geometry) -> Piece:
-    return Piece(text, geometry.width, geometry.glyph)
 
 
 @dataclass(frozen=True)

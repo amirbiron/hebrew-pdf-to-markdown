@@ -53,6 +53,26 @@ class FontSizeTest(unittest.TestCase):
         self.assertIn(12.0, sizes)
 
 
+class FontNameTest(unittest.TestCase):
+    """שם הגופן של כל אות (chars.font_name), שהכותרות נשענות עליו (hebrew_pdf/markdown.py, סעיף 2). נמדד
+    ב-pypdfium2 5.13.0 (PDFium 153.0.7999.0): בקבצים של WeasyPrint, Aspose ו-Canva יש לשם תג של תת-קבוצה
+    ("XKQQSR+DejaVu-Sans"), וב-Chrome השם ריק לכל האותיות."""
+
+    @staticmethod
+    def fonts(file_name: str, page: int) -> collections.Counter:
+        with pdfium.PdfDocument(str(DEFAULT_PDFS / file_name)) as pdf:
+            return collections.Counter(c.font for c in page_chars(pdf[page]).chars if c.text.strip())
+
+    def test_names_without_the_subset_tag(self):
+        fonts = self.fonts("spec_weasyprint.pdf", 0)
+        self.assertEqual(fonts.most_common(1)[0][0], "DejaVu-Sans")
+        self.assertIn("DejaVu-Sans-Bold", fonts)
+        self.assertFalse([name for name in fonts if "+" in name])
+
+    def test_chrome_has_no_names(self):
+        self.assertEqual(set(self.fonts("optimization_chrome.pdf", 0)), {""})
+
+
 class RowSourceTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
