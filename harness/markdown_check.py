@@ -26,7 +26,6 @@ autolink, tagfilter, strikethrough ו-tasklist (cmarkgfm/cmark.py). בלי CMARK
 באות חזקה שאינה עברית (hebrew_pdf.markdown.first_strong), ותאים של טבלה בנפרד.
 """
 
-import unicodedata
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -36,18 +35,11 @@ import cmarkgfm
 from harness.html_structure import HtmlBlock, ParsedHtml, parse
 from hebrew_pdf.lines import PageText
 from hebrew_pdf.markdown import Markdown, first_strong
-
-_SPACES = frozenset("\t\n\r\f\v")
-
+# אותה ספירה של אותיות בלי רווחים כמו בציון של העמוד (ציר השלמות): מקום אחד לכלל
+from hebrew_pdf.score import visible_chars
 
 def to_html(markdown: str) -> str:
     return cmarkgfm.github_flavored_markdown_to_html(markdown)
-
-
-def visible_chars(text: str) -> Counter:
-    """האותיות של טקסט בלי רווחים: קטגוריה Zs ב-Unicode, וטאב ושורה חדשה. לא str.isspace(), שמחשיב
-    גם את U+001C עד U+001F, ובקבצים אלה אותיות שמופו בטעות (harness/textdiff.py)."""
-    return Counter(char for char in text if char not in _SPACES and unicodedata.category(char) != "Zs")
 
 
 @dataclass(frozen=True)
