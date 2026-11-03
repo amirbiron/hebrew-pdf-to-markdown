@@ -224,6 +224,40 @@ class RunningLinesTest(unittest.TestCase):
     def test_a_single_page_drops_nothing(self):
         self.assertEqual(build_markdown([page(line("שם המסמך", 780))]).dropped, ())
 
+    # טקסט שונה בכל עמוד, בלי ספרות: ספרות נחשבות זהות (_signature), ו"עמוד 3" היה חוזר בכל העמודים
+    WORDS = ("אלף", "בית", "גימל", "דלת", "הא", "וו", "זין", "חית")
+
+    @classmethod
+    def pages_with_header(cls, header_on: set[int], count: int, empty: frozenset[int] = frozenset()) -> list[PageText]:
+        return [page() if n in empty else
+                page(line("שם החלק" if n in header_on else "פתיחה " + cls.WORDS[n - 1], 780),
+                     line("גוף " + cls.WORDS[n - 1], 400))
+                for n in range(1, count + 1)]
+
+    def test_a_header_on_a_run_of_pages_is_dropped_even_on_a_minority(self):
+        # כמו בדוח הכספי: הכותרת של חלק חוזרת רק בעמודים שלו. 3 מתוך 8 עמודים אינם רוב
+        built = build_markdown(self.pages_with_header({4, 5, 6}, 8))
+        self.assertNotIn("שם החלק", shown(built.text))
+        self.assertEqual(sorted(p for p, *_ in built.dropped), [4, 5, 6])
+
+    def test_two_pages_are_not_a_run(self):
+        built = build_markdown(self.pages_with_header({4, 5}, 8))
+        self.assertEqual(shown(built.text).count("שם החלק"), 2)
+
+    def test_a_page_without_text_does_not_break_a_run(self):
+        # כמו עמוד שהוא תמונה בספר GPS: אין בו ראיה לכאן או לכאן
+        built = build_markdown(self.pages_with_header({2, 3, 5}, 8, empty=frozenset({4})))
+        self.assertNotIn("שם החלק", shown(built.text))
+
+    def test_a_larger_title_near_a_running_header_is_not_the_same_place(self):
+        # כמו במצגת: שם החלק בגודל 30 בשקופית הפותחת, ובראש השקופיות שאחריה בגודל 14, 30 נקודות מעליו
+        opening = page(line("שם החלק", 750, size=30.0), line("גוף " + self.WORDS[0], 400))
+        following = [page(line("שם החלק", 780, size=14.0), line("גוף " + self.WORDS[n - 1], 400)) for n in (2, 3, 4)]
+        others = [page(line("פתיחה " + self.WORDS[n - 1], 700), line("גוף " + self.WORDS[n - 1], 400)) for n in (5, 6, 7, 8)]
+        built = build_markdown([opening, *following, *others])
+        self.assertEqual(sorted(p for p, *_ in built.dropped), [2, 3, 4])
+        self.assertEqual(shown(built.text).count("שם החלק"), 1)
+
 
 class PageMarkerTest(unittest.TestCase):
     def test_every_page_has_a_marker_in_order(self):
