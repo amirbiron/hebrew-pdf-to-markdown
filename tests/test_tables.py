@@ -6,6 +6,8 @@
 ייפרדו בלי שמישהו ישים לב.
 """
 
+import contextlib
+import io
 import json
 import shutil
 import tempfile
@@ -17,7 +19,7 @@ import pypdfium2 as pdfium
 
 from harness.reader import read_pages
 from harness.labels import COLUMNS
-from harness.run import DEFAULT_PDFS, DEFAULT_TRUTH, evaluate, render_report
+from harness.run import DEFAULT_PDFS, DEFAULT_TRUTH, evaluate, main
 from harness.html_structure import HtmlBlock
 from harness.tables import TruthFileError, TruthTable, load_blocks, load_truth, pdf_names, score_tables
 from prototype import hebrew_pdf_prototype as prototype
@@ -150,9 +152,9 @@ class ScoreTest(unittest.TestCase):
 
 
 class SourceWithoutTablesTest(unittest.TestCase):
-    """מקור בלי טבלאות נמדד במבנה, דרך אותו evaluate ואותו דוח ש-python -m harness מריץ."""
+    """מקור בלי טבלאות נמדד במבנה, דרך אותה פקודה ש-python -m harness מריץ (main): הדוח וגם מה שמודפס למסך."""
 
-    def test_its_structure_is_measured_and_no_table_score_is_reported(self):
+    def test_its_structure_is_measured_and_no_cell_score_is_shown(self):
         with tempfile.TemporaryDirectory() as tmp:
             pdfs, truth, labels = Path(tmp) / "pdfs", Path(tmp) / "truth", Path(tmp) / "labels.md"
             pdfs.mkdir()
@@ -162,12 +164,28 @@ class SourceWithoutTablesTest(unittest.TestCase):
             (truth / "plain.truth.json").write_text(
                 json.dumps({"blocks": [{"kind": "paragraph", "text": "פסקה"}]}), encoding="utf-8")
             ev = evaluate(pdfs, labels, truth_dir=truth)
-            report = render_report(ev)
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                code = main(["--pdfs", str(pdfs), "--labels", str(labels), "--truth", str(truth),
+                             "--output", str(Path(tmp) / "report.md"), "--markdown-dir", str(Path(tmp) / "md")])
+            report = (Path(tmp) / "report.md").read_text(encoding="utf-8")
+        self.assertEqual(code, 0)
         self.assertEqual(ev.tables, [])  # אין טבלאות במקור: אין ציון טבלאות של 0 מתוך 0
-        self.assertEqual([(s.pdf, s.tables_source, s.paragraphs.source) for s in ev.sources],
-                         [("plain_weasyprint.pdf", 0, 1)])
-        self.assertIn("#### plain_weasyprint.pdf", report)
+        self.assertEqual([(s.pdf, s.tables_source, s.cells, s.paragraphs.source) for s in ev.sources],
+                         [("plain_weasyprint.pdf", 0, None, 1)])
         self.assertNotIn("## טבלאות מול דף תשובות", report)
+        # שלושת המקומות שבהם מופיע המבנה של הקובץ: שורת הסיכום, הסעיף שלו, והשורה שמודפסת למסך. בכולם
+        # המבנה (טבלאות, כותרות, פריטים, פסקאות) מוצג, ומדד התאים לא
+        summary = [line for line in report.split("\n") if line.startswith("| מבנה אחרי סיבוב ב-Markdown (plain")]
+        section = report.split("#### plain_weasyprint.pdf", 1)[1].split("\n## ", 1)[0]
+        screen = [line for line in printed.getvalue().split("\n") if line.startswith("מבנה (plain")]
+        self.assertEqual((len(summary), len(screen)), (1, 1))
+        for where, text in (("summary", summary[0]), ("section", section), ("screen", screen[0])):
+            with self.subTest(where=where):
+                self.assertIn("פסקאות", text)
+                self.assertIn("טבלאות", text)
+                self.assertNotIn("תאים", text)
+                self.assertNotIn("שורות זהות", text)
 
 
 class RepoTruthFileTest(unittest.TestCase):
