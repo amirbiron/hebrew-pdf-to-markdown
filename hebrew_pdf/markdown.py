@@ -45,6 +45,8 @@
 4. רשימות (_marker): תבליט (תו מהגושים Geometric Shapes או תבליט מ-General Punctuation, או -, *,
    +, –) או מספור ("1.", "1)", "א.", "א)") בתחילת השורה הלוגית, ואחריו רווח וטקסט. רמת הקינון לפי
    ההזחה מהקצה שממנו מתחילה הקריאה (במסמך עברי: מימין).
+   ותבליט מצויר (מסבב 5ג): צורה ולא תו, לפני השורה (Line.drawn_marker, lines.drawn_marker). ב-Chrome כך
+   מצויר התבליט של רשימה. אין לו תו בטקסט, ולכן הסימן של הפריט ריק, והוא לא נספר ב-Markdown.markers.
 
 5. רכיבים שאינם טבלה (שורה עם כמה רכיבים, layout.py): כל רכיב כפסקה משלו, לפי סדר הקריאה.
 
@@ -154,7 +156,7 @@ class Block:
     page: int  # העמוד שבו הבלוק מתחיל, מ-1
     text: str = ""  # heading, paragraph, item: הטקסט הלוגי, בלי סימון ובלי הסימן של הפריט
     level: int = 0  # heading: 1 עד 6. item: עומק הקינון, מ-0
-    marker: str = ""  # item: הסימן כמו שהוא בשורה ("•", "3.", "א.")
+    marker: str = ""  # item: הסימן כמו שהוא בשורה ("•", "3.", "א."). "": תבליט מצויר, בלי תו (סעיף 4)
     rows: tuple[tuple[str, ...], ...] = ()  # table: השורות, והראשונה היא שורת הכותרת
     # table: השורות שבהן מתחיל עמוד חדש בתוך הטבלה: (אינדקס ב-rows, מספר העמוד)
     page_starts: tuple[tuple[int, int], ...] = ()
@@ -180,6 +182,7 @@ class _Unit:
     line: int  # האינדקס ב-PageText.lines
     alone: bool  # רכיב משורה עם כמה רכיבים: פסקה משלו, לא מתחבר לשורות סמוכות
     part: int = 0  # האינדקס של הרכיב ב-Line.parts
+    drawn_marker: bool = False  # Line.drawn_marker: לפני השורה מצויר תבליט (סעיף 4)
 
     @property
     def key(self) -> tuple[int, int]:
@@ -226,7 +229,7 @@ def _page_units(page: PageText) -> list:
         if len(line.parts) > 1:
             out.extend(_Unit(part.text, part.geometry, index, True, k) for k, part in enumerate(line.parts) if part.text)
         elif line.text:
-            out.append(_Unit(line.text, line.geometry, index, False))
+            out.append(_Unit(line.text, line.geometry, index, False, drawn_marker=line.drawn_marker))
     return out
 
 
@@ -400,6 +403,8 @@ def _page_blocks(number: int, units: list, sizes: "_Sizes", rtl: bool, continues
                 (i > 0 and numbered_heading[i - 1] == numbered_heading[i])
                 or (i + 1 < len(units) and numbered_heading[i + 1] == numbered_heading[i])):
             marked = None  # מספור בגודל של כותרת, בלי שורה ממוספרת באותו גודל לידו: כותרת ממוספרת
+        if marked is None and unit.drawn_marker:
+            marked = ("", unit.text)  # תבליט מצויר: כל הטקסט הוא התוכן של הפריט
         # continues נכון רק כשהיחידה הקודמת היא שורה רגילה (לא טבלה ולא רכיב), ולכן drafts[-1] הוא שלה
         if marked is None and continues.get(i):
             drafts[-1].pieces.append(unit.text)
@@ -598,7 +603,7 @@ def _list(items: list[Block], markers: list[str]) -> list[str]:
             following = None
             if numbered:  # אות עברית: נשארת בטקסט
                 content = escape_text(item.marker) + " " + content
-            else:
+            elif item.marker:  # תבליט מצויר (סימן ריק) אינו תו בטקסט, ואין מה לנכות
                 markers.append(item.marker)
         lines.append(" " * sum(width for _, width, _ in stack) + mark + " " + content)
         stack.append((item.level, len(mark) + 1, following))

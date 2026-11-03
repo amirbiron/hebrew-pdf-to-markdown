@@ -13,7 +13,7 @@ from harness.run import DEFAULT_PDFS
 from harness.textdiff import normalize
 from hebrew_pdf.chars import Char
 from hebrew_pdf.layout import COMPONENT_GAP, page_layout, page_line, usual_word_gap
-from hebrew_pdf.lines import _line, table_rows
+from hebrew_pdf.lines import Geometry, _line, drawn_marker, table_rows
 from hebrew_pdf.spacing import space_by_gaps
 
 WIDTH, HEIGHT, WORD = 5.0, 10.0, 2.0
@@ -242,6 +242,37 @@ class TableRowsTest(unittest.TestCase):
                 [(200, "more")]]
         _, rows = build(page, verticals=(190.0,))
         self.assertEqual(rows, [("2", "first"), ("3", "second more")])
+
+
+class DrawnMarkerTest(unittest.TestCase):
+    """תבליט מצויר (hebrew_pdf/lines.drawn_marker): צורה בגודל של אות, בקצה שממנו מתחילה הקריאה, וממורכזת
+    אנכית לשורה. המידות כמו בעיגול של Chrome במסמך האפיון: אות בגודל 10, הטקסט נגמר מימין ב-519.5, והעיגול
+    ברוחב 3 ב-527.8, 1.5 נקודות מעל קו הבסיס."""
+    LINE = Geometry(557.7, 60.0, 519.5, 10.0, 5.0)
+    DISC = (527.8, 559.2, 530.8, 562.2)
+
+    def test_the_disc_of_chrome(self):
+        self.assertTrue(drawn_marker(self.LINE, [self.DISC], True))
+
+    def test_only_at_the_edge_where_reading_starts(self):
+        # במסמך שנקרא משמאל לימין אותו עיגול נמצא בסוף השורה
+        self.assertFalse(drawn_marker(self.LINE, [self.DISC], False))
+        self.assertTrue(drawn_marker(self.LINE, [(50.0, 559.2, 53.0, 562.2)], False))
+
+    def test_what_is_not_a_bullet(self):
+        cases = {
+            "קטן מדי: מפגש של קווי מסגרת בדוח הכספי, 0.05 מגודל האות": (527.8, 560.0, 528.3, 560.5),
+            "גדול מאות": (527.8, 552.0, 540.0, 564.0),
+            "לא ממורכז לשורה: מתחת לקו הבסיס": (527.8, 551.0, 530.8, 554.0),
+            "רחוק מהטקסט: יותר מ-MAX_MARK_GAP": (550.0, 559.2, 553.0, 562.2),
+            "על הטקסט, לא לפניו": (510.0, 559.2, 513.0, 562.2),
+        }
+        for name, mark in cases.items():
+            with self.subTest(name):
+                self.assertFalse(drawn_marker(self.LINE, [mark], True))
+
+    def test_a_line_without_size_has_no_marker(self):
+        self.assertFalse(drawn_marker(Geometry(557.7, 60.0, 519.5, 0.0, 5.0), [self.DISC], True))
 
 
 class RealLinesTest(unittest.TestCase):

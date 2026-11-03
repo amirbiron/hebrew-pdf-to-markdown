@@ -9,6 +9,7 @@ import unittest
 import cmarkgfm
 
 from harness import markdown_check as mc
+from harness.html_structure import HtmlBlock
 from hebrew_pdf.lines import Component, Geometry, Line, PageText, RowSource
 from hebrew_pdf.markdown import Markdown, build_markdown, escape_text, first_strong
 
@@ -16,8 +17,8 @@ LEFT, RIGHT = 100.0, 500.0  # רוחב המסגרת: 400
 
 
 def line(text: str, y: float, *, left: float = LEFT, right: float = RIGHT, size: float = 10.0,
-         glyph: float = 5.0, font: str = "") -> Line:
-    return Line(text, text[::-1], True, geometry=Geometry(y, left, right, size, glyph, font))
+         glyph: float = 5.0, font: str = "", drawn: bool = False) -> Line:
+    return Line(text, text[::-1], True, geometry=Geometry(y, left, right, size, glyph, font), drawn_marker=drawn)
 
 
 def page(*lines: Line, rows=None, sources=None) -> PageText:
@@ -181,6 +182,21 @@ class ListTest(unittest.TestCase):
         built = self.build(("א. סעיף ראשון", 0))
         self.assertEqual([t for tag, t in html(built).blocks if tag == "li"], ["א. סעיף ראשון"])
         self.assertEqual(built.markers, ())
+
+    def test_a_drawn_bullet_is_an_item_without_a_text_marker(self):
+        # כמו ב-Chrome: התבליט מצויר כצורה, ואין לו תו בטקסט. שורת ההמשך של הפריט (בלי תבליט) חלק ממנו
+        pages = [page(line("פריט ראשון שנשבר בסוף השורה כי הוא ארוך מאוד ומגיע עד הקצה", 700, drawn=True),
+                      line("והמשך שלו", 686, right=RIGHT),
+                      line("פריט שני", 672, drawn=True),
+                      line("פריט פנימי", 658, right=RIGHT - 20, drawn=True))]
+        built = build_markdown(pages)
+        parsed = html(built)
+        self.assertEqual([block for block in parsed.structure if block.kind == "item"],
+                         [HtmlBlock("item", "פריט ראשון שנשבר בסוף השורה כי הוא ארוך מאוד ומגיע עד הקצה והמשך שלו", 0),
+                          HtmlBlock("item", "פריט שני", 0), HtmlBlock("item", "פריט פנימי", 1)])
+        self.assertEqual(built.markers, ())  # אין תו לנכות בבדיקת השלמות
+        result = mc.completeness(pages, built, parsed)
+        self.assertTrue(result.ok)
 
     def test_a_dash_without_text_is_not_an_item(self):
         built = self.build(("-", 0))
