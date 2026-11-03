@@ -13,6 +13,12 @@
    ב-11/05/2026 · בתוקף עד 25/05/2026", שורה 13 בתיוג), ותבליטים של Google Docs עם
    פער של פי 8-9. הגבולות הברורים בסט (שורות 2, 8, 11, 21, הפלאייר, כותרות של טבלאות)
    הם מפי 13 ומעלה.
+   וגם פער של פי COLUMN_GAP לפחות שעובר בו קו אנכי מצויר, בגובה של השורה (גבול של תא ברשת,
+   lines.page_rules), הוא גבול בכל מקרה (מסבב 5ג): הקו הוא ראיה לגבול כמו פער גדול מאוד. בלעדיו
+   עמודה צרה, שהפער בינה לבין השכנה שלה הוא רק הריפוד של התאים, לא נמצאה כשאין באף שורה בקטע של
+   הטבלה פער של פי COMPONENT_GAP שיעגן אותה: עמודת "סבב" בטבלה הראשונה של מסמך האפיון (פי 7.2),
+   ו"חובה" מול "ברירת מחדל" בקטעים של קובץ הטבלאות (פי 4.5 עד 8.6), שם הטבלה יצאה בעמוד אחד עם 5
+   עמודות במקום 6 ולא התאחדה עם ההמשך שלה בעמוד הבא.
 
 3. פער קטן יותר הוא גבול רק כשהוא חלק מעמודה: מסדרון ריק אנכי שחוזר בשורות רצופות
    (column_corridors). בטבלה עם עמודה רחבה ושם ארוך שממלא אותה, הפער בין התאים הוא רק
@@ -55,6 +61,8 @@ COMPONENT_GAP = 10.0
 # של COLUMN_GAP בין 1.5 ל-2.9 התוצאה זהה (התיוגים, התאים בשלושת הקבצים עם דף תשובות, הטבלאות, הכותרות
 # והפסקאות). ב-1.4 פסקה אחת משתנה, ומ-3.0 הריפוד בין תאים במסמך האפיון מ-Chrome כבר לא נחשב גבול (2
 # תאים, ו-24 ב-3.6). הערך באמצע הטווח. (בסבב 5, על קובץ הטבלאות הקודם, הטווח היה 1.9 עד 3.3 והערך 2.0.)
+# בסבב 5ג הוא גם הפער המינימלי שבו קו מסגרת אנכי הוא גבול (סעיף 2), ונמדד שוב: אותו טווח, 1.5 עד 2.9,
+# זהה בכל המדדים; ב-1.3 וב-1.4 פסקה אחת בדוח הכספי, ב-3.0 שני תאים באפיון מ-Chrome, ב-3.6 עשרים ואחד
 COLUMN_GAP = 2.2
 # שני פערים "שווים" כשהיחס ביניהם עד 1.25: כך מתקבצים הרווחים של גופן אחד (ב-WeasyPrint הם
 # זהים, וביישור לשני הצדדים של Google Docs הם משתנים בעד כ-20%)
@@ -128,9 +136,11 @@ class PageLayout:
 
 
 def page_layout(lines: Sequence[PageLine], word_gap: float | None,
-                rules: Sequence[tuple[float, float, float]] = ()) -> PageLayout:
+                rules: Sequence[tuple[float, float, float]] = (),
+                verticals: Sequence[tuple[float, float, float]] = ()) -> PageLayout:
     """הגבולות בין רכיבים בכל שורה של העמוד, והעמודות של הטבלאות. word_gap: הפער הרגיל (usual_word_gap).
-    rules: הקווים האופקיים שמצוירים בעמוד (lines.horizontal_rules), לסוף של טבלה (סעיף 5)."""
+    rules: הקווים האופקיים שמצוירים בעמוד (lines.page_rules: שמאל, ימין, y), לסוף של טבלה (סעיף 5).
+    verticals: הקווים האנכיים (lines.page_rules: x, תחתית, ראש), גבולות של תאים (סעיף 2)."""
     boundaries: list[set[int]] = [set() for _ in lines]
     columns: list[tuple[tuple[float, float], ...] | None] = [None] * len(lines)
     if not word_gap:
@@ -139,7 +149,8 @@ def page_layout(lines: Sequence[PageLine], word_gap: float | None,
     found = []  # (שורת הזרע, הבלוק, המסדרונות, התמיכה) לכל פער גדול
     for i, line in enumerate(lines):
         for gap in line.gaps:
-            if gap.ratio < COMPONENT_GAP * word_gap:
+            if gap.ratio < COMPONENT_GAP * word_gap and not (gap.ratio >= COLUMN_GAP * word_gap
+                                                             and _border_in(gap, line, verticals)):
                 continue
             boundaries[i].add(gap.index)
             found.append((i, *_corridor(lines, i, gap, word_gap)))
@@ -172,6 +183,11 @@ def page_layout(lines: Sequence[PageLine], word_gap: float | None,
         else:
             tables.append(tables[-1] if tables and tables[-1] is not None else i)
     return PageLayout(boundaries, columns, tables)
+
+
+def _border_in(gap: Gap, line: PageLine, verticals: Sequence[tuple[float, float, float]]) -> bool:
+    """האם קו אנכי מצויר (x, תחתית, ראש) עובר בתוך הפער, בגובה של קו הבסיס של השורה."""
+    return any(gap.left < x < gap.right and bottom < line.baseline < top for x, bottom, top in verticals)
 
 
 def _corridor(lines: Sequence[PageLine], seed: int, gap: Gap, word_gap: float):
@@ -240,7 +256,7 @@ def _rows_of_the_table(lines: Sequence[PageLine], block: list[int], seed: int, t
 
 
 def rule_between(above: PageLine, below: PageLine, rules: Sequence[tuple[float, float, float]]) -> bool:
-    """האם קו אופקי (lines.horizontal_rules: שמאל, ימין, y) מצויר בין שתי שורות בעמוד, בתחום האופקי של
+    """האם קו אופקי (lines.page_rules: שמאל, ימין, y) מצויר בין שתי שורות בעמוד, בתחום האופקי של
     השורה התחתונה: מתחת לקו הבסיס של העליונה בחמישית מגובה השורה (מתחת לאותיות היורדות), ומעל קו
     הבסיס של התחתונה בשש עשיריות מגובה השורה. (הועבר כמו שהוא מ-lines._new_rows, סבב 4.)"""
     top, bottom = below.baseline + 0.6 * below.height, above.baseline - 0.2 * above.height

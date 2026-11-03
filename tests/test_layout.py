@@ -40,16 +40,17 @@ def build(page: list[list[tuple[float, str]]], rtl: bool = False, rules_above: t
 
     rules_above: השורות שמעליהן מצויר קו אופקי לרוחב כל העמוד (קו מסגרת של טבלה).
     sizes: גודל האות של כל שורה (Char.size); בלי: 0 לכל השורות.
-    verticals: ה-x של קווים אנכיים לגובה כל העמוד (גבולות של תאים ברשת).
+    verticals: ה-x של קווים אנכיים לגובה כל העמוד (גבולות של תאים ברשת). כמו בקורא (lines.read_document),
+    הם עוברים גם לגבולות בין הרכיבים (page_layout) וגם לשורות של הטבלה (table_rows).
     """
     sizes = sizes or (0.0,) * len(page)
     spaced = [space_by_gaps(chars(segments, -15.0 * i, size)) for i, (segments, size) in enumerate(zip(page, sizes))]
     lines = [page_line(s.chars) for s in spaced]
     rules = [(-10.0, 400.0, -15.0 * i + 9) for i in rules_above]
-    layout = page_layout(lines, USUAL, rules)
+    vertical = [(x, -15.0 * len(page), 15.0) for x in verticals]
+    layout = page_layout(lines, USUAL, rules, vertical)
     built = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts) for i, (line, s) in
              enumerate(zip(lines, spaced))]
-    vertical = [(x, -15.0 * len(page), 15.0) for x in verticals]
     return built, table_rows(built, layout.tables, lines, rules, vertical)
 
 
@@ -130,6 +131,19 @@ class TableTest(unittest.TestCase):
                 [(0, "c3"), (60, "last"), (200, "MN")]]
         _, rows = build(page, rules_above=(0, 2, 3), verticals=(50.0, 190.0))
         self.assertEqual(rows, [("c1", "desc more", "ABCDEFGH IJ"), ("c2", "a wider one", "KL"), ("c3", "last", "MN")])
+
+    def test_a_drawn_border_in_a_moderate_gap_is_a_boundary(self):
+        # כמו עמודת "סבב" במסמך האפיון ו"חובה" בקובץ הטבלאות: עמודה צרה, והפער בינה לבין השכנה שלה הוא פי 5
+        # בכל השורות, פחות מ-COMPONENT_GAP, כך שאין פער שיעגן אותה. קו המסגרת שבתוך הפער הוא הראיה לגבול
+        page = [[(0, "name1"), (25 + gap(5), "y"), (120, "description")],
+                [(0, "name2"), (25 + gap(5), "n"), (120, "other text")],
+                [(0, "name3"), (25 + gap(5), "y"), (120, "last one")]]
+        border = 25 + gap(5) / 2
+        _, rows = build(page, verticals=(border, 100.0))
+        self.assertEqual(rows, [("name1", "y", "description"), ("name2", "n", "other text"), ("name3", "y", "last one")])
+        # בלי הקו (או כשהוא לא בתוך הפער) הפער של פי 5 לא גבול, כמו קודם
+        _, rows = build(page, verticals=(100.0,))
+        self.assertEqual(rows[0], ("name1 y", "description"))
 
     def test_a_single_word_as_wide_as_its_column_joins_with_a_space(self):
         # עד סבב 5ב מילה אחת שממלאת את רוחב העמודה נחשבה מילה שנשברה באמצע, וחוברה בלי רווח
@@ -254,6 +268,13 @@ class RealLinesTest(unittest.TestCase):
         rows = [tuple(normalize(c) for c in row) for row in read_pages(DEFAULT_PDFS / "env-vars_weasyprint.pdf")[0].rows]
         self.assertIn(("MONGODB_HEARTBEAT_FREQUENCY_MS", "תדירות בדיקת החיים של הדרייבר מול שרתי מונגו (heartbeatFrequencyMS)",
                        "לא", "10000", "20000", "Bot/WebApp/MCP/Webserver"), rows)
+
+    def test_a_narrow_column_with_a_drawn_border(self):
+        # עמודת "סבב" בטבלה הראשונה של מסמך האפיון, בשתי התוכנות: עד סבב 5ג "1" ו"מערך בדיקה..." יצאו תא אחד
+        for name in ("spec_weasyprint.pdf", "spec_chrome.pdf"):
+            with self.subTest(file=name):
+                rows = [tuple(normalize(c) for c in row) for row in read_pages(DEFAULT_PDFS / name)[0].rows]
+                self.assertIn(("1", "מערך בדיקה, ו-40 שורות מתויגות ומאושרות", "11 (האב-טיפוס)", "—"), rows)
 
     def test_the_table_file_is_a_hebrew_document(self):
         # רוב האותיות בו לטיניות (שמות משתנים), אבל רוב השורות עבריות

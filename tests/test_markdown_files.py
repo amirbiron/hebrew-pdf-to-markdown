@@ -123,6 +123,14 @@ class AllFilesTest(unittest.TestCase):
             with self.subTest(file=name):
                 self.assertFalse(controls & set(build_markdown(pages).text))
 
+    def test_tables_across_pages_join_into_the_tables_of_the_source(self):
+        # קובץ הטבלאות: 6 טבלאות במקור, שנמשכות על 26 עמודים. עד סבב 5ג יצאו 9: קטע של טבלה שבו עמודה צרה
+        # לא נמצאה ("חובה" מול "ברירת מחדל"), קיבל 5 עמודות ולא התאחד עם ההמשך שלו בעמוד הבא
+        truth = load_truth(DEFAULT_TRUTH / "env-vars.truth.json")
+        parsed = mc.parse(mc.to_html(build_markdown(self.files[TABLE_FILE.name]).text))
+        self.assertEqual(len(parsed.tables), len(truth))
+        self.assertEqual([len(table[0]) for table in parsed.tables], [len(t.header) for t in truth])
+
     def test_the_round_trip_loses_no_table_cell(self):
         # התאים שהמפרסר מוציא מה-Markdown זהים לדף התשובות בדיוק כמו התאים של הקורא
         truth = load_truth(DEFAULT_TRUTH / "env-vars.truth.json")

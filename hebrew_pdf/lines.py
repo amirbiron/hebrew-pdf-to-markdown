@@ -209,7 +209,7 @@ def read_document(pdf) -> list[PageText]:
         ratios = [g.ratio for line in lines for g in line.gaps]
         word_gap = usual_word_gap(ratios) if len(ratios) >= MIN_PAGE_GAPS else document_gap
         rules, verticals = page_rules(pdf_page)
-        layout = page_layout(lines, word_gap, rules)
+        layout = page_layout(lines, word_gap, rules, verticals)
         page_lines = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts)
                       for i, (line, s) in enumerate(zip(lines, spaced))]
         merged = _merged_rows(page_lines, layout.tables, lines, rules, verticals)
