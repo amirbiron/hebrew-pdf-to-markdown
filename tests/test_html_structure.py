@@ -47,6 +47,21 @@ class StructureTest(unittest.TestCase):
         self.assertEqual(page.structure, [HtmlBlock("paragraph", "גלוי")])
         self.assertEqual((page.headings, page.items, page.blocks, page.tables), ([], 0, [("p", "גלוי")], []))
 
+    def test_an_element_with_the_hidden_attribute_is_not_shown(self):
+        # כל ערך של hidden מסתיר, גם until-found וגם ערך לא חוקי (HTML, "The hidden attribute"). ובתוך הרכיב
+        # המוסתר יש div פנימי: ההסתרה נגמרת בתגית הסוגרת של הרכיב שהתחיל אותה, לא ב-</div> הראשון
+        page = parse('<div hidden><h2>סודי</h2><div><p>פנימי</p></div><ul><li>פריט</li></ul></div>'
+                     '<p hidden="until-found">גם</p><section hidden="foo"><p>וגם</p></section><p>גלוי</p>')
+        self.assertEqual(page.structure, [HtmlBlock("paragraph", "גלוי")])
+        self.assertEqual((page.headings, page.items, page.blocks, "".join(page.text)), ([], 0, [("p", "גלוי")], "גלוי"))
+
+    def test_hiding_ends_with_the_element_that_started_it(self):
+        # תגית הסגירה של הרכיב המוסתר סוגרת גם את מה שנפתח בתוכו ולא נסגר; תגית סגירה בלי רכיב פתוח
+        # בשמה לא מסיימת את ההסתרה; ורכיב ריק (img) עם hidden לא מסתיר את מה שאחריו
+        page = parse('<div hidden><p>לא נסגר</div><p>אחרי</p>'
+                     '<div hidden></span>עדיין מוסתר</div><p><img hidden>טקסט</p>')
+        self.assertEqual(page.structure, [HtmlBlock("paragraph", "אחרי"), HtmlBlock("paragraph", "טקסט")])
+
     def test_text_outside_any_block_is_one_paragraph(self):
         self.assertEqual(parse("<div>טקסט <b>מודגש</b> חופשי</div><p>פסקה</p>").structure,
                          [HtmlBlock("paragraph", "טקסט מודגש חופשי"), HtmlBlock("paragraph", "פסקה")])

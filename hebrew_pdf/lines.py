@@ -1,5 +1,6 @@
 """קיבוץ אותיות לשורות, חלוקת כל שורה לרכיבים, ובניית הטקסט של כל רכיב."""
 
+import ctypes
 import statistics
 from collections import Counter
 from dataclasses import dataclass, field
@@ -14,6 +15,14 @@ from hebrew_pdf.logical_order import document_rtl, to_logical
 from hebrew_pdf.spacing import SpaceCounts, space_by_gaps
 
 BASELINE_TOLERANCE = 2.0  # נקודות PDF: אותיות שקו הבסיס שלהן קרוב עד כדי זה באותה שורה
+# תבליט מצויר (drawn_marker): הצד הארוך של הצורה לפחות MIN_MARK מגודל האות של השורה, והמרחק שלה מהטקסט עד
+# MAX_MARK_GAP מגודל האות. בדיקת רגישות (סבב 5ג, כל הסט; שורות עם תבליט מצויר): לכל MIN_MARK בין 0.1 ל-0.22
+# ולכל MAX_MARK_GAP בין 1.5 ל-2.5 התוצאה זהה: 50 במסמך האפיון מ-Chrome, 67 במצגת, 13 במסמך ההגדרות של
+# Social Publisher, 4 בפלאייר, ו-0 בשאר. ב-0.06 נוסף מפגש של קווי מסגרת בדוח הכספי (ריבוע של 0.05 מגודל
+# האות), ומ-0.24 נעלמים התבליטים של המצגת (0.23). ב-1.25 נעלמים 2 תבליטים במצגת שרחוקים 1.35 מהטקסט, ומ-3
+# נוסף קו אנכי בהצעת המחיר, 2.83 מהטקסט. שני הערכים באמצע הטווח
+MIN_MARK = 0.15
+MAX_MARK_GAP = 2.0
 
 
 @dataclass(frozen=True)
@@ -73,6 +82,9 @@ class Line:
     # בשורה של טבלה: הטקסט של כל עמודה לפי סדר הקריאה, ו-"" לעמודה שאין בה טקסט בשורה
     columns: tuple[str, ...] | None = None
     geometry: Geometry = Geometry()
+    # לפני השורה מצויר תבליט: צורה ולא תו בטקסט, ולכן הוא לא חלק מ-text (drawn_marker). רק בשורה של רכיב
+    # אחד מחוץ לטבלה
+    drawn_marker: bool = False
 
     @property
     def parts(self) -> tuple[Component, ...]:
@@ -164,12 +176,14 @@ def build_line(row: list[Char], rtl_document: bool) -> Line:
     return _line(page_line(spaced.chars), set(), None, rtl_document, spaced.counts)
 
 
-def _line(line: PageLine, boundaries: set[int], columns, rtl_document: bool, counts: SpaceCounts) -> Line:
+def _line(line: PageLine, boundaries: set[int], columns, rtl_document: bool, counts: SpaceCounts,
+          marks: list[tuple[float, float, float, float]] = ()) -> Line:
     """השורה מהרכיבים שלה, ובטבלה גם הטקסט של כל תא בשורה (Line.columns), לפי סדר הקריאה.
 
     הרכיבים בסדר הקריאה: מימין לשמאל במסמך עברי, אחרת משמאל לימין.
     columns: גבולות העמודות כשהשורה בטבלה (layout.PageLayout.columns), אחרת None.
     הרווחים בקצוות של כל רכיב יורדים: רווח נכנס רק בפער בין מילים, ופער של גבול הוא לא חלק מאף רכיב.
+    marks: הצורות שמצוירות בעמוד (page_marks), לתבליט מצויר (drawn_marker).
     """
     parts = split_components(line, boundaries)
     built = [_component(part, rtl_document) for part in parts]
@@ -186,8 +200,37 @@ def _line(line: PageLine, boundaries: set[int], columns, rtl_document: bool, cou
             in_column.reverse()
         cells = tuple(" ".join(built[k].text for k in ks) for ks in in_column)
     rtl = rtl_document or any(c.rtl for c in components)
+    geometry = geometry_of(line.chars)
+    marker = len(components) == 1 and columns is None and drawn_marker(geometry, marks, rtl_document)
     return Line(" ".join(c.text for c in components), "".join(c.text for c in line.chars), rtl,
-                any(c.ambiguous for c in components), counts, components, cells, geometry_of(line.chars))
+                any(c.ambiguous for c in components), counts, components, cells, geometry, marker)
+
+
+def drawn_marker(geometry: Geometry, marks: list[tuple[float, float, float, float]], rtl_document: bool) -> bool:
+    """האם לפני השורה מצויר תבליט: צורה (page_marks) בגודל של אות, בקצה שממנו מתחילה הקריאה וממורכזת
+    אנכית לשורה. כל הגדלים יחסיים לגודל האות של השורה (Geometry.size), ובלי גודל אין תבליט.
+
+    - בגודל של אות: הצד הארוך של הצורה בין MIN_MARK לבין גודל האות.
+    - ממורכזת אנכית: המרכז שלה בין קו הבסיס לגודל האות מעליו.
+    - בקצה שממנו מתחילה הקריאה (במסמך עברי מימין): כולה מחוץ לטקסט של השורה מהצד הזה, עד MAX_MARK_GAP
+      מגודל האות ממנו. השורה בעמוד היא כל האותיות באותו קו בסיס, ולכן אין טקסט שלה בין הצורה לבינו.
+
+    למה צורה: ב-Chrome התבליט של רשימה מצויר כעיגול (48 עיגולים ממולאים ו-2 עיגולים ריקים ברשימה הפנימית,
+    במסמך האפיון), ואין לו תו בשכבת הטקסט. כך גם במצגת (Canva) ובמסמך ההגדרות של Social Publisher.
+    עיגול ריק ולא רק ממולא: כך מצויר התבליט של רשימה פנימית."""
+    size = geometry.size
+    if size <= 0:
+        return False
+    for left, bottom, right, top in marks:
+        longest = max(right - left, top - bottom)
+        if not MIN_MARK * size <= longest <= size:
+            continue
+        if not geometry.baseline < (bottom + top) / 2 < geometry.baseline + size:
+            continue
+        distance = left - geometry.right if rtl_document else geometry.left - right
+        if 0 <= distance <= MAX_MARK_GAP * size:
+            return True
+    return False
 
 
 def read_document(pdf) -> list[PageText]:
@@ -209,8 +252,9 @@ def read_document(pdf) -> list[PageText]:
         ratios = [g.ratio for line in lines for g in line.gaps]
         word_gap = usual_word_gap(ratios) if len(ratios) >= MIN_PAGE_GAPS else document_gap
         rules, verticals = page_rules(pdf_page)
-        layout = page_layout(lines, word_gap, rules)
-        page_lines = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts)
+        layout = page_layout(lines, word_gap, rules, verticals)
+        marks = page_marks(pdf_page)
+        page_lines = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts, marks)
                       for i, (line, s) in enumerate(zip(lines, spaced))]
         merged = _merged_rows(page_lines, layout.tables, lines, rules, verticals)
         width, height = pdf_page.get_size()
@@ -240,6 +284,28 @@ def page_rules(page) -> tuple[list[tuple[float, float, float]], list[tuple[float
         elif width <= 2.0 and height >= 10 * max(width, 0.1):
             vertical.append(((left + right) / 2, bottom, top))
     return horizontal, vertical
+
+
+def page_marks(page) -> list[tuple[float, float, float, float]]:
+    """הצורות שמצוירות בעמוד ונראות, לתבליט מצויר (drawn_marker): (שמאל, תחתית, ימין, ראש).
+
+    צורה היא אובייקט ציור (FPDF_PAGEOBJ_PATH) שממולא או שמצויר לו קו: FPDFPath_GetDrawMode מחזיר את
+    אופן המילוי (אחד מ-FPDF_FILLMODE_*, ו-FPDF_FILLMODE_NONE הוא בלי מילוי) והאם מצויר קו, ו-FALSE בכשל
+    (public/fpdf_edit.h). אובייקט בלי מילוי ובלי קו לא נראה (למשל גבול של חיתוך). התיבה מ-get_bounds,
+    כמו ב-page_rules: היא זורקת PdfiumError כשאין לאובייקט מיקום.
+    """
+    out = []
+    fill, stroke = ctypes.c_int(), ctypes.c_int()
+    for obj in page.get_objects(filter=[pdfium_raw.FPDF_PAGEOBJ_PATH]):
+        try:
+            bounds = obj.get_bounds()
+        except PdfiumError:
+            continue  # אובייקט בלי מיקום על הדף: אי אפשר לשייך אותו לשורה
+        if not pdfium_raw.FPDFPath_GetDrawMode(obj, fill, stroke):
+            continue  # לא ידוע אם הוא נראה, ולכן לא ראיה לתבליט
+        if fill.value != pdfium_raw.FPDF_FILLMODE_NONE or stroke.value:
+            out.append(bounds)
+    return out
 
 
 def table_rows(lines: list[Line], table_of: list[int | None], geometry: list[PageLine],

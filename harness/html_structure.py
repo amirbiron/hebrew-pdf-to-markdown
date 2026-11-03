@@ -15,7 +15,13 @@ quote: בכמה blockquote הבלוק נמצא (0: לא בציטוט).
 
 הטקסט של בלוק הוא מה שמוצג (visible_text): בלי תווי עיצוב בלתי נראים (הקטגוריה Cf ב-Unicode, כמו
 RLM: הם לא מצוירים), ועם רווח אחד במקום כל רצף של רווחים. בבלוק קוד השורות נשמרות.
-הערות HTML (כמו גבולות העמודים, hebrew_pdf/markdown.py), ותוכן של style, script ו-title, אינם טקסט.
+הערות HTML (כמו גבולות העמודים, hebrew_pdf/markdown.py) אינן טקסט, וגם מה שלא מוצג בעמוד: התוכן של
+head, script, style, template ו-title, ושל כל רכיב עם התכונה hidden. לפי HTML, רכיב עם hidden לא מוצג בכל
+ערך שלה: "until-found", ערך ריק, ואפילו ערך לא חוקי ("its invalid value default and empty value default are
+both the Hidden state", https://html.spec.whatwg.org/multipage/interaction.html#the-hidden-attribute).
+ההסתרה נגמרת בתגית הסוגרת של הרכיב שהתחיל אותה (_Hidden), ולא בתגית הסוגרת הראשונה מאותו סוג.
+ההנחה: תגיות הסגירה כתובות במפורש, כמו ש-cmark-gfm מוציא אותן. HTMLParser לא בונה עץ, ולכן רכיב שתגית
+הסגירה שלו הושמטה (<p> שנסגר מעצמו כשמתחיל בלוק אחר) לא נסגר כאן; זה נכון לכל המבנה, לא רק להסתרה.
 """
 
 import re
@@ -26,6 +32,10 @@ from html.parser import HTMLParser
 HEADING_TAGS = frozenset(f"h{level}" for level in range(1, 7))
 # תגיות שהתוכן שלהן אינו טקסט מוצג
 _HIDDEN = frozenset({"head", "script", "style", "template", "title"})
+# רכיבים בלי תגית סגירה ובלי תוכן (HTML, "Void elements": "area, base, br, col, embed, hr, img, input, link,
+# meta, source, track, wbr"; https://html.spec.whatwg.org/multipage/syntax.html#void-elements). הם לא נפתחים
+# בתוך מה שמוסתר, כי שום תגית לא תסגור אותם
+_VOID = frozenset({"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"})
 # תגיות בתוך שורה: לא מתחילות ולא מסיימות בלוק
 _INLINE = frozenset({"a", "b", "code", "del", "em", "i", "img", "kbd", "s", "span", "strong", "sub", "sup"})
 KINDS = frozenset({"heading", "paragraph", "item", "code", "table"})
@@ -93,7 +103,9 @@ class ParsedHtml(HTMLParser):
         self._items_open = 0
         self._table: _Open | None = None
         self._cell_parts: list[str] | None = None
-        self._hidden = 0  # בתוך style, script וכו' (_HIDDEN)
+        # מה שלא מוצג: הרכיבים הפתוחים בתוכו, מהרכיב שהתחיל את ההסתרה (הראשון, _HIDDEN או עם התכונה
+        # hidden) ועד הפנימי ביותר. ריק: לא בתוך מה שמוסתר
+        self._hidden: list[str] = []
         self._stray: _Open | None = None  # פסקה של טקסט מחוץ לכל בלוק (handle_data), עד התגית הבאה שאינה בתוך שורה
 
     @property
@@ -118,11 +130,14 @@ class ParsedHtml(HTMLParser):
         return any(entry.kind == kind for _, entry in self._stack)
 
     def handle_starttag(self, tag, attrs):
-        if tag in _HIDDEN:
-            self._hidden += 1
-            return
+        # attrs: רשימה של (שם, ערך) מ-HTMLParser, השם תמיד באותיות קטנות (html/parser.py, parse_starttag)
         if self._hidden:
-            return  # תגית בתוך מה שלא מוצג (template וכו'): לא טקסט ולא בלוק
+            if tag not in _VOID:
+                self._hidden.append(tag)
+            return  # תגית בתוך מה שלא מוצג: לא טקסט ולא בלוק
+        if tag not in _VOID and (tag in _HIDDEN or any(name == "hidden" for name, _ in attrs)):
+            self._hidden.append(tag)
+            return
         if tag not in _INLINE:
             self._stray = None
         if tag == "table":
@@ -166,10 +181,11 @@ class ParsedHtml(HTMLParser):
             self._start(tag, "paragraph")
 
     def handle_endtag(self, tag):
-        if tag in _HIDDEN:
-            self._hidden = max(0, self._hidden - 1)
-            return
         if self._hidden:
+            if tag in self._hidden:
+                # סוגרת את הרכיב הפתוח הקרוב בשם הזה, ואת מה שנפתח בתוכו ולא נסגר. כשזה הרכיב שהתחיל את
+                # ההסתרה, היא נגמרת. תגית סגירה בלי רכיב פתוח בשמה לא משנה כלום
+                del self._hidden[len(self._hidden) - 1 - self._hidden[::-1].index(tag):]
             return
         if tag not in _INLINE:
             self._stray = None

@@ -105,7 +105,9 @@ class SourceScore:
     pdf: str
     tables_source: int  # טבלאות בדף התשובות
     tables_output: int  # טבלאות שהמפרסר מצא ב-Markdown
-    cells: TableScore  # התאים כמו שהמפרסר מוציא אותם, מול דף התשובות
+    # התאים כמו שהמפרסר מוציא אותם, מול דף התשובות. None: במקור אין טבלאות, ואין מדד תאים (לא "0 מתוך 0");
+    # שאר המבנה, כולל מספר הטבלאות ב-Markdown, נמדד ומוצג בכל מקרה
+    cells: TableScore | None
     headings: markdown_check.BlockMatch
     items: markdown_check.BlockMatch
     paragraphs: markdown_check.BlockMatch
@@ -236,7 +238,8 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
                     output = [row for page in read_files[name] for row in page.rows]
                     tables.append(score_tables(name, truth, output))
                 parsed = parsed_files[name]
-                round_trip = score_tables(name, truth, [row for table in parsed.tables for row in table])
+                round_trip = (score_tables(name, truth, [row for table in parsed.tables for row in table])
+                              if truth else None)
                 structure = parsed.structure
                 sources.append(SourceScore(name, len(truth), len(parsed.tables), round_trip,
                                            *(markdown_check.match_blocks(kind, blocks, structure)
@@ -338,9 +341,10 @@ def render_report(ev: Evaluation) -> str:
         complete = sum(m.completeness.ok for m in ev.markdown)
         add(f"| קבצים שה-Markdown שלהם שלם (כל האותיות של הקורא, ורק הן) | {complete} מתוך {len(ev.markdown)} |")
     for score in ev.sources:
-        add(f"| מבנה אחרי סיבוב ב-Markdown ({score.pdf}): תאים זהים, טבלאות, כותרות, פריטים, פסקאות | "
-            f"{_count_and_share(score.cells.identical_cells, score.cells.cells)} מתוך {score.cells.cells}; "
-            f"{score.tables_output} טבלאות מתוך {score.tables_source}; {_structure_counts(score)} |")
+        cells_name, cells = ("תאים זהים, ", f"{_count_and_share(score.cells.identical_cells, score.cells.cells)} "
+                             f"מתוך {score.cells.cells}; ") if score.cells is not None else ("", "")
+        add(f"| מבנה אחרי סיבוב ב-Markdown ({score.pdf}): {cells_name}טבלאות, כותרות, פריטים, פסקאות | "
+            f"{cells}{score.tables_output} טבלאות מתוך {score.tables_source}; {_structure_counts(score)} |")
     add(f"| אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | {ev.skipped_chars} |")
     add(f"| סוגריים שהצורה שלהם לא נקבעה מהציור (בכל הסט) | {ev.unknown_brackets} |")
     add(f"| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | {ev.display_failures} מתוך {ev.line_count} |")
@@ -472,7 +476,7 @@ def _markdown_section(ev: Evaluation, add) -> None:
     add("")
     add("ה-Markdown של כל קובץ נבנה מהמבנה שהקורא מוציא (hebrew_pdf/markdown.py), ונקרא בחזרה במפרסר GFM אמיתי, cmark-gfm, שבו GitHub מציג Markdown (harness/markdown_check.py). הקובץ עצמו נכתב ל-output/, ולא לדוח.")
     add("")
-    add("שלמות: האותיות שהמפרסר מציג, בלי רווחים, מול האותיות של הקורא בכל המסמך, חוץ משלושה דברים שנספרים כאן: כותרות עליונות ותחתונות שירדו (שורה או רכיב שחוזרים כמעט זהים באותו גובה ברוב העמודים), שורות כותרת חוזרות של טבלה שהתאחדה עם העמוד הקודם, וסימני פריטים שהפכו לתחביר של רשימה (תבליט ומספר). ✓: אף אות לא נעלמה ולא נוספה, ומספר הפריטים ב-HTML שווה למספר הפריטים שנבנו. \"מתחילים באות לטינית\": פסקאות, כותרות ופריטים (ובנפרד תאים) שהאות החזקה הראשונה בהם לטינית, ולכן מציג שקובע כיוון לפי האות הראשונה יציג אותם משמאל לימין, אף שהמסמך עברי.")
+    add("שלמות: האותיות שהמפרסר מציג, בלי רווחים, מול האותיות של הקורא בכל המסמך, חוץ משלושה דברים שנספרים כאן: כותרות עליונות ותחתונות שירדו (שורה או רכיב שחוזרים כמעט זהים באותו גובה, ברצף של עמודים או ברוב העמודים; hebrew_pdf/markdown.py, סעיף 1), שורות כותרת חוזרות של טבלה שהתאחדה עם העמוד הקודם, וסימני פריטים שהפכו לתחביר של רשימה (תבליט ומספר). ✓: אף אות לא נעלמה ולא נוספה, ומספר הפריטים ב-HTML שווה למספר הפריטים שנבנו. \"מתחילים באות לטינית\": פסקאות, כותרות ופריטים (ובנפרד תאים) שהאות החזקה הראשונה בהם לטינית, ולכן מציג שקובע כיוון לפי האות הראשונה יציג אותם משמאל לימין, אף שהמסמך עברי.")
     add("")
     add("| קובץ | עמודים | כותרות | פסקאות | פריטים | טבלאות | כותרות עליונות ותחתונות שירדו | כותרות חוזרות של טבלה שירדו | סימני פריטים | שלמות | מתחילים באות לטינית (מתוך פסקאות, כותרות ופריטים) | תאים שמתחילים באות לטינית |")
     add("|---|---|---|---|---|---|---|---|---|---|---|---|")
@@ -508,9 +512,10 @@ def _markdown_section(ev: Evaluation, add) -> None:
             add(f"| {name} זהות באותו סדר | {_count_and_share(match.in_order, match.source)} מתוך {match.source} |")
             if match.kind != "paragraph":
                 add(f"| כנ\"ל, בלי תנאי על הרמה | {_count_and_share(match.in_order_any_level, match.source)} מתוך {match.source} |")
-        add(f"| תאים זהים אחרי סיבוב ב-Markdown | "
-            f"{_count_and_share(score.cells.identical_cells, score.cells.cells)} מתוך {score.cells.cells} |")
-        add(f"| שורות זהות אחרי סיבוב ב-Markdown | {_count_and_share(score.cells.identical_rows, score.cells.rows)} |")
+        if score.cells is not None:
+            add(f"| תאים זהים אחרי סיבוב ב-Markdown | "
+                f"{_count_and_share(score.cells.identical_cells, score.cells.cells)} מתוך {score.cells.cells} |")
+            add(f"| שורות זהות אחרי סיבוב ב-Markdown | {_count_and_share(score.cells.identical_rows, score.cells.rows)} |")
         add("")
 
 
@@ -543,8 +548,10 @@ def main(argv: list[str] | None = None, reader: Reader = read_pages) -> int:
         print(f"Markdown: שלם ב-{sum(m.completeness.ok for m in ev.markdown)} מתוך {len(ev.markdown)} קבצים | "
               f"נכתב ל-{args.markdown_dir}")
     for score in ev.sources:
-        print(f"מבנה ({score.pdf}): תאים זהים {score.cells.identical_cells} מתוך {score.cells.cells} | "
-              f"טבלאות {score.tables_output} מתוך {score.tables_source} | {_structure_counts(score)}")
+        cells = (f"תאים זהים {score.cells.identical_cells} מתוך {score.cells.cells} | "
+                 if score.cells is not None else "")
+        print(f"מבנה ({score.pdf}): {cells}טבלאות {score.tables_output} מתוך {score.tables_source} | "
+              f"{_structure_counts(score)}")
     print(f"הדוח: {args.output}")
     if ev.problems:
         print(f"יש {len(ev.problems)} שורות פגומות בטבלת התיוג; הפירוט בדוח.", file=sys.stderr)

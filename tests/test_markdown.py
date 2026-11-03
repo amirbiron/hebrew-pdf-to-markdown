@@ -9,6 +9,7 @@ import unittest
 import cmarkgfm
 
 from harness import markdown_check as mc
+from harness.html_structure import HtmlBlock
 from hebrew_pdf.lines import Component, Geometry, Line, PageText, RowSource
 from hebrew_pdf.markdown import Markdown, build_markdown, escape_text, first_strong
 
@@ -16,8 +17,8 @@ LEFT, RIGHT = 100.0, 500.0  # רוחב המסגרת: 400
 
 
 def line(text: str, y: float, *, left: float = LEFT, right: float = RIGHT, size: float = 10.0,
-         glyph: float = 5.0, font: str = "") -> Line:
-    return Line(text, text[::-1], True, geometry=Geometry(y, left, right, size, glyph, font))
+         glyph: float = 5.0, font: str = "", drawn: bool = False) -> Line:
+    return Line(text, text[::-1], True, geometry=Geometry(y, left, right, size, glyph, font), drawn_marker=drawn)
 
 
 def page(*lines: Line, rows=None, sources=None) -> PageText:
@@ -182,6 +183,21 @@ class ListTest(unittest.TestCase):
         self.assertEqual([t for tag, t in html(built).blocks if tag == "li"], ["א. סעיף ראשון"])
         self.assertEqual(built.markers, ())
 
+    def test_a_drawn_bullet_is_an_item_without_a_text_marker(self):
+        # כמו ב-Chrome: התבליט מצויר כצורה, ואין לו תו בטקסט. שורת ההמשך של הפריט (בלי תבליט) חלק ממנו
+        pages = [page(line("פריט ראשון שנשבר בסוף השורה כי הוא ארוך מאוד ומגיע עד הקצה", 700, drawn=True),
+                      line("והמשך שלו", 686, right=RIGHT),
+                      line("פריט שני", 672, drawn=True),
+                      line("פריט פנימי", 658, right=RIGHT - 20, drawn=True))]
+        built = build_markdown(pages)
+        parsed = html(built)
+        self.assertEqual([block for block in parsed.structure if block.kind == "item"],
+                         [HtmlBlock("item", "פריט ראשון שנשבר בסוף השורה כי הוא ארוך מאוד ומגיע עד הקצה והמשך שלו", 0),
+                          HtmlBlock("item", "פריט שני", 0), HtmlBlock("item", "פריט פנימי", 1)])
+        self.assertEqual(built.markers, ())  # אין תו לנכות בבדיקת השלמות
+        result = mc.completeness(pages, built, parsed)
+        self.assertTrue(result.ok)
+
     def test_a_dash_without_text_is_not_an_item(self):
         built = self.build(("-", 0))
         self.assertEqual(html(built).items, 0)
@@ -223,6 +239,40 @@ class RunningLinesTest(unittest.TestCase):
 
     def test_a_single_page_drops_nothing(self):
         self.assertEqual(build_markdown([page(line("שם המסמך", 780))]).dropped, ())
+
+    # טקסט שונה בכל עמוד, בלי ספרות: ספרות נחשבות זהות (_signature), ו"עמוד 3" היה חוזר בכל העמודים
+    WORDS = ("אלף", "בית", "גימל", "דלת", "הא", "וו", "זין", "חית")
+
+    @classmethod
+    def pages_with_header(cls, header_on: set[int], count: int, empty: frozenset[int] = frozenset()) -> list[PageText]:
+        return [page() if n in empty else
+                page(line("שם החלק" if n in header_on else "פתיחה " + cls.WORDS[n - 1], 780),
+                     line("גוף " + cls.WORDS[n - 1], 400))
+                for n in range(1, count + 1)]
+
+    def test_a_header_on_a_run_of_pages_is_dropped_even_on_a_minority(self):
+        # כמו בדוח הכספי: הכותרת של חלק חוזרת רק בעמודים שלו. 3 מתוך 8 עמודים אינם רוב
+        built = build_markdown(self.pages_with_header({4, 5, 6}, 8))
+        self.assertNotIn("שם החלק", shown(built.text))
+        self.assertEqual(sorted(p for p, *_ in built.dropped), [4, 5, 6])
+
+    def test_two_pages_are_not_a_run(self):
+        built = build_markdown(self.pages_with_header({4, 5}, 8))
+        self.assertEqual(shown(built.text).count("שם החלק"), 2)
+
+    def test_a_page_without_text_does_not_break_a_run(self):
+        # כמו עמוד שהוא תמונה בספר GPS: אין בו ראיה לכאן או לכאן
+        built = build_markdown(self.pages_with_header({2, 3, 5}, 8, empty=frozenset({4})))
+        self.assertNotIn("שם החלק", shown(built.text))
+
+    def test_a_larger_title_near_a_running_header_is_not_the_same_place(self):
+        # כמו במצגת: שם החלק בגודל 30 בשקופית הפותחת, ובראש השקופיות שאחריה בגודל 14, 30 נקודות מעליו
+        opening = page(line("שם החלק", 750, size=30.0), line("גוף " + self.WORDS[0], 400))
+        following = [page(line("שם החלק", 780, size=14.0), line("גוף " + self.WORDS[n - 1], 400)) for n in (2, 3, 4)]
+        others = [page(line("פתיחה " + self.WORDS[n - 1], 700), line("גוף " + self.WORDS[n - 1], 400)) for n in (5, 6, 7, 8)]
+        built = build_markdown([opening, *following, *others])
+        self.assertEqual(sorted(p for p, *_ in built.dropped), [2, 3, 4])
+        self.assertEqual(shown(built.text).count("שם החלק"), 1)
 
 
 class PageMarkerTest(unittest.TestCase):
