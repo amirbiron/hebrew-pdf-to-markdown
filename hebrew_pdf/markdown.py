@@ -7,8 +7,16 @@
 ההחלטות, וכולן יחסיות למסמך עצמו (בלי סף לתוכנה מסוימת):
 
 1. כותרות עליונות ותחתונות של עמוד (_running_lines): שורה (או רכיב) שחוזרת כמעט זהה, באותו גובה
-   בעמוד, ברוב העמודים, יורדת. "כמעט זהה": ספרות נחשבות זהות (מספר העמוד). רק מהקצוות: מלמעלה כל עוד
-   השורות חוזרות, ומלמטה כך. שורה של טבלה לא נבדקת (הכותרת החוזרת של טבלה יורדת באיחוד, סעיף 6).
+   בעמוד, ברצף של לפחות MIN_RUN עמודים רצופים, או ברוב העמודים, יורדת. "כמעט זהה": ספרות נחשבות זהות
+   (מספר העמוד). רק מהקצוות: מלמעלה כל עוד השורות חוזרות, ומלמטה כך. שורה של טבלה לא נבדקת (הכותרת
+   החוזרת של טבלה יורדת באיחוד, סעיף 6).
+   הרצף (מסבב 5ג): מסמך שבנוי מכמה חלקים חוזר על הכותרת שלו רק בעמודים של החלק. בדוח הכספי "רב בריח
+   (08) תעשיות בע"מ" חוזר ב-27 מתוך 66 עמודים, ברצפים של 19 ושל 8, ולפי "רוב העמודים" לא ירדה שם אף
+   שורה. עמוד בלי טקסט בכלל (תמונה, כמו הכריכה ועמוד 3 בספר GPS) לא קוטע רצף: אין בו ראיה לכאן או
+   לכאן. "רוב העמודים" נשאר לצד הרצף, כי כותרת של כל המסמך נקטעת לפעמים בעמוד אחד: במצגת (Canva)
+   השורה התחתונה מצוירת בשקופית 22 באמצע העמוד, ובשקופיות 23 ו-24 היא רצף של שתיים בלבד.
+   כל העותקים יורדים, גם הראשון ברצף. במסמך שהכותרת העליונה שלו היא גם שם החלק, השם יורד איתה: בדוח
+   הכספי שמות של שלושה דוחות (למשל "ביאורים לדוחות הכספיים המאוחדים") קיימים רק בכותרת העליונה.
 
 2. גוף הטקסט וכותרות (_Sizes): גודל האות (Char.size, em) של כל שורה, והגופן שרוב האותיות שלה
    מצוירות בו (Char.font). הגוף הוא קבוצת הגודל (chars.SAME_SIZE) שיש בה הכי הרבה אותיות, מחוץ
@@ -37,6 +45,8 @@
 4. רשימות (_marker): תבליט (תו מהגושים Geometric Shapes או תבליט מ-General Punctuation, או -, *,
    +, –) או מספור ("1.", "1)", "א.", "א)") בתחילת השורה הלוגית, ואחריו רווח וטקסט. רמת הקינון לפי
    ההזחה מהקצה שממנו מתחילה הקריאה (במסמך עברי: מימין).
+   ותבליט מצויר (מסבב 5ג): צורה ולא תו, לפני השורה (Line.drawn_marker, lines.drawn_marker). ב-Chrome כך
+   מצויר התבליט של רשימה. אין לו תו בטקסט, ולכן הסימן של הפריט ריק, והוא לא נספר ב-Markdown.markers.
 
 5. רכיבים שאינם טבלה (שורה עם כמה רכיבים, layout.py): כל רכיב כפסקה משלו, לפי סדר הקריאה.
 
@@ -71,6 +81,21 @@ from hebrew_pdf.logical_order import bidi_class
 # הפסקאות משתנה בין 767 ל-753; ב-1.5 הוא יורד ל-650
 SAME_STEP = 1.15
 MAX_LEVEL = 6
+# כותרת עליונה או תחתונה: באותו מקום בלפחות כמה עמודים רצופים (סעיף 1 בראש הקובץ). בדיקת רגישות (סבב
+# 5ג, כל הסט; שורות שירדו, לפי MIN_RUN):
+#                 2    3    4    5-6  7    8    10-12  14   20 ומעלה (רוב העמודים בלבד)
+#   דוח כספי      97   83   68   64,59 59  52   44     19   0
+#   מצגת          40   36   30   22   22   22   22     22   22
+#   MentorOS      10   10   7    7    7    7    7      7    7
+#   ספר GPS       35   20   20   20   20   20   20     20   20
+# ובשאר הקבצים אותו מספר בכל ערך (קובץ הטבלאות 26, הצעת המחיר 7, מסמך האפיון 9 בכל תוכנה, והשאר 0).
+# התוצאה רגישה לערך בכל הטווח, וזה דגל: אורך הרצף לא מפריד בין כותרת עליונה לתוכן. בדוח הכספי יש רצפים
+# בכל אורך מ-2 עד 19, כי כל דוח בו חוזר על השם שלו בכל העמודים שלו. מה שכן נמדד: ב-2 יורד גם תוכן,
+# הערת שוליים שחוזרת בעמודים 6 ו-7 של הדוח הכספי, ומילים של תמונה שנפרשת על שני עמודים בספר GPS (6-7,
+# 10-11). מ-3 כל מה שנוסף הוא שורה שחוזרת בראש או בתחתית של כל עמודי החלק: מספר עמוד, השם של החלק או
+# של הדוח, "(המשך)", ובמצגת השם של החלק בראש כל שקופית שלו (השם עצמו נשאר בשקופית הפותחת). 3 הוא הערך
+# הקטן ביותר שבו לא ירד תוכן כזה, ולא ערך יציב
+MIN_RUN = 3
 
 PAGE_MARKER = "<!-- page {} -->"
 
@@ -131,7 +156,7 @@ class Block:
     page: int  # העמוד שבו הבלוק מתחיל, מ-1
     text: str = ""  # heading, paragraph, item: הטקסט הלוגי, בלי סימון ובלי הסימן של הפריט
     level: int = 0  # heading: 1 עד 6. item: עומק הקינון, מ-0
-    marker: str = ""  # item: הסימן כמו שהוא בשורה ("•", "3.", "א.")
+    marker: str = ""  # item: הסימן כמו שהוא בשורה ("•", "3.", "א."). "": תבליט מצויר, בלי תו (סעיף 4)
     rows: tuple[tuple[str, ...], ...] = ()  # table: השורות, והראשונה היא שורת הכותרת
     # table: השורות שבהן מתחיל עמוד חדש בתוך הטבלה: (אינדקס ב-rows, מספר העמוד)
     page_starts: tuple[tuple[int, int], ...] = ()
@@ -157,6 +182,7 @@ class _Unit:
     line: int  # האינדקס ב-PageText.lines
     alone: bool  # רכיב משורה עם כמה רכיבים: פסקה משלו, לא מתחבר לשורות סמוכות
     part: int = 0  # האינדקס של הרכיב ב-Line.parts
+    drawn_marker: bool = False  # Line.drawn_marker: לפני השורה מצויר תבליט (סעיף 4)
 
     @property
     def key(self) -> tuple[int, int]:
@@ -203,7 +229,7 @@ def _page_units(page: PageText) -> list:
         if len(line.parts) > 1:
             out.extend(_Unit(part.text, part.geometry, index, True, k) for k, part in enumerate(line.parts) if part.text)
         elif line.text:
-            out.append(_Unit(line.text, line.geometry, index, False))
+            out.append(_Unit(line.text, line.geometry, index, False, drawn_marker=line.drawn_marker))
     return out
 
 
@@ -214,29 +240,40 @@ def _signature(text: str) -> str:
 
 def _same_place(a: _Unit, page_a: PageText, b: _Unit, page_b: PageText) -> bool:
     """אותו מקום בעמוד: קו בסיס באותו גובה (מלמטה, או מלמעלה כשגובה העמודים שונה) עד כדי גודל אות.
-    בלי תנאי אופקי: בספר מספר העמוד מתחלף בין הצד הימני לשמאלי (נמדד בספר GPS: 8 עמודים בכל צד)."""
+    בלי תנאי אופקי: בספר מספר העמוד מתחלף בין הצד הימני לשמאלי (נמדד בספר GPS: 8 עמודים בכל צד).
+    גודל האות הקטנה מהשתיים (גודל לא ידוע, 0, לא מצמצם): עד סבב 5ג הגדולה, ואז שם של חלק במצגת (Canva),
+    בגודל 30 בשקופית הפותחת של החלק, נחשב באותו מקום כמו הכותרת העליונה של השקופיות שאחריה, בגודל 14
+    ו-30 נקודות מעליו, וירד איתה. עם "רוב העמודים" בלבד זה לא קרה (בסט התוצאה זהה בשתי הגרסאות)."""
     ga, gb = a.geometry, b.geometry
-    tolerance = max(ga.size, gb.size)
+    tolerance = min((size for size in (ga.size, gb.size) if size > 0), default=0.0)
     from_bottom = abs(ga.baseline - gb.baseline)
     from_top = abs((page_a.height - ga.baseline) - (page_b.height - gb.baseline))
     return min(from_bottom, from_top) <= tolerance
 
 
 def _running_lines(pages: Sequence[PageText], units: list[list]) -> set[tuple[int, int, int]]:
-    """השורות שחוזרות כמעט זהות באותו מקום ברוב העמודים, מהקצה העליון והתחתון של כל עמוד."""
+    """השורות שחוזרות כמעט זהות באותו מקום, ברצף של לפחות MIN_RUN עמודים או ברוב העמודים, מהקצה העליון
+    והתחתון של כל עמוד (סעיף 1 בראש הקובץ)."""
     count = len(pages)
     if count < 2:
         return set()
     needed = count // 2 + 1  # רוב העמודים
     texts = [[(u, _signature(u.text)) for u in page_units if isinstance(u, _Unit)] for page_units in units]
+    # עמוד בלי טקסט בכלל לא קוטע רצף
+    empty = [not any(line.text.strip() for line in page.lines) for page in pages]
 
     def repeated(page: int, unit: _Unit, signature: str) -> bool:
-        found = 1
-        for other in range(count):
-            if other != page and any(sig == signature and _same_place(unit, pages[page], u, pages[other])
-                                     for u, sig in texts[other]):
-                found += 1
-        return found >= needed
+        here = [other == page or any(sig == signature and _same_place(unit, pages[page], u, pages[other])
+                                     for u, sig in texts[other]) for other in range(count)]
+        if sum(here) >= needed:
+            return True
+        run = 1
+        for step in (1, -1):
+            other = page + step
+            while 0 <= other < count and (here[other] or empty[other]):
+                run += here[other]
+                other += step
+        return run >= MIN_RUN
 
     dropped: set[tuple[int, int, int]] = set()
     for page, page_units in enumerate(units):
@@ -366,6 +403,8 @@ def _page_blocks(number: int, units: list, sizes: "_Sizes", rtl: bool, continues
                 (i > 0 and numbered_heading[i - 1] == numbered_heading[i])
                 or (i + 1 < len(units) and numbered_heading[i + 1] == numbered_heading[i])):
             marked = None  # מספור בגודל של כותרת, בלי שורה ממוספרת באותו גודל לידו: כותרת ממוספרת
+        if marked is None and unit.drawn_marker:
+            marked = ("", unit.text)  # תבליט מצויר: כל הטקסט הוא התוכן של הפריט
         # continues נכון רק כשהיחידה הקודמת היא שורה רגילה (לא טבלה ולא רכיב), ולכן drafts[-1] הוא שלה
         if marked is None and continues.get(i):
             drafts[-1].pieces.append(unit.text)
@@ -564,7 +603,7 @@ def _list(items: list[Block], markers: list[str]) -> list[str]:
             following = None
             if numbered:  # אות עברית: נשארת בטקסט
                 content = escape_text(item.marker) + " " + content
-            else:
+            elif item.marker:  # תבליט מצויר (סימן ריק) אינו תו בטקסט, ואין מה לנכות
                 markers.append(item.marker)
         lines.append(" " * sum(width for _, width, _ in stack) + mark + " " + content)
         stack.append((item.level, len(mark) + 1, following))

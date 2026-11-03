@@ -17,7 +17,7 @@ import pypdfium2.raw as pdfium_raw
 from harness import markdown_check as mc
 from harness.reader import read_pages
 from harness.run import DEFAULT_PDFS, DEFAULT_TRUTH
-from harness.tables import load_truth, score_tables
+from harness.tables import load_blocks, load_truth, score_tables
 from hebrew_pdf import markdown as markdown_mod
 from hebrew_pdf.chars import page_chars
 from hebrew_pdf.markdown import build_markdown
@@ -122,6 +122,22 @@ class AllFilesTest(unittest.TestCase):
         for name, pages in self.files.items():
             with self.subTest(file=name):
                 self.assertFalse(controls & set(build_markdown(pages).text))
+
+    def test_tables_across_pages_join_into_the_tables_of_the_source(self):
+        # קובץ הטבלאות: 6 טבלאות במקור, שנמשכות על 26 עמודים. עד סבב 5ג יצאו 9: קטע של טבלה שבו עמודה צרה
+        # לא נמצאה ("חובה" מול "ברירת מחדל"), קיבל 5 עמודות ולא התאחד עם ההמשך שלו בעמוד הבא
+        truth = load_truth(DEFAULT_TRUTH / "env-vars.truth.json")
+        parsed = mc.parse(mc.to_html(build_markdown(self.files[TABLE_FILE.name]).text))
+        self.assertEqual(len(parsed.tables), len(truth))
+        self.assertEqual([len(table[0]) for table in parsed.tables], [len(t.header) for t in truth])
+
+    def test_drawn_bullets_are_list_items(self):
+        # מסמך האפיון מ-Chrome: התבליטים מצוירים כעיגולים (48 ממולאים, ו-2 ריקים ברשימה הפנימית), ואין להם תו.
+        # עד סבב 5ג רק 13 מתוך 64 הפריטים יצאו פריטים, ואותו מקור מ-WeasyPrint, עם תבליט שהוא תו, נתן 60
+        blocks = load_blocks(DEFAULT_TRUTH / "spec.truth.json")
+        parsed = mc.parse(mc.to_html(build_markdown(self.files["spec_chrome.pdf"]).text))
+        items = mc.match_blocks("item", blocks, parsed.structure)
+        self.assertEqual((items.source, items.output, items.in_order), (64, 64, 64))
 
     def test_the_round_trip_loses_no_table_cell(self):
         # התאים שהמפרסר מוציא מה-Markdown זהים לדף התשובות בדיוק כמו התאים של הקורא

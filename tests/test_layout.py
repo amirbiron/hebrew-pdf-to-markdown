@@ -13,7 +13,7 @@ from harness.run import DEFAULT_PDFS
 from harness.textdiff import normalize
 from hebrew_pdf.chars import Char
 from hebrew_pdf.layout import COMPONENT_GAP, page_layout, page_line, usual_word_gap
-from hebrew_pdf.lines import _line, table_rows
+from hebrew_pdf.lines import Geometry, _line, drawn_marker, table_rows
 from hebrew_pdf.spacing import space_by_gaps
 
 WIDTH, HEIGHT, WORD = 5.0, 10.0, 2.0
@@ -40,16 +40,17 @@ def build(page: list[list[tuple[float, str]]], rtl: bool = False, rules_above: t
 
     rules_above: השורות שמעליהן מצויר קו אופקי לרוחב כל העמוד (קו מסגרת של טבלה).
     sizes: גודל האות של כל שורה (Char.size); בלי: 0 לכל השורות.
-    verticals: ה-x של קווים אנכיים לגובה כל העמוד (גבולות של תאים ברשת).
+    verticals: ה-x של קווים אנכיים לגובה כל העמוד (גבולות של תאים ברשת). כמו בקורא (lines.read_document),
+    הם עוברים גם לגבולות בין הרכיבים (page_layout) וגם לשורות של הטבלה (table_rows).
     """
     sizes = sizes or (0.0,) * len(page)
     spaced = [space_by_gaps(chars(segments, -15.0 * i, size)) for i, (segments, size) in enumerate(zip(page, sizes))]
     lines = [page_line(s.chars) for s in spaced]
     rules = [(-10.0, 400.0, -15.0 * i + 9) for i in rules_above]
-    layout = page_layout(lines, USUAL, rules)
+    vertical = [(x, -15.0 * len(page), 15.0) for x in verticals]
+    layout = page_layout(lines, USUAL, rules, vertical)
     built = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts) for i, (line, s) in
              enumerate(zip(lines, spaced))]
-    vertical = [(x, -15.0 * len(page), 15.0) for x in verticals]
     return built, table_rows(built, layout.tables, lines, rules, vertical)
 
 
@@ -130,6 +131,19 @@ class TableTest(unittest.TestCase):
                 [(0, "c3"), (60, "last"), (200, "MN")]]
         _, rows = build(page, rules_above=(0, 2, 3), verticals=(50.0, 190.0))
         self.assertEqual(rows, [("c1", "desc more", "ABCDEFGH IJ"), ("c2", "a wider one", "KL"), ("c3", "last", "MN")])
+
+    def test_a_drawn_border_in_a_moderate_gap_is_a_boundary(self):
+        # כמו עמודת "סבב" במסמך האפיון ו"חובה" בקובץ הטבלאות: עמודה צרה, והפער בינה לבין השכנה שלה הוא פי 5
+        # בכל השורות, פחות מ-COMPONENT_GAP, כך שאין פער שיעגן אותה. קו המסגרת שבתוך הפער הוא הראיה לגבול
+        page = [[(0, "name1"), (25 + gap(5), "y"), (120, "description")],
+                [(0, "name2"), (25 + gap(5), "n"), (120, "other text")],
+                [(0, "name3"), (25 + gap(5), "y"), (120, "last one")]]
+        border = 25 + gap(5) / 2
+        _, rows = build(page, verticals=(border, 100.0))
+        self.assertEqual(rows, [("name1", "y", "description"), ("name2", "n", "other text"), ("name3", "y", "last one")])
+        # בלי הקו (או כשהוא לא בתוך הפער) הפער של פי 5 לא גבול, כמו קודם
+        _, rows = build(page, verticals=(100.0,))
+        self.assertEqual(rows[0], ("name1 y", "description"))
 
     def test_a_single_word_as_wide_as_its_column_joins_with_a_space(self):
         # עד סבב 5ב מילה אחת שממלאת את רוחב העמודה נחשבה מילה שנשברה באמצע, וחוברה בלי רווח
@@ -230,6 +244,37 @@ class TableRowsTest(unittest.TestCase):
         self.assertEqual(rows, [("2", "first"), ("3", "second more")])
 
 
+class DrawnMarkerTest(unittest.TestCase):
+    """תבליט מצויר (hebrew_pdf/lines.drawn_marker): צורה בגודל של אות, בקצה שממנו מתחילה הקריאה, וממורכזת
+    אנכית לשורה. המידות כמו בעיגול של Chrome במסמך האפיון: אות בגודל 10, הטקסט נגמר מימין ב-519.5, והעיגול
+    ברוחב 3 ב-527.8, 1.5 נקודות מעל קו הבסיס."""
+    LINE = Geometry(557.7, 60.0, 519.5, 10.0, 5.0)
+    DISC = (527.8, 559.2, 530.8, 562.2)
+
+    def test_the_disc_of_chrome(self):
+        self.assertTrue(drawn_marker(self.LINE, [self.DISC], True))
+
+    def test_only_at_the_edge_where_reading_starts(self):
+        # במסמך שנקרא משמאל לימין אותו עיגול נמצא בסוף השורה
+        self.assertFalse(drawn_marker(self.LINE, [self.DISC], False))
+        self.assertTrue(drawn_marker(self.LINE, [(50.0, 559.2, 53.0, 562.2)], False))
+
+    def test_what_is_not_a_bullet(self):
+        cases = {
+            "קטן מדי: מפגש של קווי מסגרת בדוח הכספי, 0.05 מגודל האות": (527.8, 560.0, 528.3, 560.5),
+            "גדול מאות": (527.8, 552.0, 540.0, 564.0),
+            "לא ממורכז לשורה: מתחת לקו הבסיס": (527.8, 551.0, 530.8, 554.0),
+            "רחוק מהטקסט: יותר מ-MAX_MARK_GAP": (550.0, 559.2, 553.0, 562.2),
+            "על הטקסט, לא לפניו": (510.0, 559.2, 513.0, 562.2),
+        }
+        for name, mark in cases.items():
+            with self.subTest(name):
+                self.assertFalse(drawn_marker(self.LINE, [mark], True))
+
+    def test_a_line_without_size_has_no_marker(self):
+        self.assertFalse(drawn_marker(Geometry(557.7, 60.0, 519.5, 0.0, 5.0), [self.DISC], True))
+
+
 class RealLinesTest(unittest.TestCase):
     @staticmethod
     def lines(file_name: str, page: int):
@@ -254,6 +299,13 @@ class RealLinesTest(unittest.TestCase):
         rows = [tuple(normalize(c) for c in row) for row in read_pages(DEFAULT_PDFS / "env-vars_weasyprint.pdf")[0].rows]
         self.assertIn(("MONGODB_HEARTBEAT_FREQUENCY_MS", "תדירות בדיקת החיים של הדרייבר מול שרתי מונגו (heartbeatFrequencyMS)",
                        "לא", "10000", "20000", "Bot/WebApp/MCP/Webserver"), rows)
+
+    def test_a_narrow_column_with_a_drawn_border(self):
+        # עמודת "סבב" בטבלה הראשונה של מסמך האפיון, בשתי התוכנות: עד סבב 5ג "1" ו"מערך בדיקה..." יצאו תא אחד
+        for name in ("spec_weasyprint.pdf", "spec_chrome.pdf"):
+            with self.subTest(file=name):
+                rows = [tuple(normalize(c) for c in row) for row in read_pages(DEFAULT_PDFS / name)[0].rows]
+                self.assertIn(("1", "מערך בדיקה, ו-40 שורות מתויגות ומאושרות", "11 (האב-טיפוס)", "—"), rows)
 
     def test_the_table_file_is_a_hebrew_document(self):
         # רוב האותיות בו לטיניות (שמות משתנים), אבל רוב השורות עבריות
