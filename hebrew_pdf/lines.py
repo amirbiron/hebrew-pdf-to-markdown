@@ -63,6 +63,8 @@ class Component:
     rtl: bool  # כיוון הפסקה שבה הרכיב נקרא (logical_order.to_logical)
     ambiguous: bool = False
     geometry: Geometry = Geometry()
+    # סוגריים שהתו שלהם בפלט שונה מהתו שבקובץ (Char.source): הצורה המצוירת הכריעה נגד הקובץ. לציון (score.py)
+    brackets_changed: int = 0
 
 
 @dataclass(frozen=True)
@@ -124,6 +126,17 @@ class PageText:
     # הרוחב והגובה של העמוד, בנקודות PDF (PdfPage.get_size). 0: לא ידוע
     width: float = 0.0
     height: float = 0.0
+    # מכאן: מידע לציון של העמוד (score.py), מ-chars.PageChars. לא משנה את הטקסט
+    brackets: int = 0  # סוגריים שנקראו (chars.PageChars.brackets)
+    marked_unmapped: int = 0  # תווים ש-PDFium מסמן כלא ממופים ונראים כתווים רגילים (chars.page_reference)
+    rotated_chars: int = 0  # תווים בשורה שאינה אופקית משמאל לימין (chars.is_rotated)
+    # כל התווים של העמוד לפי הרשימה של PDFium (chars.page_reference): מולם נמדדת השלמות. None: לא ידוע
+    reference: str | None = None
+
+    @property
+    def brackets_changed(self) -> int:
+        """סוגריים שהציור הכריע בהם נגד התו שבקובץ (Component.brackets_changed), בכל העמוד."""
+        return sum(part.brackets_changed for line in self.lines for part in line.parts)
 
     @property
     def ambiguous_lines(self) -> int:
@@ -163,8 +176,10 @@ def group_rows(chars: list[Char]) -> list[list[Char]]:
 
 def _component(chars: list[Char], rtl_document: bool) -> Component:
     reading = to_logical(chars, lambda c: c.text, rtl_document)
+    # reading.texts הוא הטקסט הלוגי של כל אות (סוגר אחרי השיקוף של L4), באותו סדר כמו reading.logical
+    changed = sum(1 for char, text in zip(reading.logical, reading.texts) if char.source and text != char.source)
     return Component("".join(reading.texts), "".join(c.text for c in chars), reading.rtl, reading.ambiguous,
-                     geometry_of(chars))
+                     geometry_of(chars), changed)
 
 
 def build_line(row: list[Char], rtl_document: bool) -> Line:
@@ -259,7 +274,8 @@ def read_document(pdf) -> list[PageText]:
         merged = _merged_rows(page_lines, layout.tables, lines, rules, verticals)
         width, height = pdf_page.get_size()
         out.append(PageText(page_lines, found.skipped, found.unknown_brackets, [row.cells for row in merged],
-                            [row.source for row in merged], rtl, width, height))
+                            [row.source for row in merged], rtl, width, height, found.brackets,
+                            found.marked_unmapped, found.rotated, found.reference))
     return out
 
 

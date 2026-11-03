@@ -14,10 +14,12 @@
 
 import argparse
 import sys
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from harness import calibration as calibration_mod
 from harness import labels as labels_mod
 from harness import markdown_check
 from harness.display_check import displays_like_page
@@ -27,6 +29,7 @@ from harness.tables import TRUTH_SUFFIX, TableScore, TruthFileError, load_blocks
 from harness.textdiff import CELL_BOUNDARY, closest_line, join_cells, normalize, split_lines, visible
 from hebrew_pdf.lines import PageText
 from hebrew_pdf.markdown import build_markdown, escape_text
+from hebrew_pdf import score as score_mod
 from hebrew_pdf.spacing import SpaceCounts
 from hebrew_pdf.indirect_checks import score_final_letters, score_punct_at_start
 
@@ -126,6 +129,9 @@ class Evaluation:
     tables: list[TableScore] = field(default_factory=list)  # טבלאות מול דף תשובות (harness/tables.py)
     markdown: list[MarkdownResult] = field(default_factory=list)  # לכל קובץ, לפי הסדר
     sources: list[SourceScore] = field(default_factory=list)  # קבצים עם דף תשובות מול המקור, דרך ה-Markdown
+    # הציון של כל עמוד (hebrew_pdf/score.py), לפי שם הקובץ, והכיול של הספים שלו (harness/calibration.py)
+    scores: dict[str, list[score_mod.PageScore]] = field(default_factory=dict)
+    calibration: calibration_mod.Calibration | None = None
 
     @property
     def order_ok_count(self) -> int:
@@ -182,10 +188,14 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
     files: list[FileResult] = []
     markdown: list[MarkdownResult] = []
     parsed_files: dict[str, markdown_check.ParsedHtml] = {}
+    dropped: dict[str, frozenset] = {}  # Markdown.dropped של כל קובץ: מה שהציון לא בודק בסבירות
+    scores: dict[str, list[score_mod.PageScore]] = {}
     for path in pdf_paths:
         read = reader(path)
         read_files[path.name] = read
         built = build_markdown(read)
+        dropped[path.name] = frozenset(built.dropped)
+        scores[path.name] = score_mod.score_document(read, built.dropped)
         parsed = markdown_check.parse(markdown_check.to_html(built.text))
         parsed_files[path.name] = parsed
         kinds = [block.kind for block in built.blocks]
@@ -226,11 +236,13 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
 
     tables: list[TableScore] = []
     sources: list[SourceScore] = []
+    truth_files: set[str] = set()  # הקבצים שיש להם דף תשובות: כל העמודים שלהם ידועים כנכונים לכיול
     if truth_dir is not None:
         for truth_path in sorted(truth_dir.glob("*" + TRUTH_SUFFIX)):
             names = pdf_names(truth_path, list(read_files))
             if not names:
                 raise TruthFileError(f"{truth_path.name}: אין לו קובץ <שם>_<תוכנה>.pdf בתיקיית ה-PDF ({pdf_dir})")
+            truth_files.update(names)
             truth = load_truth(truth_path)
             blocks = load_blocks(truth_path)
             for name in names:
@@ -245,9 +257,15 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
                                            *(markdown_check.match_blocks(kind, blocks, structure)
                                              for kind in ("heading", "item", "paragraph"))))
 
+    exact_by_page: dict[tuple[str, int], list[bool]] = {}
+    for result in approved:
+        exact_by_page.setdefault((result.label.file, result.label.page - 1), []).append(result.exact)
+    good = calibration_mod.known_good(read_files, truth_files, exact_by_page)
+    calibration = calibration_mod.calibrate(read_files, dropped, good, creator_of) if good else None
+
     reader_name = f"{reader.__module__}.{reader.__qualname__}"
     return Evaluation(reader_name, files, approved, pending, unclear, sorted(problems, key=lambda p: p.source_line),
-                      orders, tables, markdown, sources)
+                      orders, tables, markdown, sources, scores, calibration)
 
 
 def _candidates(label: labels_mod.Label, lines: list) -> list[str]:
@@ -345,6 +363,10 @@ def render_report(ev: Evaluation) -> str:
                              f"מתוך {score.cells.cells}; ") if score.cells is not None else ("", "")
         add(f"| מבנה אחרי סיבוב ב-Markdown ({score.pdf}): {cells_name}טבלאות, כותרות, פריטים, פסקאות | "
             f"{cells}{score.tables_output} טבלאות מתוך {score.tables_source}; {_structure_counts(score)} |")
+    if ev.scores:
+        decisions = Counter(page.decision for pages in ev.scores.values() for page in pages)
+        add(f"| ציון העמודים (בכל הסט): {' / '.join(score_mod.DECISIONS)} | "
+            f"{' / '.join(str(decisions[d]) for d in score_mod.DECISIONS)} |")
     add(f"| אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | {ev.skipped_chars} |")
     add(f"| סוגריים שהצורה שלהם לא נקבעה מהציור (בכל הסט) | {ev.unknown_brackets} |")
     add(f"| שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | {ev.display_failures} מתוך {ev.line_count} |")
@@ -416,6 +438,9 @@ def render_report(ev: Evaluation) -> str:
     if ev.markdown:
         _markdown_section(ev, add)
 
+    if ev.scores:
+        _score_section(ev, add)
+
     add("## לפי קובץ")
     add("")
     add("אותיות סופיות: אחוז המילים (מבין אלה שיש בהן אות סופית) שהאות הסופית לא בתחילתן; גבוה = טוב. פיסוק בתחילת שורה: אחוז השורות העבריות שמתחילות בסימן פיסוק; נמוך = טוב. שתיהן בדיקות עקיפות מהאב-טיפוס, ו-100% בהן אינו הוכחה שהפלט נכון.")
@@ -452,13 +477,15 @@ def render_report(ev: Evaluation) -> str:
     add("<details>")
     add("<summary>כל העמודים</summary>")
     add("")
-    add("| קובץ | עמוד | שורות עם טקסט | אותיות שדולגו | סוגריים בלי צורה | בדיקת תצוגה נכשלה | דו-משמעיות | אותיות סופיות | פיסוק בתחילת שורה |")
-    add("|---|---|---|---|---|---|---|---|---|")
+    add("| קובץ | עמוד | שורות עם טקסט | אותיות שדולגו | סוגריים בלי צורה | בדיקת תצוגה נכשלה | דו-משמעיות | אותיות סופיות | פיסוק בתחילת שורה | ציון |")
+    add("|---|---|---|---|---|---|---|---|---|---|")
     for f in ev.files:
+        page_scores = ev.scores.get(f.name, [])
         for p in f.pages:
             lines = str(p.line_count) if p.line_count else "0 (אין טקסט)"
+            decision = page_scores[p.page - 1].decision if p.page <= len(page_scores) else "—"
             add(f"| {f.name} | {p.page} | {lines} | {p.skipped_chars} | {p.unknown_brackets} | {p.display_failures} | {p.ambiguous_lines} "
-                f"| {_pct(p.final_letters)} | {_pct(p.punct_at_start)} |")
+                f"| {_pct(p.final_letters)} | {_pct(p.punct_at_start)} | {decision} |")
     add("")
     add("</details>")
     add("")
@@ -517,6 +544,100 @@ def _markdown_section(ev: Evaluation, add) -> None:
                 f"{_count_and_share(score.cells.identical_cells, score.cells.cells)} מתוך {score.cells.cells} |")
             add(f"| שורות זהות אחרי סיבוב ב-Markdown | {_count_and_share(score.cells.identical_rows, score.cells.rows)} |")
         add("")
+
+
+def _score_section(ev: Evaluation, add) -> None:
+    add("## ציון וסימון")
+    add("")
+    add("לכל עמוד: החלטה (תקין, לא בטוח, נפסל) וסיבות (hebrew_pdf/score.py). נפסל, בלי ציון: עמוד בלי טקסט, טקסט מסובב, או תו שלא ממופה בקובץ (תו בקרה, אזור השימוש הפרטי, U+FFFD, או תו ש-PDFium מסמן כחסר ערך Unicode). לא בטוח: אחד משלושת הצירים נכשל. סבירות: שורה שלא מוצגת כמו העמוד, או שיעור נמוך של מילים סבירות (הגבול התחתון של Wilson), רק במה שמגיע ל-Markdown. שלמות: התווים של הפלט, בלי סדר, מול כל התווים של העמוד לפי PDFium. מאמץ תיקון: שיעור ההחלטות של הקורא ששינו את הקובץ (רווחים וסוגריים). \"הסיבות הנפוצות\": בכמה עמודים של הקובץ מופיעה כל סיבה.")
+    add("")
+    add(f"| קובץ | עמודים | {' | '.join(score_mod.DECISIONS)} | הסיבות הנפוצות |")
+    add("|---|---|---|---|---|---|")
+    for name, pages in ev.scores.items():
+        decisions = Counter(page.decision for page in pages)
+        kinds = Counter(kind for page in pages for kind in {reason.kind for reason in page.reasons})
+        common = ", ".join(f"{score_mod.REASON_KINDS[kind]} ({count})" for kind, count in
+                           sorted(kinds.items(), key=lambda item: (-item[1], item[0]))[:3]) or "—"
+        add(f"| {name} | {len(pages)} | {' | '.join(str(decisions[d]) for d in score_mod.DECISIONS)} | {common} |")
+    add("")
+    add("### עמודים שלא יצאו תקין")
+    add("")
+    add("| קובץ | עמוד | החלטה | סיבות |")
+    add("|---|---|---|---|")
+    for name, pages in ev.scores.items():
+        for number, page in enumerate(pages, 1):
+            if page.decision != score_mod.OK:
+                add(f"| {name} | {number} | {page.decision} | {_cell('; '.join(reason.text for reason in page.reasons))} |")
+    add("")
+    if ev.calibration is not None:
+        _calibration_section(ev.calibration, add)
+
+
+def _share(count: int, of: int) -> str:
+    return f"{count} ({100 * count / of:.0f}%)" if of else "—"
+
+
+def _calibration_section(cal: calibration_mod.Calibration, add) -> None:
+    add("### כיול")
+    add("")
+    add(f"הספים נקבעים כאן ולא ביד (harness/calibration.py). עמודים שהפלט שלהם ידוע כנכון: {cal.known_good} (כל העמודים של הקבצים שיש להם דף תשובות, ועמודים שכל השורות המתויגות בהם זהות). מתוכם {cal.clean} בלי כשל ודאי (פסילה, שורה שלא מוצגת כמו העמוד, תו שחסר או נוסף), ועליהם נמדדות ההשחתות. ההשחתה היא של הטקסט שהקורא הוציא, ומה שבעמוד ורשימת התווים של PDFium לא משתנים, חוץ מ\"תווי בקרה במקום אותיות\", שהוא כשל של הקובץ. עוצמה: רכיב אחד בעמוד, או כל הרכיבים שהצורה חלה עליהם.")
+    add("")
+    add("#### שגיאות מכוונות: כמה נתפסו")
+    add("")
+    add("\"נתפסו\": העמוד לא יצא תקין. בעמודות שאחריה: לפי איזה כלל (עמוד יכול להיתפס ביותר מאחד).")
+    add("")
+    add("| צורה | עוצמה | עמודים | נתפסו | נפסל | שורה שלא מוצגת כמו העמוד | סימנים (סבירות) | שלמות | מאמץ |")
+    add("|---|---|---|---|---|---|---|---|---|")
+    for form, intensity, count, hits in calibration_mod.catch_table(cal):
+        add(f"| {calibration_mod.form_name(form)} | {calibration_mod.intensity_name(intensity)} | {count} | {_share(hits['כלשהו'], count)} "
+            f"| {_share(hits['נפסל'], count)} | {_share(hits['תצוגה'], count)} | {_share(hits['סימנים'], count)} "
+            f"| {_share(hits['שלמות'], count)} | {_share(hits['מאמץ'], count)} |")
+    add("")
+    good, clean = cal.known_good_flagged, cal.clean_flagged
+    add(f"עמודים לא מושחתים שסומנו: מתוך {cal.known_good} העמודים הידועים כנכונים, {good['כלשהו']} לא יצאו תקין: "
+        f"{good['תצוגה']} בגלל שורה שלא מוצגת כמו העמוד, {good['שלמות']} בגלל תו שחסר או נוסף, {good['סימנים']} בגלל "
+        f"הסימנים של הסבירות, {good['מאמץ']} בגלל מאמץ התיקון, ו-{good['נפסל']} נפסלו. מתוך {cal.clean} העמודים בלי "
+        f"כשל ודאי, שעליהם נמדדו ההשחתות: {clean['כלשהו']} ({clean['סימנים']} בסימנים, {clean['מאמץ']} במאמץ).")
+    add("")
+    add("#### הספים")
+    add("")
+    add("| סף | ערך | הטווח שבו ההחלטות והסיבות בכל הסט זהות | איך נקבע |")
+    add("|---|---|---|---|")
+    if cal.plausible_choice is not None:
+        plausible_how = (f"הדרישה: האחוזון ה-95 של הציון של עמודים שכל השורות בהם הפוכות (היפוך שורה שלמה, היפוך אותיות "
+                         f"בתוך מילה): {cal.required_plausible:.3f}. הטווח היציב הראשון שכולו מעליה: "
+                         f"{cal.plausible_choice.low:.3f} עד {cal.plausible_choice.high:.3f}, והערך באמצע שלו")
+    else:
+        plausible_how = "אין עמודים מושחתים לכיול בסט הזה, והכיול לא בוחר ערך"
+    if cal.effort_choice is not None:
+        effort_how = (f"המאמץ הגבוה ביותר בעמוד ידוע כנכון: {cal.envelope:.3f}. הטווח היציב שמכיל אותו: "
+                      f"{cal.effort_choice.low:.3f} עד {cal.effort_choice.high:.3f}, והערך באמצע שלו")
+    else:
+        effort_how = "אין עמוד ידוע כנכון בסט הזה, והכיול לא בוחר ערך"
+    add(f"| MIN_PLAUSIBLE | {score_mod.MIN_PLAUSIBLE:.3f} | {cal.plausible_range.low:.3f} עד {cal.plausible_range.high:.3f} "
+        f"| {plausible_how} |")
+    add(f"| MAX_EFFORT | {score_mod.MAX_EFFORT:.3f} | {cal.effort_range.low:.3f} עד {cal.effort_range.high:.3f} | {effort_how} |")
+    for label, counts in cal.count_rules.items():
+        spread = ", ".join(f"{k if k < 3 else '3 ומעלה'}: {counts[k]}" for k in sorted(counts)) or "אין"
+        add(f"| {label} | 1 | — | כל אחד הוא כשל ודאי. עמודים בסט לפי המספר: {spread} |")
+    add("")
+    for name, value, chosen in (("MIN_PLAUSIBLE", score_mod.MIN_PLAUSIBLE, cal.plausible_choice),
+                                ("MAX_EFFORT", score_mod.MAX_EFFORT, cal.effort_choice)):
+        if chosen is not None and abs(value - chosen.middle) > 0.0005:
+            add(f"> [!WARNING]\n> {name} הוא {value:.3f}, והכיול בוחר {chosen.middle:.3f}. צריך לעדכן את הקבוע ב-hebrew_pdf/score.py.")
+            add("")
+    add("#### השארת תוכנה אחת בחוץ")
+    add("")
+    add("לכל תוכנה: הספים מחושבים מהעמודים של שאר התוכנות, ונבדקים על העמודים שלה. סבירות: הדרישה (האחוזון ה-95 של העמודים המושחתים של שאר התוכנות), כמה מהעמודים המושחתים של התוכנה הסימנים תפסו בה, וכמה מהעמודים הנקיים שלה סומנו בה. מאמץ: המאמץ הגבוה ביותר בעמוד ידוע כנכון של שאר התוכנות, וכמה מהעמודים של התוכנה מעליו.")
+    add("")
+    add("| תוכנה | עמודים נקיים ידועים | דרישה לסבירות | עמודים הפוכים שנתפסו | עמודים נקיים שסומנו | מעטפת המאמץ | עמודים מעליה |")
+    add("|---|---|---|---|---|---|---|")
+    for fold in cal.folds:
+        required = f"{fold.required:.3f}" if fold.required is not None else "—"
+        envelope = f"{fold.envelope:.3f}" if fold.envelope is not None else "—"
+        add(f"| {fold.producer} | {fold.pages} | {required} | {fold.caught[0]} מתוך {fold.caught[1]} | {fold.flagged[0]} מתוך {fold.flagged[1]} "
+            f"| {envelope} | {fold.over[0]} מתוך {fold.over[1]} |")
+    add("")
 
 
 def main(argv: list[str] | None = None, reader: Reader = read_pages) -> int:

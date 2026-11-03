@@ -39,6 +39,9 @@ class Char(NamedTuple):
     size: float = 0.0
     # שם הגופן שהאות מצוירת בו (font_name), בלי תג התת-קבוצה. "": לא ידוע (או רווח שהקורא הוסיף)
     font: str = ""
+    # בסוגר שהצורה שלו נקבעה מהציור: התו שבקובץ (file_bracket), כדי שהציון יידע אם הציור שינה אותו
+    # (score.py, "מאמץ תיקון"). "" בכל תו אחר
+    source: str = ""
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,15 @@ class PageChars:
     skipped: int
     # סוגריים שלא הצלחנו לקבוע את הצורה שלהם מהציור; נשאר בהם התו שבקובץ
     unknown_brackets: int = 0
+    # מכאן: מידע לציון של העמוד (score.py), שלא משנה את הטקסט.
+    # סוגריים שהצורה שלהם נקבעה מהציור (המכנה של "סוגריים שתוקנו", lines.Component.brackets_changed)
+    brackets: int = 0
+    # תווים שאין להם ערך Unicode בקובץ לפי PDFium עצמו, ונראים כתווים רגילים (page_reference)
+    marked_unmapped: int = 0
+    # תווים שהשורה שלהם אינה אופקית משמאל לימין (is_rotated)
+    rotated: int = 0
+    # כל התווים של העמוד לפי הרשימה של PDFium, בלי מה ש-PDFium הוסיף (page_reference). None: לא נקרא
+    reference: str | None = None
 
 
 def page_chars(page) -> PageChars:
@@ -69,8 +81,9 @@ def page_chars(page) -> PageChars:
     y = ctypes.c_double()
     matrix = pdfium_raw.FS_MATRIX()
     chars = []
-    skipped = unknown_brackets = 0
+    skipped = unknown_brackets = brackets = rotated = 0
     mirrored = mirrored_by_pdfium(textpage, document_r2l(page.pdf))
+    reference, unmapped = page_reference(textpage)
     for i in range(textpage.count_chars()):
         ch = textpage.get_text_range(i, 1)
         if not ch or ch in "\r\n":
@@ -93,15 +106,111 @@ def page_chars(page) -> PageChars:
         if not all(math.isfinite(v) for v in (center, y.value, loose_left, loose_bottom, loose_right, loose_top, size)):
             skipped += 1
             continue
+        # המטריצה מולאה ב-font_size, והגודל סופי, כלומר הקריאה הצליחה והציר (a, b) אינו אפס
+        rotated += is_rotated(matrix)
+        source = ""
         if ch in FAMILIES:
+            brackets += 1
             shape = drawn_shape(page, box, ch)
             if shape is None:
                 unknown_brackets += 1
             else:
+                source = file_bracket(ch, i in mirrored)
                 ch = shape
         chars.append(Char(ch, center, y.value, loose_left, loose_right, loose_top - loose_bottom, size,
-                          font_name(textpage, i)))
-    return PageChars(chars, skipped, unknown_brackets)
+                          font_name(textpage, i), source))
+    return PageChars(chars, skipped, unknown_brackets, brackets, unmapped, rotated, reference)
+
+
+# טקסט מסובב: השורה של האות אינה אופקית משמאל לימין כש-|sin θ| של כיוון השורה גדול מזה (ההתייעצות על מדידה,
+# סעיף 2.4: "|sin θ| > 0.01 ⇒ לא מטפלים, מסמנים"). בסט אין אף אות מסובבת (נמדד בסבב 6, כל 15 הקבצים), ולכן
+# התוצאה על הסט זהה לכל ערך בין 0 ל-1, והערך נשאר זה של ההתייעצות
+ROTATION_SIN = 0.01
+
+
+def is_rotated(matrix: "pdfium_raw.FS_MATRIX") -> bool:
+    """האם האות מצוירת בשורה שאינה אופקית משמאל לימין, לפי המטריצה האפקטיבית שלה (FPDFText_GetMatrix).
+
+    כיוון השורה הוא העמודה (a, b) של המטריצה: x' = a·x + c·y + e, y' = b·x + d·y + f (PDF 1.7, סעיף 8.3.4).
+    מסובבת: |b| גדול מ-ROTATION_SIN מאורך הציר, או a שלילי (השורה פונה שמאלה, למשל סיבוב של 180 מעלות).
+    לא FPDFText_GetCharAngle: הוא מחשב atan2(c, a) (fpdfsdk/fpdf_text.cpp, ב-PDFium עד a8432342), כלומר לפי
+    ההטיה ולא לפי כיוון השורה, ואות נטויה מלאכותית של Chrome (c=0.19, b=0) הייתה נספרת אצלו מסובבת.
+    הקורא מסדר אותיות לפי x ומקבץ לפי קו הבסיס, ובשורה מסובבת אף אחד מהם לא נכון."""
+    axis = math.hypot(matrix.a, matrix.b)
+    return axis == 0 or abs(matrix.b) > ROTATION_SIN * axis or matrix.a < 0
+
+
+def file_bracket(char: str, mirrored: bool) -> str:
+    """התו של סוגר כמו שהוא בקובץ: מה ש-PDFium החזיר (char), בלי השיקוף שלו (mirrored_by_pdfium), באותו
+    אופן שבו הקורא מבטל את השיקוף של המירכאות. השיקוף של PDFium הוא לפי bracket_shapes.PAIRS."""
+    if not mirrored:
+        return char
+    opens_right, opens_left = FAMILIES[char]
+    return opens_left if char == opens_right else opens_right
+
+
+def unmapped_char(char: str) -> bool:
+    """תו שאינו אות אמיתית: תו בקרה (U+0000 עד U+001F ו-U+007F עד U+009F, הקטגוריה Cc) חוץ מטאב ושבירת שורה,
+    אזור השימוש הפרטי (Co, כל שלושת האזורים), או U+FFFD. מסמך האפיון, "פסילה מיידית": בסט כך יוצאות אותיות
+    שאין להן מיפוי (GPS בפלאייר, U+001D עד U+001F), ובדיקה של U+FFFD בלבד הייתה מפספסת את כולן."""
+    if char in "\t\n\r":
+        return False
+    kind = unicodedata.category(char)
+    return kind in ("Cc", "Co") or char == "�"
+
+
+def page_reference(textpage) -> tuple[str, int]:
+    """כל התווים של העמוד לפי הרשימה של PDFium, ומספר התווים שאין להם ערך Unicode בקובץ ונראים כתווים רגילים.
+
+    הרשימה: FPDFText_GetUnicode לכל אינדקס, חוץ ממה ש-PDFium הוסיף בעצמו (FPDFText_IsGenerated: רווחים
+    ושבירות שורה). זה הטקסט שמולו נמדדת השלמות של הפלט (score.py). לא FPDFText_GetText (get_text_range):
+    לפי public/fpdf_text.h הוא "ignores characters without UCS-2 representations", ואותו API קורא גם הקורא
+    (page_chars). כך אימוג'י נעלם משניהם, ובדיקה מולו לא הייתה רואה את זה: ב-doc-6p_gdocs.pdf 26 אימוג'י
+    בשישה עמודים לא מגיעים לפלט (נמדד בסבב 6). אימוג'י נשמר ברשימה כשני חצאים (surrogates), ו-PDFium גם הופך
+    את הסדר שלהם כשהוא הופך רצף מימין לשמאל (נמדד: U+DCCC ואחריו U+D83D), ולכן זוג מתחבר בשני הסדרים.
+
+    "לא ממופה": FPDFText_HasUnicodeMapError. לפי core/fpdftext/cpdf_textpage.cpp, כשלגופן אין ערך Unicode
+    לקוד של התו, PDFium מכניס את הקוד עצמו כתו ומסמן אותו kNotUnicode. כך האימוג'י במצגת יוצא "5" בשקופית
+    13 ו-"¹" בשקופית 15: תווים שנראים רגילים, ושום בדיקה של התו עצמו לא תתפוס. נספרים כאן רק אלה שאינם תו
+    לא ממופה בעצמם (unmapped_char), כי את אלה הציון סופר מהפלט, וכך תו לא נספר פעמיים. הערך -1 (שגיאה, רק
+    באינדקס או בעמוד לא תקינים) נספר כלא ממופה: כשל לא עובר בשקט כתו תקין."""
+    codes: list[int] = []
+    unmapped = 0
+    for i in range(textpage.count_chars()):
+        if pdfium_raw.FPDFText_IsGenerated(textpage, i) == 1:
+            continue
+        code = pdfium_raw.FPDFText_GetUnicode(textpage, i)
+        codes.append(code)
+        if pdfium_raw.FPDFText_HasUnicodeMapError(textpage, i) != 0 and not (
+                0 <= code <= 0x10FFFF and unmapped_char(chr(code))):
+            unmapped += 1
+    return _from_codes(codes), unmapped
+
+
+def _from_codes(codes: list[int]) -> str:
+    """הקודים כטקסט: זוג surrogates סמוכים, בכל סדר, הוא תו אחד; קוד מחוץ לטווח של Unicode הוא U+FFFD."""
+    out: list[str] = []
+    i = 0
+    while i < len(codes):
+        pair = codes[i:i + 2]
+        kinds = {_surrogate(code) for code in pair}
+        if len(pair) == 2 and kinds == {"high", "low"}:
+            high, low = sorted(pair)  # high: D800 עד DBFF, low: DC00 עד DFFF
+            out.append(chr(0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00)))
+            i += 2
+            continue
+        code = codes[i]
+        out.append(chr(code) if 0 <= code <= 0x10FFFF else "�")
+        i += 1
+    return "".join(out)
+
+
+def _surrogate(code: int) -> str | None:
+    if 0xD800 <= code <= 0xDBFF:
+        return "high"
+    if 0xDC00 <= code <= 0xDFFF:
+        return "low"
+    return None
 
 
 # תג של תת-קבוצת גופן: שש אותיות לטיניות גדולות ו-"+" לפני שם הגופן (PDF 1.7, סעיף 9.6.4, Font Subsets).
