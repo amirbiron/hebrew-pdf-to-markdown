@@ -3,8 +3,9 @@
 import ctypes
 import math
 import re
+import statistics
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import NamedTuple
 
@@ -22,6 +23,17 @@ SAME_SIZE = 1.02
 def same_size(a: float, b: float) -> bool:
     """שני גדלים של אות שווים (SAME_SIZE)."""
     return max(a, b) <= min(a, b) * SAME_SIZE
+
+
+def size_of(chars: Iterable["Char"]) -> float:
+    """הגודל של קבוצת אותיות (שורה, רכיב): החציון של Char.size באותיות שיש להן גודל, 0 כשאין כאלה. החציון
+    התחתון (statistics.median_low) ולא הממוצע של שני האמצעיים: הגודל הוא תמיד גודל של אחת האותיות. בשורה
+    שחציה בגודל 13 וחציה ב-17 (כותרת ב-doc-6p_gdocs.pdf, 25 ו-25 עם האימוג'י) הממוצע הוא 15, גודל שאין
+    לאף אות בעמוד, והוא היה נספר כקבוצת גודל חדשה של כותרות ומזיז את הרמה של כל הכותרות שמתחתיה
+    (markdown._Sizes). משמש את הגיאומטריה של שורה ורכיב (lines.geometry_of) ואת השורה בעמוד
+    (layout.PageLine.size), כך ששתיהן מודדות אותו גודל."""
+    sizes = [c.size for c in chars if c.size > 0]
+    return statistics.median_low(sizes) if sizes else 0.0
 
 
 class Char(NamedTuple):
@@ -84,26 +96,40 @@ def page_chars(page) -> PageChars:
     skipped = unknown_brackets = brackets = rotated = 0
     mirrored = mirrored_by_pdfium(textpage, document_r2l(page.pdf))
     reference, unmapped = page_reference(textpage)
-    for i in range(textpage.count_chars()):
-        ch = textpage.get_text_range(i, 1)
-        if not ch or ch in "\r\n":
+    codes = [pdfium_raw.FPDFText_GetUnicode(textpage, i) for i in range(textpage.count_chars())]
+    for indices, ch in characters(codes):
+        if ch in "\r\n":
             continue
+        i = indices[0]
         if ch in _UNICODE_UNMIRRORED and i in mirrored:
             ch = _UNICODE_UNMIRRORED[ch]  # מבטלים את השיקוף של PDFium (mirrored_by_pdfium)
-        if not pdfium_raw.FPDFText_GetCharOrigin(textpage, i, x, y):
+        # תו של שני חצאים (אימוג'י, characters): PDFium נותן לשניהם את אותו CharInfo, כלומר אותה נקודת מוצא
+        # ואותן תיבות (ProcessTextObjectItems ב-core/fpdftext/cpdf_textpage.cpp: "for (wchar_t c : unicode)
+        # { charinfo.set_unicode(c); ... temp_char_list_.push_back(charinfo); }", נמדד: 26 מתוך 26). לכן המיקום
+        # של התו נגזר משניהם: התיבות הן האיחוד, וקו הבסיס הוא הממוצע, ושניהם מצטמצמים לערך המשותף. כשל באחד
+        # מהם הוא כשל של התו: הוא מדולג ונספר פעם אחת
+        origins = []
+        for index in indices:
+            if not pdfium_raw.FPDFText_GetCharOrigin(textpage, index, x, y):
+                break
+            origins.append(y.value)
+        if len(origins) < len(indices):
             skipped += 1
             continue
         # get_charbox זורקת PdfiumError בכשל (pypdfium2/_helpers/textpage.py), ואחרי
         # GetCharOrigin מוצלחת היא לא יכולה להיכשל: אותו תנאי, והמצביעים לא ריקים.
         # כך גם התיבה הרופפת (loose=True, FPDFText_GetLooseCharBox ב-fpdfsdk/fpdf_text.cpp).
-        box = textpage.get_charbox(i)
+        box = _union(textpage.get_charbox(index) for index in indices)
         center = (box[0] + box[2]) / 2
         # התיבה הרופפת: משמאל = נקודת המוצא, מימין = המוצא ועוד רוחב ההתקדמות של האות,
         # ולמעלה ולמטה = תיבת הגופן (GetLooseBounds ב-core/fpdftext/cpdf_textpage.cpp).
         # כשאין לאות תיבה בכלל (תיבה ריקה, למשל רווח ש-PDFium הוסיף) היא ריקה גם כאן.
-        loose_left, loose_bottom, loose_right, loose_top = textpage.get_charbox(i, loose=True)
+        loose_left, loose_bottom, loose_right, loose_top = _union(textpage.get_charbox(index, loose=True)
+                                                                  for index in indices)
+        baseline = sum(origins) / len(origins)
+        # הגודל, הגופן והמטריצה של החצי הראשון: לשני החצאים אותו CharInfo, כלומר אותה מטריצה ואותו אובייקט טקסט
         size = font_size(textpage, i, matrix)
-        if not all(math.isfinite(v) for v in (center, y.value, loose_left, loose_bottom, loose_right, loose_top, size)):
+        if not all(math.isfinite(v) for v in (center, baseline, loose_left, loose_bottom, loose_right, loose_top, size)):
             skipped += 1
             continue
         # המטריצה מולאה ב-font_size, והגודל סופי, כלומר הקריאה הצליחה והציר (a, b) אינו אפס
@@ -117,9 +143,15 @@ def page_chars(page) -> PageChars:
             else:
                 source = file_bracket(ch, i in mirrored)
                 ch = shape
-        chars.append(Char(ch, center, y.value, loose_left, loose_right, loose_top - loose_bottom, size,
+        chars.append(Char(ch, center, baseline, loose_left, loose_right, loose_top - loose_bottom, size,
                           font_name(textpage, i), source))
     return PageChars(chars, skipped, unknown_brackets, brackets, unmapped, rotated, reference)
+
+
+def _union(boxes: Iterable[tuple[float, float, float, float]]) -> tuple[float, float, float, float]:
+    """האיחוד של תיבות (left, bottom, right, top), כמו ש-get_charbox מחזירה אותן."""
+    lefts, bottoms, rights, tops = zip(*boxes)
+    return min(lefts), min(bottoms), max(rights), max(tops)
 
 
 # טקסט מסובב: השורה של האות אינה אופקית משמאל לימין כש-|sin θ| של כיוון השורה גדול מזה (ההתייעצות על מדידה,
@@ -163,54 +195,54 @@ def page_reference(textpage) -> tuple[str, int]:
     """כל התווים של העמוד לפי הרשימה של PDFium, ומספר התווים שאין להם ערך Unicode בקובץ ונראים כתווים רגילים.
 
     הרשימה: FPDFText_GetUnicode לכל אינדקס, חוץ ממה ש-PDFium הוסיף בעצמו (FPDFText_IsGenerated: רווחים
-    ושבירות שורה). זה הטקסט שמולו נמדדת השלמות של הפלט (score.py). לא FPDFText_GetText (get_text_range):
-    לפי public/fpdf_text.h הוא "ignores characters without UCS-2 representations", ואותו API קורא גם הקורא
-    (page_chars). כך אימוג'י נעלם משניהם, ובדיקה מולו לא הייתה רואה את זה: ב-doc-6p_gdocs.pdf 26 אימוג'י
-    בשישה עמודים לא מגיעים לפלט (נמדד בסבב 6). אימוג'י נשמר ברשימה כשני חצאים (surrogates), ו-PDFium גם הופך
-    את הסדר שלהם כשהוא הופך רצף מימין לשמאל (נמדד: U+DCCC ואחריו U+D83D), ולכן זוג מתחבר בשני הסדרים.
+    ושבירות שורה), כתווים (characters). זה הטקסט שמולו נמדדת השלמות של הפלט (score.py). אותו מקור ואותה
+    המרה לתווים כמו הקורא (page_chars), כך שאין שני עותקים של הכלל שיכולים להיפרד.
 
     "לא ממופה": FPDFText_HasUnicodeMapError. לפי core/fpdftext/cpdf_textpage.cpp, כשלגופן אין ערך Unicode
     לקוד של התו, PDFium מכניס את הקוד עצמו כתו ומסמן אותו kNotUnicode. כך האימוג'י במצגת יוצא "5" בשקופית
     13 ו-"¹" בשקופית 15: תווים שנראים רגילים, ושום בדיקה של התו עצמו לא תתפוס. נספרים כאן רק אלה שאינם תו
     לא ממופה בעצמם (unmapped_char), כי את אלה הציון סופר מהפלט, וכך תו לא נספר פעמיים. הערך -1 (שגיאה, רק
-    באינדקס או בעמוד לא תקינים) נספר כלא ממופה: כשל לא עובר בשקט כתו תקין."""
-    codes: list[int] = []
+    באינדקס או בעמוד לא תקינים) הוא U+FFFD (characters), כלומר תו לא ממופה בפלט: כשל לא עובר בשקט כתו תקין."""
+    indices = [i for i in range(textpage.count_chars()) if pdfium_raw.FPDFText_IsGenerated(textpage, i) != 1]
+    text: list[str] = []
     unmapped = 0
-    for i in range(textpage.count_chars()):
-        if pdfium_raw.FPDFText_IsGenerated(textpage, i) == 1:
-            continue
-        code = pdfium_raw.FPDFText_GetUnicode(textpage, i)
-        codes.append(code)
-        if pdfium_raw.FPDFText_HasUnicodeMapError(textpage, i) != 0 and not (
-                0 <= code <= 0x10FFFF and unmapped_char(chr(code))):
+    for positions, char in characters([pdfium_raw.FPDFText_GetUnicode(textpage, i) for i in indices]):
+        text.append(char)
+        if not unmapped_char(char) and any(pdfium_raw.FPDFText_HasUnicodeMapError(textpage, indices[k]) != 0
+                                           for k in positions):
             unmapped += 1
-    return _from_codes(codes), unmapped
+    return "".join(text), unmapped
 
 
-def _from_codes(codes: list[int]) -> str:
-    """הקודים כטקסט: זוג surrogates סמוכים, בכל סדר, הוא תו אחד; קוד מחוץ לטווח של Unicode הוא U+FFFD."""
-    out: list[str] = []
-    i = 0
-    while i < len(codes):
-        pair = codes[i:i + 2]
-        kinds = {_surrogate(code) for code in pair}
-        if len(pair) == 2 and kinds == {"high", "low"}:
-            high, low = sorted(pair)  # high: D800 עד DBFF, low: DC00 עד DFFF
-            out.append(chr(0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00)))
-            i += 2
+def characters(codes: Sequence[int]) -> list[tuple[tuple[int, ...], str]]:
+    """הקודים של PDFium (FPDFText_GetUnicode, אחד לכל אינדקס) כתווים: לכל תו, המקומות שלו ברשימת הקודים, והתו.
+
+    PDFium שומר תו שמחוץ ל-BMP (אימוג'י) כשני אינדקסים, שני החצאים של זוג UTF-16 (surrogates): הוא קורא את
+    מפת התווים של הגופן (ToUnicode) ארבע ספרות הקסדצימליות לכל wchar_t (CPDF_ToUnicodeMap::StringToWideString
+    ב-core/fpdfapi/font/cpdf_tounicodemap.cpp), ונותן לכל wchar_t אינדקס משלו. הסדר של שני החצאים תלוי בכיוון:
+    בטבלה של PDFium החצאים הם ON, ניטרליים (core/fxcrt/fx_ucddata.inc, U+D800 עד U+DFFF), ולכן ברצף שהוא
+    עובר מימין לשמאל, למשל אחרי אות עברית, הוא מעביר אותם בסדר הפוך, החצי הנמוך לפני הגבוה (CloseTempLine ב-
+    core/fpdftext/cpdf_textpage.cpp), וברצף משמאל לימין בסדר הרגיל. לכן זוג סמוך מתחבר בשני הסדרים (בסט: 26
+    זוגות ב-doc-6p_gdocs.pdf, כולם נמוך לפני גבוה).
+
+    חצי בלי זוג, וקוד מחוץ לטווח של Unicode (-1, שגיאה), הם U+FFFD: אין להם תו, ובפלט הם תו לא ממופה
+    (unmapped_char) ולא נעלמים. לפני כן הקורא קרא כל אינדקס דרך FPDFText_GetText (get_text_range), שמחזיר
+    UCS-2, ו-pypdfium2 מפענח אותו עם errors="ignore" (pypdfium2/_helpers/textpage.py): חצי בודד אינו UTF-16
+    תקין, ולכן נעלם בשקט, ואיתו האימוג'י. בכל שאר 267,760 האינדקסים בסט שתי הדרכים מחזירות אותו תו (נמדד בסבב 6ב)."""
+    out: list[tuple[tuple[int, ...], str]] = []
+    k = 0
+    while k < len(codes):
+        pair = sorted(codes[k:k + 2])
+        if len(pair) == 2 and 0xD800 <= pair[0] <= 0xDBFF and 0xDC00 <= pair[1] <= 0xDFFF:
+            high, low = pair
+            out.append(((k, k + 1), chr(0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00))))
+            k += 2
             continue
-        code = codes[i]
-        out.append(chr(code) if 0 <= code <= 0x10FFFF else "�")
-        i += 1
-    return "".join(out)
-
-
-def _surrogate(code: int) -> str | None:
-    if 0xD800 <= code <= 0xDBFF:
-        return "high"
-    if 0xDC00 <= code <= 0xDFFF:
-        return "low"
-    return None
+        code = codes[k]
+        valid = 0 <= code <= 0x10FFFF and not 0xD800 <= code <= 0xDFFF
+        out.append(((k,), chr(code) if valid else "�"))
+        k += 1
+    return out
 
 
 # תג של תת-קבוצת גופן: שש אותיות לטיניות גדולות ו-"+" לפני שם הגופן (PDF 1.7, סעיף 9.6.4, Font Subsets).
@@ -269,7 +301,13 @@ def mirrored_by_pdfium(textpage, r2l: bool) -> set[int]:
 def _direction(char: str) -> str:
     """הכיוון של תו כמו ב-CFX_BidiChar::AppendChar (core/fxcrt/fx_bidi.cpp): L, R (גם AL), W (חלש: AN,
     EN, NSM, CS, ES, ET, BN) או N (כל השאר). לפי Bidi_Class של unicodedata; ל-PDFium טבלה משלו
-    (fx_ucddata.inc), ובתווים שבסט הן מסכימות (נבדק: 217 מתוך 217 מירכאות, tests/test_chars.py)."""
+    (core/fxcrt/fx_ucddata.inc), ובתווים שבסט הן מסכימות (נבדק: 217 מתוך 217 מירכאות, tests/test_chars.py),
+    חוץ מחצאים של זוג UTF-16 (characters): בטבלה של PDFium כל 2,048 החצאים הם ON, ו-unicodedata נותן להם L.
+    בסט אלה 52 החצאים של האימוג'י ב-doc-6p_gdocs.pdf, ובלי זה הרצף אחרי אימוג'י בשורה עברית היה נחשב
+    משמאל לימין. הטבלאות שונות עוד ב-1,023 תווים ב-BMP (רובם תווים שנוספו ל-Unicode אחרי הטבלה של PDFium),
+    ואף אחד מהם אינו בסט (נמדד בסבב 6ב, על כל אינדקס בכל 15 הקבצים)."""
+    if 0xD800 <= ord(char) <= 0xDFFF:
+        return "N"
     kind = unicodedata.bidirectional(char)
     if kind == "L":
         return "L"
