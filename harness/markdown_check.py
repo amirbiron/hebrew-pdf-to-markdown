@@ -1,4 +1,4 @@
-"""בדיקות של ה-Markdown שהחבילה בונה (hebrew_pdf/markdown.py), דרך מפרסר GFM אמיתי.
+"""בדיקות של ה-Markdown שהחבילה בונה (hebrew_pdf/markdown.py), דרך מפרסר GFM אמיתי. 
 
 המפרסר הוא cmark-gfm, הספרייה ש-GitHub עצמו מציג בה Markdown, דרך cmarkgfm (תלות פיתוח בלבד,
 requirements-dev.txt, רישיון MIT). github_flavored_markdown_to_html מפעיל את ההרחבות table,
@@ -12,6 +12,10 @@ autolink, tagfilter, strikethrough ו-tasklist (cmarkgfm/cmark.py). בלי CMARK
    (Markdown.markers: תבליט ומספר, שהמציג מצייר בעצמו). אות שנעלמה או נוספה היא באג. רצה על כל
    הקבצים, ולא רק על המתויגים, כמו בדיקת התצוגה. ומספר הפריטים ברשימות (li) שווה למספר הסימנים
    שהפכו לרשימה ועוד הפריטים שהסימן שלהם נשאר טקסט ("א."), כדי שהניכוי לא יסתיר טקסט.
+   מה היא לא תופסת: אות שהקורא עצמו איבד או הוסיף, כי האותיות של הקורא הן נקודת ההשוואה שלה. נמדד בסבב 6
+   (PR א׳) על "3. חדר החלטות" בתוכן העניינים של MentorOS (עמוד 2): נקודה שנמחקת מה-Markdown נספרת ("חסרות 1"),
+   ונקודה שנמחקת מהשורה של הקורא עוברת כשלמה. (בעמוד 4 של אותו קובץ הכותרת היא "3 חדר החלטות" בלי נקודה,
+   כמו בקובץ ובעמוד: הספרה מצוירת בתוך עיגול, ואין אחריה נקודה.)
 2. טבלאות בסיבוב מלא (tables): התאים כמו שהמפרסר מוציא אותם מה-HTML, מול דף התשובות
    (harness/tables.py). כך נבדקים גם הבנייה וגם ההגנה על התווים.
 3. מבנה (match_blocks): הכותרות, פריטי הרשימה והפסקאות שהמפרסר מוציא, מול אלה שבדף התשובות, שנגזרו
@@ -22,7 +26,6 @@ autolink, tagfilter, strikethrough ו-tasklist (cmarkgfm/cmark.py). בלי CMARK
 באות חזקה שאינה עברית (hebrew_pdf.markdown.first_strong), ותאים של טבלה בנפרד.
 """
 
-import unicodedata
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -32,18 +35,11 @@ import cmarkgfm
 from harness.html_structure import HtmlBlock, ParsedHtml, parse
 from hebrew_pdf.lines import PageText
 from hebrew_pdf.markdown import Markdown, first_strong
-
-_SPACES = frozenset("\t\n\r\f\v")
-
+# אותה ספירה של אותיות בלי רווחים כמו בציון של העמוד (ציר השלמות): מקום אחד לכלל
+from hebrew_pdf.score import visible_chars
 
 def to_html(markdown: str) -> str:
     return cmarkgfm.github_flavored_markdown_to_html(markdown)
-
-
-def visible_chars(text: str) -> Counter:
-    """האותיות של טקסט בלי רווחים: קטגוריה Zs ב-Unicode, וטאב ושורה חדשה. לא str.isspace(), שמחשיב
-    גם את U+001C עד U+001F, ובקבצים אלה אותיות שמופו בטעות (harness/textdiff.py)."""
-    return Counter(char for char in text if char not in _SPACES and unicodedata.category(char) != "Zs")
 
 
 @dataclass(frozen=True)

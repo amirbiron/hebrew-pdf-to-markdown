@@ -35,8 +35,10 @@ def _broken(line):
 
 
 def reversed_ltr_reader(pdf_path: Path) -> list[PageText]:
-    return [PageText([_broken(line) for line in p.lines], p.skipped_chars, p.unknown_brackets,
-                     [tuple(_reverse_runs(cell) for cell in row) for row in p.rows])
+    # הקורא השבור קורא את אותו קובץ, ומשנה רק את הטקסט הלוגי: השורות והתאים. כל שאר העמוד (מאיפה באה כל שורה,
+    # הגודל, ומה שבעמוד לפי PDFium, שמולו הציון מודד) נשאר כמו שהוא, גם שדה שיתווסף בעתיד
+    return [dataclasses.replace(p, lines=[_broken(line) for line in p.lines],
+                                table_rows=[tuple(_reverse_runs(cell) for cell in row) for row in p.rows])
             for p in read_pages(pdf_path)]
 
 
@@ -70,6 +72,13 @@ class HarnessCanFailTest(unittest.TestCase):
 
     def test_broken_reader_increases_distance(self):
         self.assertGreater(self.broken.total_distance, self.real.total_distance * 3 // 2)
+
+    def test_broken_reader_pages_are_marked(self):
+        # הציון של העמוד (hebrew_pdf/score.py) רואה את הקורא השבור: אנגלית ומספרים הפוכים לא מוצגים כמו העמוד
+        def ok_pages(ev):
+            return sum(page.decision == "תקין" for pages in ev.scores.values() for page in pages)
+        self.assertGreater(ok_pages(self.real), 100)
+        self.assertLess(ok_pages(self.broken), ok_pages(self.real) // 2)
 
     def test_report_is_deterministic(self):
         again = evaluate(DEFAULT_PDFS, self.labels)

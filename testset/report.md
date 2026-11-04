@@ -26,6 +26,7 @@
 | מבנה אחרי סיבוב ב-Markdown (env-vars_weasyprint.pdf): תאים זהים, טבלאות, כותרות, פריטים, פסקאות | 2695 (96.5%) מתוך 2792; 6 טבלאות מתוך 6; כותרות 9/9, פריטים 3/3, פסקאות 13/14 |
 | מבנה אחרי סיבוב ב-Markdown (spec_chrome.pdf): תאים זהים, טבלאות, כותרות, פריטים, פסקאות | 133 (100.0%) מתוך 133; 7 טבלאות מתוך 7; כותרות 21/21, פריטים 64/64, פסקאות 42/47 |
 | מבנה אחרי סיבוב ב-Markdown (spec_weasyprint.pdf): תאים זהים, טבלאות, כותרות, פריטים, פסקאות | 133 (100.0%) מתוך 133; 7 טבלאות מתוך 7; כותרות 21/21, פריטים 60/64, פסקאות 42/47 |
+| ציון העמודים (בכל הסט): תקין / לא בטוח / נפסל | 146 / 33 / 6 |
 | אותיות שדולגו כי אין להן מיקום על הדף (בכל הסט) | 0 |
 | סוגריים שהצורה שלהם לא נקבעה מהציור (בכל הסט) | 0 |
 | שורות שלא עוברות את בדיקת התצוגה (בכל הסט) | 21 מתוך 5107 |
@@ -259,6 +260,126 @@
 | תאים זהים אחרי סיבוב ב-Markdown | 133 (100.0%) מתוך 133 |
 | שורות זהות אחרי סיבוב ב-Markdown | 40 (100.0%) |
 
+## ציון וסימון
+
+לכל עמוד: החלטה (תקין, לא בטוח, נפסל) וסיבות (hebrew_pdf/score.py). נפסל, בלי ציון: עמוד בלי טקסט, טקסט מסובב, או תו שלא ממופה בקובץ (תו בקרה, אזור השימוש הפרטי, U+FFFD, או תו ש-PDFium מסמן כחסר ערך Unicode). לא בטוח: אחד משלושת הצירים נכשל. סבירות: שורה שלא מוצגת כמו העמוד, או שיעור נמוך של מילים סבירות (הגבול התחתון של Wilson), רק במה שמגיע ל-Markdown. שלמות: התווים של הפלט, בלי סדר, מול כל התווים של העמוד לפי PDFium. מאמץ תיקון: שיעור ההחלטות של הקורא ששינו את הקובץ (רווחים וסוגריים). "הסיבות הנפוצות": בכמה עמודים של הקובץ מופיעה כל סיבה.
+
+| קובץ | עמודים | תקין | לא בטוח | נפסל | הסיבות הנפוצות |
+|---|---|---|---|---|---|
+| chatbot-spec-form_gdocs.pdf | 4 | 4 | 0 | 0 | — |
+| doc-2p_weasyprint.pdf | 2 | 2 | 0 | 0 | — |
+| doc-4p_weasyprint.pdf | 4 | 3 | 1 | 0 | עמוד קצר (1) |
+| doc-6p_gdocs.pdf | 6 | 0 | 6 | 0 | תווים שחסרים בפלט (6), שורות שלא מוצגות כמו העמוד (1) |
+| env-vars_weasyprint.pdf | 26 | 13 | 13 | 0 | שורות שלא מוצגות כמו העמוד (12), שורות דו-משמעיות (1) |
+| financial-report-q2-2025_aspose.pdf | 66 | 61 | 5 | 0 | עמוד קצר (5) |
+| gps-book_indesign.pdf | 16 | 9 | 5 | 2 | עמוד קצר (4), עמוד בלי טקסט (2), שורות דו-משמעיות (1) |
+| marketing-flyer_illustrator.pdf | 1 | 0 | 0 | 1 | תווים לא ממופים (1) |
+| mentoros-overview_weasyprint.pdf | 8 | 8 | 0 | 0 | — |
+| optimization_chrome.pdf | 1 | 1 | 0 | 0 | — |
+| presentation_canva.pdf | 24 | 19 | 2 | 3 | תווים לא ממופים (3), הרבה תיקונים (1), עמוד קצר (1) |
+| price-quote_weasyprint.pdf | 7 | 7 | 0 | 0 | — |
+| social-publisher-setup_weasyprint.pdf | 2 | 2 | 0 | 0 | — |
+| spec_chrome.pdf | 9 | 8 | 1 | 0 | שורות שלא מוצגות כמו העמוד (1) |
+| spec_weasyprint.pdf | 9 | 9 | 0 | 0 | — |
+
+### עמודים שלא יצאו תקין
+
+| קובץ | עמוד | החלטה | סיבות |
+|---|---|---|---|
+| doc-4p_weasyprint.pdf | 4 | לא בטוח | עמוד קצר: 10 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| doc-6p_gdocs.pdf | 1 | לא בטוח | 3 תווים שבעמוד חסרים בפלט (אימוג'י) |
+| doc-6p_gdocs.pdf | 2 | לא בטוח | 9 תווים שבעמוד חסרים בפלט (אימוג'י) |
+| doc-6p_gdocs.pdf | 3 | לא בטוח | 5 תווים שבעמוד חסרים בפלט (אימוג'י) |
+| doc-6p_gdocs.pdf | 4 | לא בטוח | שורה אחת שלא מוצגת כמו העמוד; 6 תווים שבעמוד חסרים בפלט (אימוג'י) |
+| doc-6p_gdocs.pdf | 5 | לא בטוח | תו אחד שבעמוד חסר בפלט (אימוג'י) |
+| doc-6p_gdocs.pdf | 6 | לא בטוח | 2 תווים שבעמוד חסרים בפלט (אימוג'י) |
+| env-vars_weasyprint.pdf | 2 | לא בטוח | שורה אחת שלא מוצגת כמו העמוד |
+| env-vars_weasyprint.pdf | 3 | לא בטוח | 3 שורות שלא מוצגות כמו העמוד |
+| env-vars_weasyprint.pdf | 4 | לא בטוח | שורה אחת שלא מוצגת כמו העמוד |
+| env-vars_weasyprint.pdf | 7 | לא בטוח | שורה אחת שלא מוצגת כמו העמוד |
+| env-vars_weasyprint.pdf | 11 | לא בטוח | 2 שורות שלא מוצגות כמו העמוד |
+| env-vars_weasyprint.pdf | 13 | לא בטוח | שורה אחת שלא מוצגת כמו העמוד |
+| env-vars_weasyprint.pdf | 17 | לא בטוח | שורה אחת שלא מוצגת כמו העמוד |
+| env-vars_weasyprint.pdf | 19 | לא בטוח | שורה אחת שלא מוצגת כמו העמוד |
+| env-vars_weasyprint.pdf | 20 | לא בטוח | 2 שורות שלא מוצגות כמו העמוד |
+| env-vars_weasyprint.pdf | 21 | לא בטוח | שורה אחת שלא מוצגת כמו העמוד |
+| env-vars_weasyprint.pdf | 22 | לא בטוח | 4 שורות שלא מוצגות כמו העמוד |
+| env-vars_weasyprint.pdf | 24 | לא בטוח | שורה אחת שלא מוצגת כמו העמוד |
+| env-vars_weasyprint.pdf | 25 | לא בטוח | 3 שורות ששני סדרים שלהן נראים זהה, בעמוד של 29 מילים |
+| financial-report-q2-2025_aspose.pdf | 1 | לא בטוח | עמוד קצר: 11 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| financial-report-q2-2025_aspose.pdf | 3 | לא בטוח | עמוד קצר: 10 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| financial-report-q2-2025_aspose.pdf | 28 | לא בטוח | עמוד קצר: 10 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| financial-report-q2-2025_aspose.pdf | 52 | לא בטוח | עמוד קצר: 10 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| financial-report-q2-2025_aspose.pdf | 64 | לא בטוח | עמוד קצר: 2 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| gps-book_indesign.pdf | 1 | נפסל | עמוד בלי טקסט (כנראה תמונה): אין מה לחלץ ממנו |
+| gps-book_indesign.pdf | 3 | נפסל | עמוד בלי טקסט (כנראה תמונה): אין מה לחלץ ממנו |
+| gps-book_indesign.pdf | 7 | לא בטוח | עמוד קצר: 6 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| gps-book_indesign.pdf | 11 | לא בטוח | עמוד קצר: 7 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| gps-book_indesign.pdf | 14 | לא בטוח | עמוד קצר: 8 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| gps-book_indesign.pdf | 15 | לא בטוח | עמוד קצר: 2 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| gps-book_indesign.pdf | 16 | לא בטוח | שורה אחת ששני סדרים שלה נראים זהה, בעמוד של 10 מילים |
+| marketing-flyer_illustrator.pdf | 1 | נפסל | 7 תווים שלא ממופים בקובץ: במקום האות שבעמוד יוצא תו אחר |
+| presentation_canva.pdf | 1 | לא בטוח | עמוד קצר: 12 מילים בלבד, מעט מדי כדי לסמוך עליו |
+| presentation_canva.pdf | 7 | לא בטוח | הקורא תיקן הרבה: 18 מתוך 109 החלטות (0 רווחים, 18 סוגריים) |
+| presentation_canva.pdf | 13 | נפסל | תו אחד שלא ממופה בקובץ: במקום האות שבעמוד יוצא תו אחר |
+| presentation_canva.pdf | 15 | נפסל | 2 תווים שלא ממופים בקובץ: במקום האות שבעמוד יוצא תו אחר |
+| presentation_canva.pdf | 23 | נפסל | 2 תווים שלא ממופים בקובץ: במקום האות שבעמוד יוצא תו אחר |
+| spec_chrome.pdf | 2 | לא בטוח | שורה אחת שלא מוצגת כמו העמוד |
+
+### כיול
+
+הספים נקבעים כאן ולא ביד (harness/calibration.py). עמודים שהפלט שלהם ידוע כנכון: 60 (כל העמודים של הקבצים שיש להם דף תשובות, ועמודים שכל השורות המתויגות בהם זהות). מתוכם 46 בלי כשל ודאי (פסילה, שורה שלא מוצגת כמו העמוד, תו שחסר או נוסף), ועליהם נמדדות ההשחתות. ההשחתה היא של הטקסט שהקורא הוציא, ומה שבעמוד ורשימת התווים של PDFium לא משתנים, חוץ מ"תווי בקרה במקום אותיות", שהוא כשל של הקובץ. עוצמה: רכיב אחד בעמוד, או כל הרכיבים שהצורה חלה עליהם.
+
+#### שגיאות מכוונות: כמה נתפסו
+
+"נתפסו": העמוד לא יצא תקין. בעמודות שאחריה: לפי איזה כלל (עמוד יכול להיתפס ביותר מאחד).
+
+| צורה | עוצמה | עמודים | נתפסו | נפסל | שורה שלא מוצגת כמו העמוד | סימנים (סבירות) | שלמות | מאמץ |
+|---|---|---|---|---|---|---|---|---|
+| היפוך שורה שלמה | רכיב אחד | 45 | 45 (100%) | 0 (0%) | 45 (100%) | 2 (4%) | 0 (0%) | 0 (0%) |
+| היפוך שורה שלמה | כל הרכיבים | 45 | 45 (100%) | 0 (0%) | 45 (100%) | 44 (98%) | 0 (0%) | 0 (0%) |
+| היפוך רצפי אנגלית ומספרים | רכיב אחד | 44 | 44 (100%) | 0 (0%) | 44 (100%) | 0 (0%) | 0 (0%) | 0 (0%) |
+| היפוך רצפי אנגלית ומספרים | כל הרכיבים | 44 | 44 (100%) | 0 (0%) | 44 (100%) | 1 (2%) | 0 (0%) | 0 (0%) |
+| היפוך אותיות בתוך מילה | רכיב אחד | 45 | 45 (100%) | 0 (0%) | 45 (100%) | 2 (4%) | 0 (0%) | 0 (0%) |
+| היפוך אותיות בתוך מילה | כל הרכיבים | 45 | 45 (100%) | 0 (0%) | 45 (100%) | 43 (96%) | 0 (0%) | 0 (0%) |
+| היפוך סדר המילים | רכיב אחד | 45 | 45 (100%) | 0 (0%) | 45 (100%) | 1 (2%) | 0 (0%) | 0 (0%) |
+| היפוך סדר המילים | כל הרכיבים | 45 | 45 (100%) | 0 (0%) | 45 (100%) | 2 (4%) | 0 (0%) | 0 (0%) |
+| הזזת פיסוק לתחילת השורה | רכיב אחד | 41 | 41 (100%) | 0 (0%) | 41 (100%) | 0 (0%) | 0 (0%) | 0 (0%) |
+| הזזת פיסוק לתחילת השורה | כל הרכיבים | 41 | 41 (100%) | 0 (0%) | 41 (100%) | 0 (0%) | 0 (0%) | 0 (0%) |
+| הדבקת שתי עמודות | רכיב אחד | 4 | 4 (100%) | 0 (0%) | 4 (100%) | 0 (0%) | 0 (0%) | 0 (0%) |
+| הדבקת שתי עמודות | כל הרכיבים | 4 | 4 (100%) | 0 (0%) | 4 (100%) | 0 (0%) | 0 (0%) | 0 (0%) |
+| השמטת תווים | רכיב אחד | 45 | 45 (100%) | 0 (0%) | 45 (100%) | 0 (0%) | 45 (100%) | 0 (0%) |
+| השמטת תווים | כל הרכיבים | 45 | 45 (100%) | 0 (0%) | 45 (100%) | 0 (0%) | 45 (100%) | 0 (0%) |
+| תווי בקרה במקום אותיות | רכיב אחד | 45 | 45 (100%) | 45 (100%) | 0 (0%) | 0 (0%) | 0 (0%) | 0 (0%) |
+| תווי בקרה במקום אותיות | כל הרכיבים | 45 | 45 (100%) | 45 (100%) | 0 (0%) | 0 (0%) | 0 (0%) | 0 (0%) |
+
+עמודים לא מושחתים שסומנו: מתוך 60 העמודים הידועים כנכונים, 15 לא יצאו תקין: 13 בגלל שורה שלא מוצגת כמו העמוד, 1 בגלל תו שחסר או נוסף, 1 בגלל הסימנים של הסבירות, 0 בגלל מאמץ התיקון, ו-0 נפסלו. מתוך 46 העמודים בלי כשל ודאי, שעליהם נמדדו ההשחתות: 1 (1 בסימנים, 0 במאמץ).
+
+#### הספים
+
+| סף | ערך | הטווח שבו ההחלטות והסיבות בכל הסט זהות | איך נקבע |
+|---|---|---|---|
+| MIN_PLAUSIBLE | 0.774 | 0.757 עד 0.790 | הדרישה: האחוזון ה-95 של הציון של עמודים שכל השורות בהם הפוכות (היפוך שורה שלמה, היפוך אותיות בתוך מילה): 0.755. הטווח היציב הראשון שכולו מעליה: 0.757 עד 0.790, והערך באמצע שלו |
+| MAX_EFFORT | 0.107 | 0.106 עד 0.107 | המאמץ הגבוה ביותר בעמוד ידוע כנכון: 0.106. הטווח היציב שמכיל אותו: 0.106 עד 0.107, והערך באמצע שלו |
+| תווים לא ממופים | 1 | — | כל אחד הוא כשל ודאי. עמודים בסט לפי המספר: 1: 1, 2: 2, 3 ומעלה: 1 |
+| תווים בטקסט מסובב | 1 | — | כל אחד הוא כשל ודאי. עמודים בסט לפי המספר: אין |
+| שורות שלא מוצגות כמו העמוד | 1 | — | כל אחד הוא כשל ודאי. עמודים בסט לפי המספר: 1: 10, 2: 2, 3 ומעלה: 2 |
+| תווים שחסרים או נוספו | 1 | — | כל אחד הוא כשל ודאי. עמודים בסט לפי המספר: 1: 1, 2: 1, 3 ומעלה: 4 |
+
+#### השארת תוכנה אחת בחוץ
+
+לכל תוכנה: הספים מחושבים מהעמודים של שאר התוכנות, ונבדקים על העמודים שלה. סבירות: הדרישה (האחוזון ה-95 של העמודים המושחתים של שאר התוכנות), כמה מהעמודים המושחתים של התוכנה הסימנים תפסו בה, וכמה מהעמודים הנקיים שלה סומנו בה. מאמץ: המאמץ הגבוה ביותר בעמוד ידוע כנכון של שאר התוכנות, וכמה מהעמודים של התוכנה מעליו.
+
+| תוכנה | עמודים נקיים ידועים | דרישה לסבירות | עמודים הפוכים שנתפסו | עמודים נקיים שסומנו | מעטפת המאמץ | עמודים מעליה |
+|---|---|---|---|---|---|---|
+| aspose | 1 | 0.747 | 1 מתוך 2 | 0 מתוך 1 | 0.106 | 0 מתוך 66 |
+| canva | 1 | 0.755 | 2 מתוך 2 | 0 מתוך 1 | 0.106 | 1 מתוך 21 |
+| chrome | 9 | 0.787 | 18 מתוך 18 | 0 מתוך 9 | 0.106 | 0 מתוך 10 |
+| gdocs | 1 | 0.755 | 2 מתוך 2 | 0 מתוך 1 | 0.106 | 0 מתוך 10 |
+| illustrator | 0 | 0.755 | 0 מתוך 0 | 0 מתוך 0 | 0.106 | 0 מתוך 0 |
+| indesign | 1 | 0.755 | 2 מתוך 2 | 0 מתוך 1 | 0.106 | 0 מתוך 14 |
+| weasyprint | 33 | 0.787 | 64 מתוך 66 | 1 מתוך 33 | 0.093 | 1 מתוך 58 |
+
 ## לפי קובץ
 
 אותיות סופיות: אחוז המילים (מבין אלה שיש בהן אות סופית) שהאות הסופית לא בתחילתן; גבוה = טוב. פיסוק בתחילת שורה: אחוז השורות העבריות שמתחילות בסימן פיסוק; נמוך = טוב. שתיהן בדיקות עקיפות מהאב-טיפוס, ו-100% בהן אינו הוכחה שהפלט נכון.
@@ -301,192 +422,192 @@
 <details>
 <summary>כל העמודים</summary>
 
-| קובץ | עמוד | שורות עם טקסט | אותיות שדולגו | סוגריים בלי צורה | בדיקת תצוגה נכשלה | דו-משמעיות | אותיות סופיות | פיסוק בתחילת שורה |
-|---|---|---|---|---|---|---|---|---|
-| chatbot-spec-form_gdocs.pdf | 1 | 18 | 0 | 0 | 0 | 0 | 100% | 0% |
-| chatbot-spec-form_gdocs.pdf | 2 | 15 | 0 | 0 | 0 | 0 | 100% | 0% |
-| chatbot-spec-form_gdocs.pdf | 3 | 17 | 0 | 0 | 0 | 0 | 100% | 0% |
-| chatbot-spec-form_gdocs.pdf | 4 | 7 | 0 | 0 | 0 | 0 | 100% | 0% |
-| doc-2p_weasyprint.pdf | 1 | 28 | 0 | 0 | 0 | 0 | 100% | 0% |
-| doc-2p_weasyprint.pdf | 2 | 4 | 0 | 0 | 0 | 0 | 100% | 0% |
-| doc-4p_weasyprint.pdf | 1 | 31 | 0 | 0 | 0 | 0 | 100% | 0% |
-| doc-4p_weasyprint.pdf | 2 | 28 | 0 | 0 | 0 | 0 | 100% | 0% |
-| doc-4p_weasyprint.pdf | 3 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
-| doc-4p_weasyprint.pdf | 4 | 1 | 0 | 0 | 0 | 0 | 100% | 0% |
-| doc-6p_gdocs.pdf | 1 | 36 | 0 | 0 | 0 | 1 | 100% | 0% |
-| doc-6p_gdocs.pdf | 2 | 34 | 0 | 0 | 0 | 1 | 100% | 0% |
-| doc-6p_gdocs.pdf | 3 | 34 | 0 | 0 | 0 | 3 | 100% | 0% |
-| doc-6p_gdocs.pdf | 4 | 38 | 0 | 0 | 1 | 6 | 100% | 0% |
-| doc-6p_gdocs.pdf | 5 | 36 | 0 | 0 | 0 | 0 | 100% | 0% |
-| doc-6p_gdocs.pdf | 6 | 32 | 0 | 0 | 0 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 1 | 24 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 2 | 39 | 0 | 0 | 1 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 3 | 43 | 0 | 0 | 3 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 4 | 36 | 0 | 0 | 1 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 5 | 37 | 0 | 0 | 0 | 3 | 100% | 0% |
-| env-vars_weasyprint.pdf | 6 | 39 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 7 | 34 | 0 | 0 | 1 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 8 | 38 | 0 | 0 | 0 | 0 | 100% | 0% |
-| env-vars_weasyprint.pdf | 9 | 39 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 10 | 38 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 11 | 35 | 0 | 0 | 2 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 12 | 47 | 0 | 0 | 0 | 1 | 100% | 3% |
-| env-vars_weasyprint.pdf | 13 | 43 | 0 | 0 | 1 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 14 | 42 | 0 | 0 | 0 | 0 | 100% | 0% |
-| env-vars_weasyprint.pdf | 15 | 44 | 0 | 0 | 0 | 5 | 100% | 0% |
-| env-vars_weasyprint.pdf | 16 | 42 | 0 | 0 | 0 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 17 | 37 | 0 | 0 | 1 | 3 | 100% | 0% |
-| env-vars_weasyprint.pdf | 18 | 35 | 0 | 0 | 0 | 4 | 100% | 0% |
-| env-vars_weasyprint.pdf | 19 | 35 | 0 | 0 | 1 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 20 | 36 | 0 | 0 | 2 | 1 | 100% | 0% |
-| env-vars_weasyprint.pdf | 21 | 40 | 0 | 0 | 1 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 22 | 45 | 0 | 0 | 4 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 23 | 40 | 0 | 0 | 0 | 3 | 100% | 0% |
-| env-vars_weasyprint.pdf | 24 | 25 | 0 | 0 | 1 | 2 | 100% | 0% |
-| env-vars_weasyprint.pdf | 25 | 24 | 0 | 0 | 0 | 3 | 100% | 0% |
-| env-vars_weasyprint.pdf | 26 | 9 | 0 | 0 | 0 | 2 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 1 | 2 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 2 | 8 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 3 | 2 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 4 | 24 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 5 | 37 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 6 | 40 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 7 | 35 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 8 | 32 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 9 | 43 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 10 | 38 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 11 | 38 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 12 | 25 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 13 | 61 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 14 | 39 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 15 | 23 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 16 | 44 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 17 | 49 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 18 | 44 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 19 | 49 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 20 | 35 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 21 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 22 | 41 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 23 | 28 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 24 | 17 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 25 | 38 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 26 | 49 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 27 | 32 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 28 | 2 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 29 | 3 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 30 | 15 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 31 | 26 | 0 | 0 | 0 | 1 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 32 | 17 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 33 | 25 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 34 | 41 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 35 | 48 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 36 | 30 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 37 | 31 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 38 | 18 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 39 | 46 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 40 | 45 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 41 | 32 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 42 | 36 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 43 | 22 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 44 | 40 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 45 | 27 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 46 | 39 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 47 | 31 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 48 | 19 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 49 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 50 | 31 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 51 | 13 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 52 | 2 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 53 | 5 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 54 | 12 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 55 | 22 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 56 | 25 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 57 | 35 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 58 | 42 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 59 | 50 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 60 | 45 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 61 | 17 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 62 | 21 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 63 | 42 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 64 | 1 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 65 | 39 | 0 | 0 | 0 | 0 | 100% | 0% |
-| financial-report-q2-2025_aspose.pdf | 66 | 43 | 0 | 0 | 0 | 0 | 100% | 0% |
-| gps-book_indesign.pdf | 1 | 0 (אין טקסט) | 0 | 0 | 0 | 0 | — | — |
-| gps-book_indesign.pdf | 2 | 24 | 0 | 0 | 0 | 1 | 100% | 0% |
-| gps-book_indesign.pdf | 3 | 0 (אין טקסט) | 0 | 0 | 0 | 0 | — | — |
-| gps-book_indesign.pdf | 4 | 18 | 0 | 0 | 0 | 0 | 100% | 0% |
-| gps-book_indesign.pdf | 5 | 20 | 0 | 0 | 0 | 0 | 100% | 0% |
-| gps-book_indesign.pdf | 6 | 43 | 0 | 0 | 0 | 0 | 100% | 0% |
-| gps-book_indesign.pdf | 7 | 6 | 0 | 0 | 0 | 0 | — | — |
-| gps-book_indesign.pdf | 8 | 31 | 0 | 0 | 0 | 0 | 100% | 0% |
-| gps-book_indesign.pdf | 9 | 12 | 0 | 0 | 0 | 0 | 100% | 0% |
-| gps-book_indesign.pdf | 10 | 35 | 0 | 0 | 0 | 0 | 100% | 0% |
-| gps-book_indesign.pdf | 11 | 7 | 0 | 0 | 0 | 0 | — | — |
-| gps-book_indesign.pdf | 12 | 21 | 0 | 0 | 0 | 0 | 100% | 0% |
-| gps-book_indesign.pdf | 13 | 24 | 0 | 0 | 0 | 0 | 100% | 0% |
-| gps-book_indesign.pdf | 14 | 9 | 0 | 0 | 0 | 0 | — | — |
-| gps-book_indesign.pdf | 15 | 3 | 0 | 0 | 0 | 0 | 100% | — |
-| gps-book_indesign.pdf | 16 | 5 | 0 | 0 | 0 | 1 | 100% | 0% |
-| marketing-flyer_illustrator.pdf | 1 | 65 | 0 | 0 | 0 | 0 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 1 | 9 | 0 | 0 | 0 | 1 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 2 | 15 | 0 | 0 | 0 | 1 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 3 | 19 | 0 | 0 | 0 | 1 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 4 | 19 | 0 | 0 | 0 | 0 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 5 | 19 | 0 | 0 | 0 | 1 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 6 | 19 | 0 | 0 | 0 | 0 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 7 | 8 | 0 | 0 | 0 | 0 | 100% | 0% |
-| mentoros-overview_weasyprint.pdf | 8 | 12 | 0 | 0 | 0 | 1 | 100% | 0% |
-| optimization_chrome.pdf | 1 | 14 | 0 | 0 | 0 | 0 | 100% | 0% |
-| presentation_canva.pdf | 1 | 4 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 2 | 15 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 3 | 19 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 4 | 16 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 5 | 21 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 6 | 16 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 7 | 23 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 8 | 31 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 9 | 20 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 10 | 28 | 0 | 0 | 0 | 0 | 100% | 0% |
-| presentation_canva.pdf | 11 | 18 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 12 | 18 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 13 | 25 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 14 | 23 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 15 | 23 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 16 | 20 | 0 | 0 | 0 | 1 | 100% | 5% |
-| presentation_canva.pdf | 17 | 22 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 18 | 21 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 19 | 25 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 20 | 17 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 21 | 22 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 22 | 11 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 23 | 20 | 0 | 0 | 0 | 1 | 100% | 0% |
-| presentation_canva.pdf | 24 | 13 | 0 | 0 | 0 | 1 | 100% | 0% |
-| price-quote_weasyprint.pdf | 1 | 15 | 0 | 0 | 0 | 1 | 100% | 0% |
-| price-quote_weasyprint.pdf | 2 | 18 | 0 | 0 | 0 | 0 | 100% | 0% |
-| price-quote_weasyprint.pdf | 3 | 40 | 0 | 0 | 0 | 0 | 100% | 0% |
-| price-quote_weasyprint.pdf | 4 | 39 | 0 | 0 | 0 | 0 | 100% | 0% |
-| price-quote_weasyprint.pdf | 5 | 40 | 0 | 0 | 0 | 0 | 100% | 0% |
-| price-quote_weasyprint.pdf | 6 | 42 | 0 | 0 | 0 | 0 | 100% | 0% |
-| price-quote_weasyprint.pdf | 7 | 20 | 0 | 0 | 0 | 0 | 100% | 0% |
-| social-publisher-setup_weasyprint.pdf | 1 | 24 | 0 | 0 | 0 | 3 | 100% | 0% |
-| social-publisher-setup_weasyprint.pdf | 2 | 6 | 0 | 0 | 0 | 0 | 100% | 0% |
-| spec_chrome.pdf | 1 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
-| spec_chrome.pdf | 2 | 35 | 0 | 0 | 1 | 1 | 100% | 0% |
-| spec_chrome.pdf | 3 | 40 | 0 | 0 | 0 | 4 | 100% | 0% |
-| spec_chrome.pdf | 4 | 39 | 0 | 0 | 0 | 0 | 100% | 0% |
-| spec_chrome.pdf | 5 | 39 | 0 | 0 | 0 | 0 | 100% | 0% |
-| spec_chrome.pdf | 6 | 37 | 0 | 0 | 0 | 1 | 100% | 0% |
-| spec_chrome.pdf | 7 | 39 | 0 | 0 | 0 | 2 | 100% | 0% |
-| spec_chrome.pdf | 8 | 43 | 0 | 0 | 0 | 1 | 100% | 0% |
-| spec_chrome.pdf | 9 | 5 | 0 | 0 | 0 | 1 | — | 0% |
-| spec_weasyprint.pdf | 1 | 33 | 0 | 0 | 0 | 0 | 100% | 0% |
-| spec_weasyprint.pdf | 2 | 35 | 0 | 0 | 0 | 2 | 100% | 0% |
-| spec_weasyprint.pdf | 3 | 40 | 0 | 0 | 0 | 4 | 100% | 0% |
-| spec_weasyprint.pdf | 4 | 39 | 0 | 0 | 0 | 0 | 100% | 0% |
-| spec_weasyprint.pdf | 5 | 39 | 0 | 0 | 0 | 0 | 100% | 0% |
-| spec_weasyprint.pdf | 6 | 37 | 0 | 0 | 0 | 1 | 100% | 0% |
-| spec_weasyprint.pdf | 7 | 39 | 0 | 0 | 0 | 2 | 100% | 0% |
-| spec_weasyprint.pdf | 8 | 43 | 0 | 0 | 0 | 1 | 100% | 0% |
-| spec_weasyprint.pdf | 9 | 5 | 0 | 0 | 0 | 1 | — | 0% |
+| קובץ | עמוד | שורות עם טקסט | אותיות שדולגו | סוגריים בלי צורה | בדיקת תצוגה נכשלה | דו-משמעיות | אותיות סופיות | פיסוק בתחילת שורה | ציון |
+|---|---|---|---|---|---|---|---|---|---|
+| chatbot-spec-form_gdocs.pdf | 1 | 18 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| chatbot-spec-form_gdocs.pdf | 2 | 15 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| chatbot-spec-form_gdocs.pdf | 3 | 17 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| chatbot-spec-form_gdocs.pdf | 4 | 7 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| doc-2p_weasyprint.pdf | 1 | 28 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| doc-2p_weasyprint.pdf | 2 | 4 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| doc-4p_weasyprint.pdf | 1 | 31 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| doc-4p_weasyprint.pdf | 2 | 28 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| doc-4p_weasyprint.pdf | 3 | 33 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| doc-4p_weasyprint.pdf | 4 | 1 | 0 | 0 | 0 | 0 | 100% | 0% | לא בטוח |
+| doc-6p_gdocs.pdf | 1 | 36 | 0 | 0 | 0 | 1 | 100% | 0% | לא בטוח |
+| doc-6p_gdocs.pdf | 2 | 34 | 0 | 0 | 0 | 1 | 100% | 0% | לא בטוח |
+| doc-6p_gdocs.pdf | 3 | 34 | 0 | 0 | 0 | 3 | 100% | 0% | לא בטוח |
+| doc-6p_gdocs.pdf | 4 | 38 | 0 | 0 | 1 | 6 | 100% | 0% | לא בטוח |
+| doc-6p_gdocs.pdf | 5 | 36 | 0 | 0 | 0 | 0 | 100% | 0% | לא בטוח |
+| doc-6p_gdocs.pdf | 6 | 32 | 0 | 0 | 0 | 1 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 1 | 24 | 0 | 0 | 0 | 4 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 2 | 39 | 0 | 0 | 1 | 2 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 3 | 43 | 0 | 0 | 3 | 2 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 4 | 36 | 0 | 0 | 1 | 1 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 5 | 37 | 0 | 0 | 0 | 3 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 6 | 39 | 0 | 0 | 0 | 4 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 7 | 34 | 0 | 0 | 1 | 2 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 8 | 38 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 9 | 39 | 0 | 0 | 0 | 4 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 10 | 38 | 0 | 0 | 0 | 4 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 11 | 35 | 0 | 0 | 2 | 2 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 12 | 47 | 0 | 0 | 0 | 1 | 100% | 3% | תקין |
+| env-vars_weasyprint.pdf | 13 | 43 | 0 | 0 | 1 | 1 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 14 | 42 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 15 | 44 | 0 | 0 | 0 | 5 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 16 | 42 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 17 | 37 | 0 | 0 | 1 | 3 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 18 | 35 | 0 | 0 | 0 | 4 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 19 | 35 | 0 | 0 | 1 | 1 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 20 | 36 | 0 | 0 | 2 | 1 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 21 | 40 | 0 | 0 | 1 | 2 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 22 | 45 | 0 | 0 | 4 | 2 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 23 | 40 | 0 | 0 | 0 | 3 | 100% | 0% | תקין |
+| env-vars_weasyprint.pdf | 24 | 25 | 0 | 0 | 1 | 2 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 25 | 24 | 0 | 0 | 0 | 3 | 100% | 0% | לא בטוח |
+| env-vars_weasyprint.pdf | 26 | 9 | 0 | 0 | 0 | 2 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 1 | 2 | 0 | 0 | 0 | 0 | 100% | 0% | לא בטוח |
+| financial-report-q2-2025_aspose.pdf | 2 | 8 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 3 | 2 | 0 | 0 | 0 | 0 | 100% | 0% | לא בטוח |
+| financial-report-q2-2025_aspose.pdf | 4 | 24 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 5 | 37 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 6 | 40 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 7 | 35 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 8 | 32 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 9 | 43 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 10 | 38 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 11 | 38 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 12 | 25 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 13 | 61 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 14 | 39 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 15 | 23 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 16 | 44 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 17 | 49 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 18 | 44 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 19 | 49 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 20 | 35 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 21 | 33 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 22 | 41 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 23 | 28 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 24 | 17 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 25 | 38 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 26 | 49 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 27 | 32 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 28 | 2 | 0 | 0 | 0 | 0 | 100% | 0% | לא בטוח |
+| financial-report-q2-2025_aspose.pdf | 29 | 3 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 30 | 15 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 31 | 26 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 32 | 17 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 33 | 25 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 34 | 41 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 35 | 48 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 36 | 30 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 37 | 31 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 38 | 18 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 39 | 46 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 40 | 45 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 41 | 32 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 42 | 36 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 43 | 22 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 44 | 40 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 45 | 27 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 46 | 39 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 47 | 31 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 48 | 19 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 49 | 33 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 50 | 31 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 51 | 13 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 52 | 2 | 0 | 0 | 0 | 0 | 100% | 0% | לא בטוח |
+| financial-report-q2-2025_aspose.pdf | 53 | 5 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 54 | 12 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 55 | 22 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 56 | 25 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 57 | 35 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 58 | 42 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 59 | 50 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 60 | 45 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 61 | 17 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 62 | 21 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 63 | 42 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 64 | 1 | 0 | 0 | 0 | 0 | 100% | 0% | לא בטוח |
+| financial-report-q2-2025_aspose.pdf | 65 | 39 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| financial-report-q2-2025_aspose.pdf | 66 | 43 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| gps-book_indesign.pdf | 1 | 0 (אין טקסט) | 0 | 0 | 0 | 0 | — | — | נפסל |
+| gps-book_indesign.pdf | 2 | 24 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| gps-book_indesign.pdf | 3 | 0 (אין טקסט) | 0 | 0 | 0 | 0 | — | — | נפסל |
+| gps-book_indesign.pdf | 4 | 18 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| gps-book_indesign.pdf | 5 | 20 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| gps-book_indesign.pdf | 6 | 43 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| gps-book_indesign.pdf | 7 | 6 | 0 | 0 | 0 | 0 | — | — | לא בטוח |
+| gps-book_indesign.pdf | 8 | 31 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| gps-book_indesign.pdf | 9 | 12 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| gps-book_indesign.pdf | 10 | 35 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| gps-book_indesign.pdf | 11 | 7 | 0 | 0 | 0 | 0 | — | — | לא בטוח |
+| gps-book_indesign.pdf | 12 | 21 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| gps-book_indesign.pdf | 13 | 24 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| gps-book_indesign.pdf | 14 | 9 | 0 | 0 | 0 | 0 | — | — | לא בטוח |
+| gps-book_indesign.pdf | 15 | 3 | 0 | 0 | 0 | 0 | 100% | — | לא בטוח |
+| gps-book_indesign.pdf | 16 | 5 | 0 | 0 | 0 | 1 | 100% | 0% | לא בטוח |
+| marketing-flyer_illustrator.pdf | 1 | 65 | 0 | 0 | 0 | 0 | 100% | 0% | נפסל |
+| mentoros-overview_weasyprint.pdf | 1 | 9 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| mentoros-overview_weasyprint.pdf | 2 | 15 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| mentoros-overview_weasyprint.pdf | 3 | 19 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| mentoros-overview_weasyprint.pdf | 4 | 19 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| mentoros-overview_weasyprint.pdf | 5 | 19 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| mentoros-overview_weasyprint.pdf | 6 | 19 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| mentoros-overview_weasyprint.pdf | 7 | 8 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| mentoros-overview_weasyprint.pdf | 8 | 12 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| optimization_chrome.pdf | 1 | 14 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| presentation_canva.pdf | 1 | 4 | 0 | 0 | 0 | 1 | 100% | 0% | לא בטוח |
+| presentation_canva.pdf | 2 | 15 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 3 | 19 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 4 | 16 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 5 | 21 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 6 | 16 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 7 | 23 | 0 | 0 | 0 | 1 | 100% | 0% | לא בטוח |
+| presentation_canva.pdf | 8 | 31 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 9 | 20 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 10 | 28 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| presentation_canva.pdf | 11 | 18 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 12 | 18 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 13 | 25 | 0 | 0 | 0 | 1 | 100% | 0% | נפסל |
+| presentation_canva.pdf | 14 | 23 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 15 | 23 | 0 | 0 | 0 | 1 | 100% | 0% | נפסל |
+| presentation_canva.pdf | 16 | 20 | 0 | 0 | 0 | 1 | 100% | 5% | תקין |
+| presentation_canva.pdf | 17 | 22 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 18 | 21 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 19 | 25 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 20 | 17 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 21 | 22 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 22 | 11 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| presentation_canva.pdf | 23 | 20 | 0 | 0 | 0 | 1 | 100% | 0% | נפסל |
+| presentation_canva.pdf | 24 | 13 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| price-quote_weasyprint.pdf | 1 | 15 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| price-quote_weasyprint.pdf | 2 | 18 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| price-quote_weasyprint.pdf | 3 | 40 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| price-quote_weasyprint.pdf | 4 | 39 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| price-quote_weasyprint.pdf | 5 | 40 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| price-quote_weasyprint.pdf | 6 | 42 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| price-quote_weasyprint.pdf | 7 | 20 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| social-publisher-setup_weasyprint.pdf | 1 | 24 | 0 | 0 | 0 | 3 | 100% | 0% | תקין |
+| social-publisher-setup_weasyprint.pdf | 2 | 6 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| spec_chrome.pdf | 1 | 33 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| spec_chrome.pdf | 2 | 35 | 0 | 0 | 1 | 1 | 100% | 0% | לא בטוח |
+| spec_chrome.pdf | 3 | 40 | 0 | 0 | 0 | 4 | 100% | 0% | תקין |
+| spec_chrome.pdf | 4 | 39 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| spec_chrome.pdf | 5 | 39 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| spec_chrome.pdf | 6 | 37 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| spec_chrome.pdf | 7 | 39 | 0 | 0 | 0 | 2 | 100% | 0% | תקין |
+| spec_chrome.pdf | 8 | 43 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| spec_chrome.pdf | 9 | 5 | 0 | 0 | 0 | 1 | — | 0% | תקין |
+| spec_weasyprint.pdf | 1 | 33 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| spec_weasyprint.pdf | 2 | 35 | 0 | 0 | 0 | 2 | 100% | 0% | תקין |
+| spec_weasyprint.pdf | 3 | 40 | 0 | 0 | 0 | 4 | 100% | 0% | תקין |
+| spec_weasyprint.pdf | 4 | 39 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| spec_weasyprint.pdf | 5 | 39 | 0 | 0 | 0 | 0 | 100% | 0% | תקין |
+| spec_weasyprint.pdf | 6 | 37 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| spec_weasyprint.pdf | 7 | 39 | 0 | 0 | 0 | 2 | 100% | 0% | תקין |
+| spec_weasyprint.pdf | 8 | 43 | 0 | 0 | 0 | 1 | 100% | 0% | תקין |
+| spec_weasyprint.pdf | 9 | 5 | 0 | 0 | 0 | 1 | — | 0% | תקין |
 
 </details>
