@@ -23,7 +23,8 @@ from harness.run import DEFAULT_PDFS, DEFAULT_TRUTH, evaluate, main
 from harness.html_structure import HtmlBlock
 from harness.tables import (TruthFileError, TruthTable, load_blocks, load_truth, pages_matching_truth, pdf_names,
                             score_tables)
-from hebrew_pdf.markdown import build_markdown
+from hebrew_pdf.lines import PageText, RowSource
+from hebrew_pdf.markdown import Block, build_markdown
 from prototype import hebrew_pdf_prototype as prototype
 from tests.test_harness_can_fail import reversed_ltr_reader
 
@@ -245,8 +246,46 @@ class PagesMatchingTruthTest(unittest.TestCase):
         truth_path = DEFAULT_TRUTH / "spec.truth.json"
         pages = read_pages(DEFAULT_PDFS / "spec_chrome.pdf")
         good = pages_matching_truth(load_truth(truth_path), load_blocks(truth_path), pages, build_markdown(pages).blocks)
-        # בעמודים 2, 3 ו-5 פסקה שאחד משני הסדרים שנראים זהה בה שגוי ("Onboarding 1", "(UAX #9) Unicode")
-        self.assertEqual([i for i, same in enumerate(good, 1) if not same], [2, 3, 5])
+        # בעמודים 2, 3 ו-5 פסקה שאחד משני הסדרים שנראים זהה בה שגוי ("Onboarding 1", "(UAX #9) Unicode"). הפסקה
+        # השגויה בעמוד 5 חסרה בפלט כמו שהיא בדף התשובות, ולכן גם העמוד שאחריה, שבו היא הייתה יכולה להמשיך, אינו זהה
+        self.assertEqual([i for i, same in enumerate(good, 1) if not same], [2, 3, 5, 6])
+
+    @staticmethod
+    def check(truth_texts, output, rows=(), truth_rows=()):
+        """pages_matching_truth על עמודים בנויים: output הוא (עמוד מ-1, טקסט) לכל פסקה של הבונה, rows הוא (עמוד מ-1,
+        שורה) לכל שורת טבלה."""
+        blocks = [HtmlBlock("paragraph", text) for text in truth_texts]
+        header = ("משתנה", "תיאור")
+        tables = [TruthTable(None, header, tuple(truth_rows))] if truth_rows else []
+        rows = [(1, header)] + list(rows) if truth_rows else rows  # שורת הכותרת של הטבלה, בעמוד הראשון
+        built = [Block("paragraph", page, text) for page, text in output]
+        pages = []
+        for number in range(1, 4):
+            page_rows = [row for page, row in rows if page == number]
+            pages.append(PageText([], 0, table_rows=page_rows,
+                                  row_sources=[RowSource((k,), 0) for k in range(len(page_rows))]))
+        return pages_matching_truth(tables, blocks, pages, built)
+
+    def test_coverage_and_order(self):
+        texts = ["אחת", "שתיים", "שלוש", "ארבע"]
+        self.assertEqual(self.check(texts, [(1, "אחת"), (2, "שתיים"), (2, "שלוש"), (3, "ארבע")]), [True] * 3)
+        # פסקה חסרה: העמודים שלפניה ואחריה אינם זהים, אף שכל מה שיצא בהם נכון
+        self.assertEqual(self.check(texts, [(1, "אחת"), (2, "שתיים"), (3, "ארבע")]), [True, False, False])
+        # שתי פסקאות בסדר הפוך: אחת מהן לא בתת-הסדרה המשותפת
+        self.assertIn(False, self.check(texts, [(1, "אחת"), (2, "שלוש"), (2, "שתיים"), (3, "ארבע")]))
+        # פסקה שנוספה
+        self.assertEqual(self.check(texts, [(1, "אחת"), (2, "שתיים"), (2, "שלוש"), (3, "ארבע"), (3, "חמש")]),
+                         [True, True, False])
+
+    def test_a_missing_table_row(self):
+        truth = [("A", "1"), ("B", "2"), ("C", "3")]
+        whole = [(1, ("A", "1")), (2, ("B", "2")), (3, ("C", "3"))]
+        self.assertEqual(self.check([], [], whole, truth), [True] * 3)
+        self.assertEqual(self.check([], [], [whole[0], whole[2]], truth), [False, True, False])
+        # שורת הכותרת של הטבלה לא נמצאה בפלט בכלל: אין לה עמוד, והקובץ כולו אינו זהה
+        tables = [TruthTable(None, ("משתנה", "תיאור"), tuple(truth))]
+        pages = [PageText([], 0, table_rows=[row], row_sources=[RowSource((0,), 0)]) for _, row in whole]
+        self.assertEqual(pages_matching_truth(tables, [], pages, []), [False] * 3)
 
 
 if __name__ == "__main__":

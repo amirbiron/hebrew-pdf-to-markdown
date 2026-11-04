@@ -13,7 +13,7 @@ from collections import Counter
 
 from harness.display_check import displays_like_page
 from harness.reader import read_pages
-from harness.run import DEFAULT_LABELS, DEFAULT_PDFS, DEFAULT_TRUTH, evaluate
+from harness.run import DEFAULT_LABELS, DEFAULT_PDFS, DEFAULT_TRUTH, _plausible_how, evaluate
 from harness import calibration
 from hebrew_pdf import score
 from hebrew_pdf.markdown import build_markdown
@@ -177,6 +177,29 @@ class CalibrationTest(unittest.TestCase):
     def test_the_effort_is_a_note(self):
         page = self.ev.scores["presentation_canva.pdf"][6]
         self.assertEqual((page.decision, [note.kind for note in page.notes]), (score.OK, ["effort"]))
+
+    def test_the_threshold_explanation_matches_the_numbers(self):
+        # ההסבר בדוח אומר "כולו מעליה" רק כשהטווח באמת כולו מעל הדרישה, ואחרת שהוא מכיל אותה (calibration.chosen_range)
+        cal = self.cal
+        text = _plausible_how(cal)
+        self.assertEqual("כאן הטווח הראשון שכולו מעליה" in text, cal.plausible_choice.low >= cal.required_plausible)
+        self.assertIn("מה השתנה בסבב 6ב", text)
+        # הטווח של סבב 6ב לפני הבדיקה של הכיסוי: הדרישה 0.747 בתוך הטווח 0.736 עד 0.790
+        inside = dataclasses.replace(cal, required_plausible=0.747,
+                                     plausible_choice=calibration.Range(0.7361, 0.7901),
+                                     plausible_old_choice=calibration.Range(0.7901, 0.8382), old_choice_flags_good=2)
+        text = _plausible_how(inside)
+        self.assertIn("כאן הטווח שמכיל את הדרישה: 0.736 עד 0.790", text)
+        self.assertNotIn("כולו מעליה:", text)
+        self.assertIn("הכלל הישן היה בוחר 0.814", text)
+        self.assertIn("2 עמודים ידועים כנכונים", text)
+
+    def test_a_sign_of_a_problem_on_a_short_page_marks_no_known_page(self):
+        # סבב 6ב: בעמוד קצר סימן לבעיה הוא סיבה. בסט אין עמוד קצר עם סימן כזה (הסימן היחיד בעמוד קצר הוא שורה
+        # דו-משמעית, בספר GPS עמוד 16), ולכן הכלל לא מסמן אף עמוד, ידוע כנכון או לא
+        flagged = [(name, i) for name, scores in self.ev.scores.items() for i, s in enumerate(scores, 1)
+                   if "short" in [n.kind for n in s.notes] and s.reasons]
+        self.assertEqual(flagged, [])
 
     def test_complete_everywhere(self):
         # עד סבב 6ב: כל ששת העמודים של doc-6p_gdocs.pdf, בגלל האימוג'י שהקורא דילג עליהם

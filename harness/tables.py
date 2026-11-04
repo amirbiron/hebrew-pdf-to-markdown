@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from harness.html_structure import KINDS, HtmlBlock
+from harness.markdown_check import lcs_pairs
 from harness.textdiff import join_cells, normalize
 
 TRUTH_SUFFIX = ".truth.json"
@@ -238,31 +239,65 @@ def pages_matching_truth(tables: Sequence[TruthTable], blocks: Sequence[HtmlBloc
     """לכל עמוד של קובץ עם דף תשובות: האם הפלט שלו זהה לדף התשובות, כלומר באמת ידוע כנכון (סבב 6ב).
 
     עד סבב 6ב כל העמודים של קובץ כזה נחשבו ידועים כנכונים לכיול, אבל ברבים מהם יש טקסט שגוי שעובר את בדיקת
-    התצוגה: סדר אחד מתוך שניים שנראים זהה ("Onboarding 1", "(UAX #9) Unicode"), ותאים שהתאחדו. עמוד זהה: כל
-    בלוק (כותרת, פסקה, פריט) של הבונה שמתחיל בו (pages: PageText, built_blocks: markdown.Markdown.blocks) זהה
-    בטקסט לבלוק מאותו סוג בדף התשובות (אחרי textdiff.normalize), וכל שורה של טבלה בו (RowSource.table) מותאמת
-    לשורה בדף התשובות (_assign) וזהה לה, או שהיא שורת כותרת של אחת הטבלאות. מחמיר: בלוק שהבונה חילק אחרת
-    מדף התשובות, גם עם טקסט נכון, מוציא את העמוד."""
-    texts = {kind: {normalize(block.text) for block in blocks if block.kind == kind}
-             for kind in ("heading", "paragraph", "item")}
+    התצוגה: סדר אחד מתוך שניים שנראים זהה ("Onboarding 1", "(UAX #9) Unicode"), ותאים שהתאחדו.
+
+    זהה: אותם בלוקים, באותו סדר, בלי חסר ובלי עודף. שני רצפים מושווים בנפרד, כל אחד בתת-הסדרה המשותפת הארוכה
+    ביותר (markdown_check.lcs_pairs), כך שגם בלוק שהגיע למקום אחר אינו זהה:
+    - הבלוקים של הטקסט: הכותרות, הפסקאות והפריטים של הבונה (built_blocks: markdown.Markdown.blocks, עם העמוד שבו
+      כל אחד מתחיל), מול אלה של דף התשובות, לפי הסוג והטקסט (textdiff.normalize). קטע קוד בדף התשובות נחשב
+      פסקה: הבונה לא מוציא קטעי קוד, והשאלה כאן היא הטקסט ולא העיצוב.
+    - השורות של הטבלאות: כל שורה של טבלה בפלט (RowSource.table, בלי שורות כותרת), מול השורות של דף התשובות.
+      ושורת הכותרת של כל טבלה בדף התשובות צריכה להופיע בפלט.
+    עמוד לא זהה כשבלוק או שורה שלו לא נמצאו בדף התשובות (עודף או שגוי), או כשבלוק או שורה של דף התשובות לא נמצאו
+    בפלט (חסר). לבלוק חסר אין עמוד בפלט, ולכן הוא מיוחס לעמודים של הבלוקים שנמצאו לפניו ואחריו בדף התשובות:
+    שם הוא היה אמור להיות. מחמיר: בלוק שהבונה חילק אחרת מדף התשובות, גם עם טקסט נכון, מוציא את העמוד."""
     good = [True] * len(pages)
-    for block in built_blocks:
-        if block.kind in texts and normalize(block.text) not in texts[block.kind] and 1 <= block.page <= len(pages):
-            good[block.page - 1] = False
+
+    def kind_of(block) -> str:
+        return "paragraph" if block.kind == "code" else block.kind
+
+    truth = [(kind_of(block), normalize(block.text)) for block in blocks
+             if kind_of(block) in ("heading", "paragraph", "item")]
+    output = [((block.kind, normalize(block.text)), block.page - 1) for block in built_blocks
+              if block.kind in ("heading", "paragraph", "item") and 1 <= block.page <= len(pages)]
+    _mark(good, truth, [item for item, _ in output], [page for _, page in output])
+
     headers = {tuple(normalize(cell) for cell in table.header) for table in tables}
-    output: list[tuple[str, ...]] = []
-    page_of: list[int] = []
+    found: list[tuple[str, ...]] = []
+    rows: list[tuple[str, ...]] = []
+    rows_page: list[int] = []
     for index, page in enumerate(pages):
         for cells, source in zip(page.rows, page.sources):
             if source.table is not None:
-                output.append(tuple(normalize(cell) for cell in cells))
-                page_of.append(index)
+                row = tuple(normalize(cell) for cell in cells)
+                found.append(row)
+                if row not in headers:
+                    rows.append(row)
+                    rows_page.append(index)
     truth_rows = [tuple(normalize(cell) for cell in row) for table in tables for row in table.rows]
-    identical = set()
-    for truth, best in zip(truth_rows, _assign(truth_rows, output)):
-        if best is not None and best == truth:
-            identical.add(id(best))
-    for index, row in zip(page_of, output):
-        if id(row) not in identical and row not in headers:
-            good[index] = False
+    _mark(good, truth_rows, rows, rows_page)
+    if any(header not in found for header in headers):
+        good = [False] * len(pages)  # שורת כותרת שלא נמצאה בכלל: אין לה עמוד, והקובץ כולו אינו זהה
     return good
+
+
+def _mark(good: list[bool], truth: Sequence, output: Sequence, page_of: Sequence[int]) -> None:
+    """מסמן כלא זהה (good[עמוד] = False) כל עמוד של פריט בפלט שלא נמצא בתת-הסדרה המשותפת עם דף התשובות, וכל
+    עמוד שפריט של דף התשובות שלא נמצא בה היה אמור להיות בו: העמוד של הפריט הקרוב שנמצא לפניו ושל זה שאחריו."""
+    pairs = lcs_pairs(truth, output, lambda a, b: a == b)
+    in_output = {j for _, j in pairs}
+    for j, page in enumerate(page_of):
+        if j not in in_output:
+            good[page] = False
+    matched = dict(pairs)
+    known = sorted(matched)
+    for t in range(len(truth)):
+        if t in matched:
+            continue
+        before = [matched[k] for k in known if k < t][-1:]
+        after = [matched[k] for k in known if k > t][:1]
+        for j in before + after or [None]:
+            if j is None:
+                good[:] = [False] * len(good)  # אף פריט לא נמצא: אין לאן לייחס את החסר
+            else:
+                good[page_of[j]] = False

@@ -179,6 +179,23 @@ class PlausibilityTest(unittest.TestCase):
         self.assertIn("2 מילים", result.notes[0].text)
         self.assertIn(f"פחות מ-{score.min_words(score.MIN_PLAUSIBLE)}", result.notes[0].text)
 
+    def test_a_sign_of_a_problem_on_a_short_page_is_a_reason(self):
+        # היעדר ראיות אינו סיבה, אבל ממצא הוא ממצא: מילה הפוכה, מספר הפוך או סוגר בלי זוג נותנים "לא בטוח" גם בעמוד
+        # קצר, עם הסיבה, וההערה "עמוד קצר" נשארת. הכלל של השיעור (Wilson) לא משתנה
+        for text, kind in (("כותרת תוריכממ", "final_letters"), ("דוח שנת 5202", "reversed_numbers"),
+                           ("כותרת (קצרה", "brackets"), (".כותרת קצרה", "punctuation")):
+            with self.subTest(kind=kind):
+                result = score.score_page(page(part(text)))
+                self.assertEqual((result.decision, [r.kind for r in result.reasons]), (score.UNSURE, [kind]))
+                self.assertEqual([n.kind for n in result.notes], ["short"])
+                self.assertNotIn("נמצא", result.notes[0].text)  # הסימן בסיבות, ולא פעם שנייה בהערה
+
+    def test_an_ambiguous_line_on_a_short_page_stays_a_note(self):
+        # שורה דו-משמעית אינה סימן לבעיה (עליה תהיה החלטה נפרדת): בעמוד קצר היא נשארת בהערה
+        result = score.score_page(page(part("1 Onboarding", ambiguous=True), part("כותרת קצרה")))
+        self.assertEqual((result.decision, result.reasons), (score.OK, ()))
+        self.assertIn("שורה אחת ששני סדרים שלה נראים זהה", result.notes[0].text)
+
     def test_how_short_is_short(self):
         # הגבול נגזר מהסף ולא נקבע בנפרד: גם בלי אף סימן, 12 מילים נותנות 0.757, מתחת ל-0.763, ו-13 נותנות 0.772
         self.assertEqual(score.min_words(score.MIN_PLAUSIBLE), 13)
@@ -203,7 +220,8 @@ class PlausibilityTest(unittest.TestCase):
         # בדיקת התצוגה והשלמות הן עובדות ולא סטטיסטיקה: הן עובדות גם על שורה אחת
         good = part("כותרת קצרה")
         reversed_line = score.score_page(page(Component(good.text[::-1], good.visual, True), reference=good.text))
-        self.assertEqual([r.kind for r in reversed_line.reasons], ["display"])
+        # השורה ההפוכה גם נותנת סימן לבעיה (אות סופית באמצע מילה), שהוא סיבה גם בעמוד קצר
+        self.assertEqual([r.kind for r in reversed_line.reasons], ["display", "final_letters"])
         self.assertEqual([n.kind for n in reversed_line.notes], ["short"])
         missing = score.score_page(page(good, reference=good.text + "א"))
         self.assertEqual((missing.decision, [r.kind for r in missing.reasons]), (score.UNSURE, ["missing"]))

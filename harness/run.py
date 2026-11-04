@@ -585,6 +585,32 @@ def _score_section(ev: Evaluation, add) -> None:
         _calibration_section(ev.calibration, add)
 
 
+def _plausible_how(cal: calibration_mod.Calibration) -> str:
+    """איך נבחר MIN_PLAUSIBLE, במילים שמתאימות למספרים: הכלל (calibration.chosen_range), איזה מהחלקים שלו חל כאן,
+    ומה השתנה בו בסבב 6ב ולמה."""
+    if cal.plausible_choice is None:
+        return "אין עמודים מושחתים לכיול בסט הזה, והכיול לא בוחר ערך"
+    choice, required, old = cal.plausible_choice, cal.required_plausible, cal.plausible_old_choice
+    text = (f"הדרישה: האחוזון ה-95 של הציון של עמודים שכל השורות בהם הפוכות (היפוך שורה שלמה, היפוך אותיות בתוך "
+            f"מילה): {required:.3f}. הכלל: הטווח היציב שמכיל את הדרישה, כשהאמצע שלו מעליה; אחרת הטווח היציב הראשון "
+            f"שכולו מעליה; והערך באמצע. ")
+    if choice.low < required:
+        text += (f"כאן הטווח שמכיל את הדרישה: {choice.low:.3f} עד {choice.high:.3f}, והאמצע שלו, {choice.middle:.3f}, "
+                 "מעליה. ")
+    else:
+        text += f"כאן הטווח הראשון שכולו מעליה: {choice.low:.3f} עד {choice.high:.3f}. "
+    text += ("מה השתנה בסבב 6ב: עד אז הכלל היה רק \"הטווח היציב הראשון שכולו מעל הדרישה\". מסבב 6ב עמוד קצר בלי "
+             "סימן לבעיה לא מסומן, ולכן הוא כבר לא קובע ערך שבו ההחלטות משתנות, והטווח שמכיל את הסף יכול להימתח עד "
+             "מתחת לדרישה. אז הכלל הישן היה קופץ לטווח הבא, שמשנה החלטות בסט, אף שבטווח הנוכחי יש ערכים מעל הדרישה")
+    if old is not None and old != choice:
+        text += (f". בנתונים האלה הכלל הישן היה בוחר {old.middle:.3f} (הטווח {old.low:.3f} עד {old.high:.3f}), שבו "
+                 f"הסימנים מסמנים {cal.old_choice_flags_good} עמודים ידועים כנכונים")
+    elif old is not None:
+        text += ". בנתונים האלה שני הכללים בוחרים אותו טווח"
+    return text + (f". עמוד קצר: פחות מ-{score_mod.min_words(score_mod.MIN_PLAUSIBLE)} מילים, שבהן גם בלי סימן הציון "
+                   "מתחת לסף")
+
+
 def _share(count: int, of: int) -> str:
     return f"{count} ({100 * count / of:.0f}%)" if of else "—"
 
@@ -592,7 +618,7 @@ def _share(count: int, of: int) -> str:
 def _calibration_section(cal: calibration_mod.Calibration, add) -> None:
     add("### כיול")
     add("")
-    add(f"הספים נקבעים כאן ולא ביד (harness/calibration.py). עמודים שהפלט שלהם ידוע כנכון: {cal.known_good} (עמודים של קבצים עם דף תשובות שהפלט שלהם זהה לו, harness/tables.pages_matching_truth, ועמודים שכל השורות המתויגות בהם זהות). מתוכם {cal.clean} בלי כשל ודאי (פסילה, שורה שלא מוצגת כמו העמוד, תו שחסר או נוסף, מספר או תא מספרי לא תקינים), ועליהם נמדדות ההשחתות. ההשחתה היא של הטקסט שהקורא הוציא, ומה שבעמוד ורשימת התווים של PDFium לא משתנים, חוץ מ\"תווי בקרה במקום אותיות\", שהוא כשל של הקובץ, ומהרווחים, שהם החלטה אחרת של הקורא על הפער (הרווחים שבעמוד משתנים איתם, והטקסט נבנה מהם מחדש). עוצמה: רכיב אחד בעמוד, או כל הרכיבים שהצורה חלה עליהם.")
+    add(f"הספים נקבעים כאן ולא ביד (harness/calibration.py). עמודים שהפלט שלהם ידוע כנכון: {cal.known_good} (עמודים של קבצים עם דף תשובות שהפלט שלהם זהה לו: אותם בלוקים ואותן שורות טבלה, באותו סדר, בלי חסר ובלי עודף, harness/tables.pages_matching_truth; ועמודים שכל השורות המתויגות בהם זהות). מתוכם {cal.clean} בלי כשל ודאי (פסילה, שורה שלא מוצגת כמו העמוד, תו שחסר או נוסף, מספר או תא מספרי לא תקינים), ועליהם נמדדות ההשחתות. ההשחתה היא של הטקסט שהקורא הוציא, ומה שבעמוד ורשימת התווים של PDFium לא משתנים, חוץ מ\"תווי בקרה במקום אותיות\", שהוא כשל של הקובץ, ומהרווחים, שהם החלטה אחרת של הקורא על הפער (הרווחים שבעמוד משתנים איתם, והטקסט נבנה מהם מחדש). עוצמה: רכיב אחד בעמוד, או כל הרכיבים שהצורה חלה עליהם.")
     add("")
     add("#### שגיאות מכוונות: כמה נתפסו")
     add("")
@@ -620,13 +646,7 @@ def _calibration_section(cal: calibration_mod.Calibration, add) -> None:
     add("")
     add("| סף | ערך | הטווח שבו ההחלטות והסיבות בכל הסט זהות | איך נקבע |")
     add("|---|---|---|---|")
-    if cal.plausible_choice is not None:
-        plausible_how = (f"הדרישה: האחוזון ה-95 של הציון של עמודים שכל השורות בהם הפוכות (היפוך שורה שלמה, היפוך אותיות "
-                         f"בתוך מילה): {cal.required_plausible:.3f}. הטווח היציב הראשון שכולו מעליה: "
-                         f"{cal.plausible_choice.low:.3f} עד {cal.plausible_choice.high:.3f}, והערך באמצע שלו. עמוד קצר: "
-                         f"פחות מ-{score_mod.min_words(score_mod.MIN_PLAUSIBLE)} מילים, שבהן גם בלי סימן הציון מתחת לסף")
-    else:
-        plausible_how = "אין עמודים מושחתים לכיול בסט הזה, והכיול לא בוחר ערך"
+    plausible_how = _plausible_how(cal)
     if cal.effort_choice is not None:
         effort_how = (f"הסף של ההערה, לא של ההחלטה. המאמץ הגבוה ביותר בעמוד ידוע כנכון: {cal.envelope:.3f}. הטווח היציב שמכיל אותו: "
                       f"{cal.effort_choice.low:.3f} עד {cal.effort_choice.high:.3f}, והערך באמצע שלו")

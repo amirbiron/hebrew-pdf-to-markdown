@@ -345,6 +345,7 @@ class Outcome:
     complete: bool = True
     effort: float = 0.0  # Effort.score
     words: int = 0  # Signals.words: האם הסימנים מכריעים תלוי בסף (Signals.decides)
+    problems: int = 0  # Signals.problems: סימנים לבעיה, שמסמנים גם עמוד קצר
     bad_numbers: int = 0  # Plausibility.bad_numbers
     crowded: int = 0  # Plausibility.crowded_cells
     near: int = 0  # PageText.near_decisions: ראיה שנמדדת ולא מחליטה
@@ -356,7 +357,8 @@ def outcome(page: PageText, dropped: frozenset) -> Outcome:
         return Outcome(True, near=page.near_decisions)
     plausibility = scored.plausibility
     return Outcome(False, plausibility.display_failures, plausibility.signals.score, scored.completeness.ok,
-                   scored.effort.score, plausibility.signals.words, plausibility.bad_numbers,
+                   scored.effort.score, plausibility.signals.words, plausibility.signals.problems,
+                   plausibility.bad_numbers,
                    plausibility.crowded_cells, page.near_decisions)
 
 
@@ -367,12 +369,19 @@ def decide(out: Outcome, min_plausible: float) -> dict[str, bool]:
         hits = {name: name == "נפסל" for name in RULES}
     else:
         hits = {"נפסל": False, "תצוגה": out.display_failures > 0,
-                "סימנים": score_mod.Signals(out.words).decides(min_plausible) and out.plausible < min_plausible,
+                "סימנים": _signals_flag(out, min_plausible),
                 "שלמות": not out.complete, "קבוצות ספרות": out.bad_numbers > 0, "תאים מספריים": out.crowded > 0}
     hits["קרוב לסף"] = out.near > 0
     hits["היום"] = any(hits[name] for name in TODAY)
     hits["עם הראיות"] = any(hits[name] for name in RULES)
     return hits
+
+
+def _signals_flag(out: Outcome, min_plausible: float) -> bool:
+    """Signals.flags מתוך Outcome: בעמוד שאינו קצר הציון מתחת לסף, ובעמוד קצר סימן לבעיה."""
+    if score_mod.Signals(out.words).decides(min_plausible):
+        return out.plausible < min_plausible
+    return out.problems > 0
 
 
 def _hard_failure(out: Outcome) -> bool:
@@ -433,6 +442,10 @@ class Calibration:
     count_rules: dict = field(default_factory=dict)  # לכלל של ספירה: כמה עמודים בסט עם 1, 2, 3 ומעלה
     all_flagged: Counter = field(default_factory=Counter)  # מכל העמודים בסט שלא נפסלו, כמה כל כלל מסמן
     pages: int = 0  # העמודים בסט שלא נפסלו
+    # מה הכלל של סבב 6 (first_range_above, "הטווח הראשון שכולו מעל הדרישה") היה בוחר, וכמה עמודים ידועים כנכונים
+    # הסימנים היו מסמנים באמצע שלו. לדוח: למה הכלל השתנה (chosen_range). None: אין דרישה
+    plausible_old_choice: Range | None = None
+    old_choice_flags_good: int = 0
 
 
 def known_good(truth_pages: dict[str, list[bool]],
@@ -491,23 +504,27 @@ def chosen_range(values: Sequence[float], required: float) -> Range:
     בסט משתנות, ותמיד מעל הדרישה.
 
     עד סבב 6ב הכלל היה רק first_range_above. מסבב 6ב עמוד קצר לא מסומן בגלל האורך, ולכן עמוד קצר בלי סימן כבר
-    לא קובע ערך שבו ההחלטות משתנות (_critical_plausible), והטווח שמכיל את הסף נמתח למטה עד מתחת לדרישה. הכלל
-    הישן היה קופץ אז לטווח הבא, שמשנה החלטות בסט (מעל 0.790 שני עמודים ידועים כנכונים, עמוד 9 של מסמך האפיון
-    בשתי התוכנות, היו מסומנים), אף שהטווח הנוכחי כבר מכיל ערכים מעל הדרישה. על הנתונים של סבב 6 שני הכללים
-    בוחרים אותו טווח."""
+    לא קובע ערך שבו ההחלטות משתנות (_critical_plausible), והטווח שמכיל את הסף יכול להימתח למטה עד מתחת לדרישה.
+    הכלל הישן היה קופץ אז לטווח הבא, שמשנה החלטות בסט, אף שהטווח הנוכחי כבר מכיל ערכים מעל הדרישה. כך קרה בסבב
+    6ב לפני שעמוד ידוע כנכון נבדק גם בכיסוי ובסדר: הדרישה הייתה 0.747, בתוך הטווח 0.736 עד 0.790, והכלל הישן
+    היה בוחר 0.814, שבו עמוד 9 של מסמך האפיון, בשתי התוכנות וידוע כנכון, מסומן. על הנתונים של סבב 6, ועל אלה של
+    היום (הדרישה 0.729, מתחת לטווח), שני הכללים בוחרים אותו טווח."""
     containing = stable_range(values, required, True)
     return containing if containing.middle > required else first_range_above(values, required)
 
 
 def _critical_plausible(outs: Sequence[Outcome]) -> list[float]:
-    """ערכי הסף שבהם ההחלטה של עמוד לפי הסימנים מתהפכת. עמוד מסומן בסף t כשהוא לא קצר (Signals.decides: הציון
-    שלו בלי אף סימן, n / (n + z²), מגיע ל-t) והציון שלו מתחת ל-t. לכן לעמוד עם סימן שני ערכים: הציון שלו, והציון
-    שלו בלי סימנים. עמוד בלי סימן לא מסומן באף סף (שני הערכים זהים), ואין לו ערך. ההערה "עמוד קצר" זזה גם היא
-    עם הסף, אבל היא לא חלק מההחלטה."""
+    """ערכי הסף שבהם ההחלטה של עמוד לפי הסימנים מתהפכת (Signals.flags). עמוד עם סימן לבעיה (Signals.problems)
+    מסומן בכל סף t שמעל הציון שלו: בעמוד שאינו קצר בגלל השיעור, ובקצר בגלל הסימן, ולכן יש לו ערך אחד, הציון.
+    עמוד שיש בו רק שורה דו-משמעית מסומן כשהוא לא קצר (הציון שלו בלי אף סימן, n / (n + z²), מגיע ל-t) והציון
+    שלו מתחת ל-t: שני ערכים, הציון שלו והציון בלי סימנים. עמוד בלי סימן לא מסומן באף סף, ואין לו ערך. ההערה
+    "עמוד קצר" זזה גם היא עם הסף, אבל היא לא חלק מההחלטה."""
     values = []
     for out in outs:
         bare = score_mod.wilson_lower(out.words, out.words)
-        if out.plausible < bare:
+        if out.problems:
+            values.append(out.plausible)  # מסומן בכל סף שמעל הציון: בעמוד קצר בגלל הסימן, ובארוך בגלל השיעור
+        elif out.plausible < bare:
             values += [out.plausible, bare]
     return values
 
@@ -583,13 +600,16 @@ def calibrate(read_files: dict[str, list[PageText]], dropped_by_file: dict[str, 
                     missing[min(lost, 3)] += 1
     count_rules["תווים שחסרים או נוספו"] = missing
 
+    old_choice = first_range_above(plausible_values, required) if required is not None else None
+    old_flags = (sum(_signals_flag(outcomes[key], old_choice.middle) for key in good if not outcomes[key].rejected)
+                 if old_choice is not None else 0)
     return Calibration(
         len(good), len(clean), rule_counts(outcomes[key] for key in clean), rule_counts(outcomes[key] for key in good),
         corrupted, required, envelope,
         stable_range(plausible_values, min_plausible, True), stable_range(effort_values, max_effort, False),
         chosen_range(plausible_values, required) if required is not None else None,
         stable_range(effort_values, envelope, False) if envelope is not None else None, folds, count_rules,
-        rule_counts(live), len(live))
+        rule_counts(live), len(live), old_choice, old_flags)
 
 
 def catch_table(calibration: Calibration, min_plausible: float = score_mod.MIN_PLAUSIBLE
