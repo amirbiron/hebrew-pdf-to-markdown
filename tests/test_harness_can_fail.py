@@ -35,9 +35,10 @@ def _broken(line):
 
 
 def reversed_ltr_reader(pdf_path: Path) -> list[PageText]:
-    # הקורא השבור קורא את אותו קובץ: מה שבעמוד (רשימת התווים של PDFium, שמולה נמדדת השלמות בציון) לא משתנה
-    return [PageText([_broken(line) for line in p.lines], p.skipped_chars, p.unknown_brackets,
-                     [tuple(_reverse_runs(cell) for cell in row) for row in p.rows], reference=p.reference)
+    # הקורא השבור קורא את אותו קובץ, ומשנה רק את הטקסט הלוגי: השורות והתאים. כל שאר העמוד (מאיפה באה כל שורה,
+    # הגודל, ומה שבעמוד לפי PDFium, שמולו הציון מודד) נשאר כמו שהוא, גם שדה שיתווסף בעתיד
+    return [dataclasses.replace(p, lines=[_broken(line) for line in p.lines],
+                                table_rows=[tuple(_reverse_runs(cell) for cell in row) for row in p.rows])
             for p in read_pages(pdf_path)]
 
 
