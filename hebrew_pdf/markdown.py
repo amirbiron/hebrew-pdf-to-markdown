@@ -184,6 +184,12 @@ class Markdown:
     markers: tuple[str, ...] = field(default=())
     # שורות כותרת חוזרות של טבלה שירדו כשהטבלה התאחדה עם הטבלה מהעמוד הקודם (סעיף 6)
     repeated_headers: tuple[tuple[str, ...], ...] = field(default=())
+    # לכל עמוד, לפי הסדר: המקום (אינדקס תו ב-text) שבו מתחיל סמן העמוד שלו, PAGE_MARKER (סעיף 7). נרשם בזמן
+    # הבנייה ולא מחופש בטקסט אחר כך: טקסט מהקובץ שכתוב בו "<!-- page 2 -->" יוצא אחרי ההגנה "\<!-- page 2 -->",
+    # וחיפוש של המחרוזת היה מוצא אותו. לפי הקוד (_add_table, _render) הסדר בטקסט יכול להיות שונה מסדר העמודים:
+    # עמוד שמתחיל בהמשך של טבלה מעמוד קודם מקבל את הסמן בתוך הטבלה, וכשביניהם עמוד בלי טקסט, הסמן של העמוד הריק
+    # בא אחריו. בסט זה לא קורה (נבדק בדף, בכל 15 הקבצים), ולכן הדף ממיין לפי השורה ולא מניח את הסדר
+    page_offsets: tuple[int, ...] = field(default=())
 
 
 @dataclass(frozen=True)
@@ -222,8 +228,8 @@ def build_markdown(pages: Sequence[PageText]) -> Markdown:
     for number, (page_units, page_runs) in enumerate(zip(kept, runs), 1):
         continues = _continues(page_runs, document_steps)
         _page_blocks(number, page_units, sizes, rtl, continues, blocks, repeated)
-    text, markers = _render(blocks, len(pages))
-    return Markdown(text, tuple(blocks), tuple(sorted(dropped)), tuple(markers), tuple(repeated))
+    text, markers, offsets = _render(blocks, len(pages))
+    return Markdown(text, tuple(blocks), tuple(sorted(dropped)), tuple(markers), tuple(repeated), offsets)
 
 
 def _page_units(page: PageText) -> list:
@@ -546,10 +552,25 @@ def _same_row(a: Sequence[str], b: Sequence[str]) -> bool:
     return norm(a) == norm(b)
 
 
-def _render(blocks: list[Block], pages: int) -> tuple[str, list[str]]:
-    """הטקסט של ה-Markdown, והסימנים של פריטים שהפכו לתחביר של רשימה (Markdown.markers)."""
+_BLOCK_SEPARATOR = "\n\n"
+
+
+def _render(blocks: list[Block], pages: int) -> tuple[str, list[str], tuple[int, ...]]:
+    """הטקסט של ה-Markdown, הסימנים של פריטים שהפכו לתחביר של רשימה (Markdown.markers), והמקום של הסמן של כל
+    עמוד בטקסט (Markdown.page_offsets)."""
     out: list[str] = []
     markers: list[str] = []
+    offsets: dict[int, int] = {}
+    position = 0  # המקום בטקסט שבו יתחיל הקטע הבא
+
+    def add(piece: str, page_markers: dict[int, int] | None = None) -> None:
+        """קטע אחד של הטקסט (בלוק, רשימה או סמן), ו-page_markers: לכל עמוד שהסמן שלו בתוך הקטע, המקום שלו בקטע."""
+        nonlocal position
+        for number, at in (page_markers or {}).items():
+            offsets[number] = position + at
+        out.append(piece)
+        position += len(piece) + len(_BLOCK_SEPARATOR)
+
     by_page: dict[int, list[Block]] = {}
     for block in blocks:
         by_page.setdefault(block.page, []).append(block)
@@ -557,7 +578,7 @@ def _render(blocks: list[Block], pages: int) -> tuple[str, list[str]]:
     inside_tables = {page for block in blocks for _, page in block.page_starts}
     for page in range(1, pages + 1):
         if page not in inside_tables:
-            out.append(PAGE_MARKER.format(page))
+            add(PAGE_MARKER.format(page), {page: 0})
         page_blocks = by_page.get(page, [])
         i = 0
         while i < len(page_blocks):
@@ -566,17 +587,20 @@ def _render(blocks: list[Block], pages: int) -> tuple[str, list[str]]:
                 end = i
                 while end < len(page_blocks) and page_blocks[end].kind == "item":
                     end += 1
-                out.extend(_list(page_blocks[i:end], markers))
+                for piece in _list(page_blocks[i:end], markers):
+                    add(piece)
                 i = end
                 continue
             if block.kind == "table":
-                out.append(_table(block))
+                add(*_table(block))
             elif block.kind == "heading":
-                out.append("#" * block.level + " " + escape_text(block.text).replace("#", "\\#"))
+                add("#" * block.level + " " + escape_text(block.text).replace("#", "\\#"))
             else:
-                out.append(_escape_block(block.text))
+                add(_escape_block(block.text))
             i += 1
-    return "\n\n".join(out) + "\n", markers
+    if len(offsets) != pages:
+        raise ValueError(f"לא לכל עמוד יש סמן: {len(offsets)} סמנים ל-{pages} עמודים")
+    return _BLOCK_SEPARATOR.join(out) + "\n", markers, tuple(offsets[page] for page in range(1, pages + 1))
 
 
 def _list(items: list[Block], markers: list[str]) -> list[str]:
@@ -623,15 +647,20 @@ def _list(items: list[Block], markers: list[str]) -> list[str]:
             for k, lines in enumerate(lists)]
 
 
-def _table(block: Block) -> str:
+def _table(block: Block) -> tuple[str, dict[int, int]]:
+    """הטבלה כטקסט, ולכל עמוד שמתחיל בתוכה (Block.page_starts) המקום של הסמן שלו בטקסט הזה."""
     width = max(len(row) for row in block.rows)
     page_at = dict(block.page_starts)
     lines = []
+    markers: dict[int, int] = {}
+    position = 0  # המקום בטקסט של הטבלה שבו מתחילה השורה הבאה
     for k, row in enumerate(block.rows):
         cells = [escape_text(cell) for cell in row] + [""] * (width - len(row))
         if k in page_at:
             cells[0] = PAGE_MARKER.format(page_at[k]) + cells[0]  # בלי רווח: הוא היה נכנס לטקסט של התא
+            markers[page_at[k]] = position + len("| ")
         lines.append("| " + " | ".join(cells) + " |")
         if k == 0:
             lines.append("|" + " --- |" * width)
-    return "\n".join(lines)
+        position += sum(len(line) + 1 for line in lines[-2 if k == 0 else -1:])
+    return "\n".join(lines), markers

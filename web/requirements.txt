@@ -1,0 +1,10 @@
+# התלויות של השירות (web/). החבילה עצמה צריכה רק את requirements.txt שבשורש; python-bidi ו-cmarkgfm הן תלויות
+# פיתוח (requirements-dev.txt) ולא נכנסות לשירות.
+-r ../requirements.txt
+# הגרסאות שהשירות נבדק עליהן (tests/test_web_*.py)
+fastapi==0.162.0
+# הקוד נשען על הגרסה הזו (starlette/formparsers.py, starlette/requests.py ClientDisconnect)
+starlette==1.7.0
+# בלי [standard]: השירות רץ על h11 ועל לולאת asyncio הרגילה (web/__main__.py), התצורה שנבדקה
+uvicorn==0.54.0
+# python-multipart לא נדרש: הקובץ נשלח כגוף הבקשה ולא כטופס (web/app.py, בראש הקובץ)

@@ -10,12 +10,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BIDI = ("\u200e", "\u200f", "\u202a", "\u202b", "\u202c", "\u202d", "\u202e",
         "\u2066", "\u2067", "\u2068", "\u2069")
-SOURCE_DIRS = ("hebrew_pdf", "prototype", "harness", "tests", "tools")
+SOURCE_DIRS = ("hebrew_pdf", "prototype", "harness", "tests", "tools", "web")
+# הקבצים של הדף: גם בהם תו כיוון בלתי נראה משנה את מה שהקוד עושה בלי שרואים (Trojan Source)
+PAGE_FILES = ("*.js", "*.html", "*.css", "*.svg")
 
 
 class NoBidiControlsTest(unittest.TestCase):
     def test_python_sources(self):
         files = [p for d in SOURCE_DIRS for p in sorted((ROOT / d).rglob("*.py"))]
+        files += [p for pattern in PAGE_FILES for p in sorted((ROOT / "web" / "static").glob(pattern))]
         self.assertTrue(files)
         for path in files:
             text = path.read_text(encoding="utf-8")

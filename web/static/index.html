@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF עברי ל-Markdown</title>
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <h1>PDF עברי ל-Markdown</h1>
+  <p class="lead">מעלים קובץ PDF בעברית, ומקבלים Markdown. לכל עמוד מופיע סימון: האם הבדיקות מצאו בו בעיה, ומה היא.</p>
+</header>
+
+<main>
+  <section class="upload" aria-labelledby="upload-title">
+    <h2 id="upload-title" class="visually-hidden">העלאת קובץ</h2>
+    <div class="upload-row">
+      <label class="file-label" for="file">בחירת קובץ PDF</label>
+      <input id="file" type="file" accept=".pdf,application/pdf">
+      <button id="convert" type="button" disabled>המרה ל-Markdown</button>
+    </div>
+    <p id="limits" class="limits" data-max-bytes="{{MAX_BYTES}}">עד {{MAX_MB}} מגה-בייט, ועד {{MAX_PAGES}} עמודים. רק PDF עם שכבת טקסט: סריקות ותמונות לא נקראות.</p>
+    <p class="privacy">פרטיות: הקובץ מעובד בזיכרון ונמחק מיד בסוף ההמרה. הוא לא נשמר בשום מקום, ושום דבר ממנו, גם לא השם שלו, לא נרשם בלוג.</p>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="result" class="result" hidden aria-labelledby="result-title">
+    <h2 id="result-title">התוצאה: <span id="result-name"></span></h2>
+
+    <div class="summary">
+      <ul id="summary" class="counts"></ul>
+      <dl id="legend" class="legend"></dl>
+    </div>
+
+    <div class="actions">
+      <button id="copy" type="button">העתקת ה-Markdown</button>
+      <button id="download" type="button">הורדת קובץ <span id="download-name"></span></button>
+      <span id="action-status" class="status" role="status" aria-live="polite"></span>
+    </div>
+
+    <div class="panes">
+      <nav class="pages" aria-labelledby="pages-title">
+        <h3 id="pages-title">העמודים</h3>
+        <ol id="pages"></ol>
+      </nav>
+      <div class="output-pane">
+        <h3 id="output-title">ה-Markdown, כמו שהוא יועתק ויורד</h3>
+        <pre id="output" dir="rtl" lang="he" tabindex="0" aria-labelledby="output-title"></pre>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>
