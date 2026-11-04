@@ -33,11 +33,22 @@
 
   fileInput.addEventListener("change", () => {
     convertButton.disabled = !fileInput.files.length;
+    clearResult();
     setStatus("");
   });
   convertButton.addEventListener("click", convert);
   document.getElementById("copy").addEventListener("click", copy);
   document.getElementById("download").addEventListener("click", download);
+
+  // התוצאה שייכת לקובץ שהומר. כשנבחר קובץ אחר, או כשמתחילה המרה חדשה, היא יורדת מהדף, כדי שהעתקה והורדה לא
+  // יפעלו על קובץ אחר משזה שמוצג בשדה, גם אם ההמרה החדשה נכשלת
+  function clearResult() {
+    current = null;
+    result.hidden = true;
+    output.replaceChildren();
+    pagesList.replaceChildren();
+    actionStatus.textContent = "";
+  }
 
   function setStatus(text, isError) {
     statusLine.textContent = text;
@@ -51,6 +62,7 @@
       setStatus("הקובץ גדול מדי. " + limitsLine.textContent, true);
       return;
     }
+    clearResult();
     convertButton.disabled = true;
     fileInput.disabled = true;
     setStatus("ממיר… בקובץ גדול זה יכול לקחת עד דקה וחצי.");
@@ -134,8 +146,8 @@
     return entry ? entry.text : code;
   }
 
-  // ה-Markdown כשורות: כל שורה ב-span משלה, כדי שאפשר יהיה להגיע לשורה (סמן של עמוד, או הערה שמצביעה על שורה,
-  // סבב 7). העמודים מקובצים לפי השורה של הסמן שלהם (page.line, מספר ה-"\n" לפניו), בסדר שבו הם מופיעים בטקסט
+  // ה-Markdown כשורות: כל שורה ב-span משלה (#line-N), כדי שאפשר יהיה להגיע לשורה ולא רק לעמוד. העמודים מקובצים לפי
+  // השורה של הסמן שלהם (page.line, מספר ה-"\n" לפניו), בסדר שבו הם מופיעים בטקסט
   function renderOutput() {
     const lines = current.markdown.split("\n");
     const starts = current.pages
@@ -200,7 +212,7 @@
     }
   }
 
-  // רשימה של סיבות או הערות. כל אחת לבד, עם ההסבר שלה. הערה שמצביעה על שורה (שדה line, סבב 7) מקבלת קישור לשורה
+  // רשימה של סיבות או הערות. כל אחת לבד, עם ההסבר שלה, ולא משפט אחד לעמוד
   function entries(title, list, kind) {
     const box = document.createElement("div");
     box.className = kind;
@@ -219,14 +231,6 @@
         help.className = "entry-help";
         help.textContent = entry.help;
         li.append(help);
-      }
-      if (Number.isInteger(entry.line)) {
-        const go = document.createElement("button");
-        go.type = "button";
-        go.className = "goto-line";
-        go.textContent = "לשורה";
-        go.addEventListener("click", () => jump("line-" + entry.line));
-        li.append(go);
       }
       ul.append(li);
     }
@@ -273,7 +277,9 @@
   // שם הקובץ להורדה, מהשם של הקובץ שהועלה. השם לא נשלח לשרת. הניקוי: בלי סיומת PDF; בלי תווי בקרה ותווי עיצוב
   // בלתי נראים (Cc, Cf: בהם תווי הכיוון, ש-U+202E שבהם הופך "fdp.exe" לשם שנראה אחר); בלי תווים שאסורים בשם קובץ
   // ב-Windows או מפרידים תיקיות; רווחים מכווצים, ובלי נקודות ורווחים בקצוות. אורך עד 120 תווים, לפי תווים ולא בתים.
-  // שם שלא נשאר ממנו כלום, או שם שמור ב-Windows, מקבל שם כללי או קידומת
+  // שם שלא נשאר ממנו כלום מקבל שם כללי. שם שמור ב-Windows מקבל קידומת, גם כשאחריו סיומת: לפי Microsoft, "NUL.txt"
+  // ו-"NUL.tar.gz" שווים ל-NUL, והרשימה היא CON, PRN, AUX, NUL, COM1 עד COM9, LPT1 עד LPT9, ו-COM ו-LPT עם ¹ ² ³
+  // (https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file, Naming Conventions)
   function downloadName(original) {
     let stem = String(original || "").normalize("NFC").replace(/\.pdf$/iu, "");
     stem = stem.replace(/[\p{Cc}\p{Cf}]/gu, "");
@@ -281,7 +287,7 @@
     stem = stem.replace(/\s+/gu, " ").replace(/^[\s.]+|[\s.]+$/gu, "");
     stem = Array.from(stem).slice(0, 120).join("").replace(/[\s.]+$/gu, "");
     if (!stem) stem = "document";
-    if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/iu.test(stem)) stem = "_" + stem;
+    if (/^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(\.|$)/iu.test(stem)) stem = "_" + stem;
     return stem + ".md";
   }
 })();

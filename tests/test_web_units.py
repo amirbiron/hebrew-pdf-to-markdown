@@ -2,8 +2,13 @@
 העמודים ב-Markdown (hebrew_pdf/markdown.py, Markdown.page_offsets)."""
 
 import asyncio
+import contextlib
 import io
+import json
+import os
+import re
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -40,19 +45,41 @@ class LimitsTest(unittest.TestCase):
         self.assertIsNone(limits.container_memory(cgroup({})))
 
     def test_slots_from_memory(self):
-        # 512MB ב-Render: (512 - 100 - 64) / 164 = 2.1
-        self.assertEqual(limits.slots_for(512 * MB), 2)
+        # 512MB ב-Render: (512 - 100 - 64) / 194 = 1.8. מקום אחד כולל את תהליך ההמרה, הקובץ אצל השרת והטיפול בתשובה
+        self.assertEqual(limits.SLOT_MEMORY, limits.CONVERSION_PHYSICAL + limits.MAX_BYTES + limits.ANSWER_COST)
+        self.assertEqual(limits.slots_for(512 * MB), 1)
+        self.assertEqual(limits.slots_for(1024 * MB), 4)
         self.assertEqual(limits.slots_for(100 * MB), limits.MIN_SLOTS)
         self.assertEqual(limits.slots_for(64 * 1024 * MB), limits.MAX_SLOTS)
 
+    def test_slots_from_cpu(self):
+        # חצי מעבד: 0.5 * 90 / 23.6 = 1.9. שתי המרות של קובץ הטבלאות לא היו מסתיימות בזמן
+        self.assertEqual(limits.cpu_slots(0.5), 1)
+        self.assertEqual(limits.cpu_slots(1.0), 3)
+        self.assertEqual(limits.cpu_slots(0.1), limits.MIN_SLOTS)
+
+    def test_container_cpus(self):
+        self.assertEqual(limits.container_cpus(cgroup({"cpu.max": "50000 100000\n"})), 0.5)
+        self.assertIsNone(limits.container_cpus(cgroup({"cpu.max": "max 100000\n"})))
+        self.assertEqual(limits.container_cpus(cgroup({"cpu/cpu.cfs_quota_us": "200000", "cpu/cpu.cfs_period_us": "100000"})), 2.0)
+        self.assertIsNone(limits.container_cpus(cgroup({"cpu/cpu.cfs_quota_us": "-1", "cpu/cpu.cfs_period_us": "100000"})))
+        self.assertIsNone(limits.container_cpus(cgroup({})))
+        for bad in ("50000", "a b", "50000 0"):
+            with self.subTest(bad=bad), self.assertLogs("web.limits", "WARNING"):
+                self.assertIsNone(limits.container_cpus(cgroup({"cpu.max": bad})))
+
     def test_capacity(self):
-        known = cgroup({"memory.max": str(512 * MB)})
-        self.assertEqual(limits.capacity({}, known).slots, 2)
+        both = cgroup({"memory.max": str(2048 * MB), "cpu.max": "50000 100000"})
+        # הזיכרון מספיק ל-8, וחצי מעבד ל-1: הקטן מהשניים
+        self.assertEqual(limits.capacity({}, both).slots, 1)
+        self.assertEqual(limits.capacity({}, cgroup({"memory.max": str(2048 * MB)})).slots, limits.MAX_SLOTS)
+        known = cgroup({"memory.max": str(1024 * MB)})
+        self.assertEqual(limits.capacity({}, known).slots, 4)
         self.assertEqual(limits.capacity({}, cgroup({"memory.max": "max"})).slots, limits.MIN_SLOTS)
         self.assertEqual(limits.capacity({"HEBREW_PDF_SLOTS": "3"}, known), limits.Capacity(3, "HEBREW_PDF_SLOTS"))
         for bad in ("0", "99", "²", "2.5", "-1", ""):
             with self.subTest(bad=bad), self.assertLogs("web.limits", "ERROR"):
-                self.assertEqual(limits.capacity({"HEBREW_PDF_SLOTS": bad}, known).slots, 2)
+                self.assertEqual(limits.capacity({"HEBREW_PDF_SLOTS": bad}, known).slots, 4)
 
     def test_seconds(self):
         self.assertEqual(limits.seconds_from({}, "X", 90.0, 0.1, 600), 90.0)
@@ -150,7 +177,8 @@ class ChildProcessTest(unittest.TestCase):
         conversion.start_worker_server()
 
     def run_convert(self, data: bytes, **kwargs) -> dict:
-        options = {"max_pages": 100, "timeout": 60, "memory_limit": limits.CONVERSION_MEMORY, **kwargs}
+        options = {"max_pages": 100, "timeout": 60, "memory_limit": limits.CONVERSION_MEMORY,
+                   "max_answer": limits.MAX_ANSWER, **kwargs}
         return asyncio.run(conversion.convert(data, **options))
 
     def test_result(self):
@@ -170,6 +198,122 @@ class ChildProcessTest(unittest.TestCase):
         with self.assertRaises(conversion.ConversionFailed) as caught:
             self.run_convert((PDFS / "env-vars_weasyprint.pdf").read_bytes(), timeout=0.5)
         self.assertEqual(caught.exception.code, conversion.TIMEOUT)
+
+    def test_an_answer_over_the_cap_is_refused(self):
+        # התשובה של הקובץ הזה כ-4KB; תקרה של 1KB עוצרת את הקריאה, והתהליך נהרג
+        data = (PDFS / "doc-2p_weasyprint.pdf").read_bytes()
+        with self.assertRaises(conversion.ConversionFailed) as caught, self.assertLogs("web.conversion", "WARNING"):
+            self.run_convert(data, max_answer=1024)
+        self.assertEqual(caught.exception.code, conversion.TOO_HEAVY)
+        self.assertEqual(len(self.run_convert(data)["pages"]), 2)
+
+    def test_sending_does_not_block_the_loop(self):
+        # 128MB לתהליך שקורא וסופר. בזמן ההחלפה הלולאה ממשיכה לרוץ. בקרה באותה בדיקה: אותו קובץ בארגומנטים של
+        # התהליך, כמו בגרסה הקודמת, חוסם את הלולאה בתוך process.start
+        data = b"%" * (128 * MB)
+
+        async def longest_gap(work) -> tuple[float, object]:
+            gaps, stop = [0.0], asyncio.Event()
+
+            async def tick():
+                last = time.perf_counter()
+                while not stop.is_set():
+                    await asyncio.sleep(0.002)
+                    now = time.perf_counter()
+                    gaps.append(now - last)
+                    last = now
+
+            ticker = asyncio.create_task(tick())
+            await asyncio.sleep(0.05)
+            try:
+                result = await work()
+            finally:
+                stop.set()
+                await ticker
+            return max(gaps), result
+
+        async def through_exchange():
+            return await conversion.exchange(count_input, data, (), timeout=60, max_answer=1024)
+
+        async def through_arguments():
+            process = conversion._CONTEXT.Process(target=len, args=(data,))
+            process.start()
+            await conversion._stop(process)
+
+        # חימום: ההחלפה הראשונה בתהליך כוללת עבודה חד-פעמית (נמדד: 84ms בראשונה, 5 עד 11 אחריה; הבקרה 290 עד 465)
+        asyncio.run(conversion.exchange(count_input, b"x", (), timeout=60, max_answer=1024))
+        gap, raw = asyncio.run(longest_gap(through_exchange))
+        self.assertEqual(json.loads(raw), {"size": len(data)})
+        control, _ = asyncio.run(longest_gap(through_arguments))
+        self.assertGreater(control, 0.05, "הבקרה לא חסמה: הבדיקה לא מבדילה בין שתי הדרכים")
+        self.assertLess(gap, control / 3, (gap, control))
+
+
+class DecodeTest(unittest.TestCase):
+    """התשובה מהתהליך היא קלט חיצוני: תהליך שמפענח קובץ עוין. כל מבנה לא צפוי הוא CRASHED, לא חריגה בשרת."""
+
+    def code(self, raw: bytes) -> str:
+        with self.assertRaises(conversion.ConversionFailed) as caught:
+            conversion._decode(raw)
+        return caught.exception.code
+
+    def test_broken_answers(self):
+        page = {"number": 1, "decision": "ok", "decision_text": "תקין", "reasons": [], "notes": [], "line": 0}
+        good = {"result": {"markdown": "x", "pages": [page]}}
+        self.assertEqual(conversion._decode(json.dumps(good).encode()), good["result"])
+        for raw in (b"", b"{", "\u05d0".encode()[:1], b"[]", b'{"result": 1}', b'{"error": "rm -rf"}', b'{"error": [1]}',
+                    json.dumps({"result": {"markdown": "x", "pages": [{**page, "number": 2}]}}).encode(),
+                    json.dumps({"result": {"markdown": "x", "pages": [{**page, "decision": "maybe"}]}}).encode(),
+                    json.dumps({"result": {"markdown": "x", "pages": [{**page, "reasons": [{"kind": "x", "text": ""}]}]}}).encode(),
+                    json.dumps({"result": {"markdown": "x", "pages": [{**page, "line": "0"}]}}).encode()):
+            with self.subTest(raw=raw[:60]), self.assertLogs("web.conversion", "WARNING") if raw.startswith(b'{"result') else contextlib.nullcontext():
+                self.assertEqual(self.code(raw), conversion.CRASHED)
+        self.assertEqual(self.code(b'{"error": "protected"}'), conversion.PROTECTED)
+
+
+class HostTest(unittest.TestCase):
+    def test_empty_host_is_local(self):
+        from web.__main__ import host
+        self.assertEqual(host({}), "127.0.0.1")
+        self.assertEqual(host({"HOST": ""}), "127.0.0.1")
+        self.assertEqual(host({"HOST": "  "}), "127.0.0.1")
+        self.assertEqual(host({"HOST": "0.0.0.0"}), "0.0.0.0")
+
+
+class ContrastTest(unittest.TestCase):
+    """style.css מבטיח לפחות 4.5:1 (WCAG AA) לכל טקסט על הרקע שלו, בשתי הערכות. החשבון מהערכים בקובץ עצמו."""
+
+    PAIRS = [("text", "bg"), ("text", "surface"), ("muted", "bg"), ("muted", "surface"), ("accent", "surface"),
+             ("accent", "bg"), ("accent-text", "accent"), ("ok", "ok-bg"), ("unsure", "unsure-bg"),
+             ("rejected", "rejected-bg"), ("ok", "bg"), ("unsure", "bg"), ("rejected", "bg"), ("text", "current")]
+
+    @staticmethod
+    def luminance(color: str) -> float:
+        def channel(value: int) -> float:
+            c = value / 255
+            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+        r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+        return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+
+    def test_contrast(self):
+        css = (Path(web_app.STATIC_DIR) / "style.css").read_text(encoding="utf-8")
+        blocks = re.findall(r":root\s*\{(.*?)\}", css, re.DOTALL)
+        self.assertEqual(len(blocks), 2, "ערכה בהירה וערכה כהה")
+        for block in blocks:
+            tokens = dict(re.findall(r"--([a-z-]+):\s*(#[0-9a-f]{6})", block))
+            for fore, back in self.PAIRS:
+                with self.subTest(fore=fore, back=back):
+                    a, b = sorted((self.luminance(tokens[fore]), self.luminance(tokens[back])), reverse=True)
+                    self.assertGreaterEqual((a + 0.05) / (b + 0.05), 4.5)
+
+
+def count_input(source, answer) -> None:
+    """תהליך לבדיקה: קורא את מה שנשלח וסופר, בלי לשמור (conversion.exchange)."""
+    size = 0
+    while chunk := os.read(source.fileno(), 1 << 16):
+        size += len(chunk)
+    source.close()
+    conversion.write_answer(answer, conversion.encode_answer({"size": size}))
 
 
 def _line(text: str, baseline: float) -> Line:

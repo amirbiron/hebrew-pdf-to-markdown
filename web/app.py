@@ -16,8 +16,9 @@
 1. הגבלת קצב לפי הכתובת (client_address). לא נקרא שום בית מהגוף.
 2. אורך מוצהר: בלי Content-Length, או עם Transfer-Encoding לידו (אז האורך לא אומר כלום), נדחה ב-411; מעל
    MAX_BYTES נדחה ב-413. מהכותרות בלבד, ועם Connection: close, כי הגוף לא נקרא.
-3. עומס: כשכל המקומות להמרה תפוסים, או שכבר יש יותר מדי קבצים בדרך, 503 מיד, ולא תור שגדל.
-4. קריאת הגוף, עד האורך המוצהר ובתוך UPLOAD_SECONDS.
+3. עומס: כשכל המקומות להמרה תפוסים, 503 מיד, ולא תור שגדל. המקום נתפס כאן, לפני קריאת הגוף, ומשתחרר בסוף ההמרה:
+   כך אין קבצים בדרך מעבר למקומות, והזיכרון של קובץ שנקרא כבר בתוך החשבון של המקום (web/limits.py, SLOT_MEMORY).
+4. קריאת הגוף, עד האורך המוצהר ובתוך UPLOAD_SECONDS, ישר לחוצץ בגודל המוצהר.
 5. סוג הקובץ לפי התוכן: הכותרת %PDF- עד מקום 1024, כמו ש-PDFium מחפש אותה (נמדד על pypdfium2 5.13: הכותרת
    במקום 1024 נפתחת, במקום 1025 לא). לא לפי השם ולא לפי Content-Type, שהדפדפן קובע.
 6. ההמרה, בתהליך נפרד, עם זמן ותקרת זיכרון (web/conversion.py). מספר העמודים נבדק שם מיד אחרי הפתיחה.
@@ -75,7 +76,7 @@ _PDF_HEADER = b"%PDF-"
 _PDF_HEADER_LAST_OFFSET = 1024
 
 
-def is_pdf(data: bytes) -> bool:
+def is_pdf(data: bytes | bytearray) -> bool:
     """הכותרת %PDF- מתחילה במקום 0 עד 1024 בקובץ (ראו בראש הקובץ, שלב 5)."""
     return data.find(_PDF_HEADER, 0, _PDF_HEADER_LAST_OFFSET + len(_PDF_HEADER)) != -1
 
@@ -194,26 +195,29 @@ class _BadUpload(Exception):
         self.code = code
 
 
-async def read_body(request: Request, length: int, deadline: float) -> bytes:
+async def read_body(request: Request, length: int, deadline: float) -> bytearray:
     """הגוף, בדיוק length בתים, בתוך deadline שניות לכל הקריאה (ולא לכל חלק: לקוח שמטפטף בית לפני כל דדליין היה
-    עובר דדליין לחלק). _BadUpload: upload_timeout כשהזמן נגמר, bad_request כשהגוף קצר או ארוך מהמוצהר או שהלקוח
-    התנתק."""
-    chunks: list[bytes] = []
+    עובר דדליין לחלק). נכתב ישר לחוצץ בגודל המוצהר, כך שהקובץ נמצא בזיכרון פעם אחת ולא פעמיים (חלקים, ואז חיבור שלהם).
+    _BadUpload: upload_timeout כשהזמן נגמר, bad_request כשהגוף קצר או ארוך מהמוצהר או שהלקוח התנתק."""
+    body = bytearray(length)
+    view = memoryview(body)
     received = 0
     try:
         async with asyncio.timeout(deadline):
             async for chunk in request.stream():
-                received += len(chunk)
-                if received > length:
+                if received + len(chunk) > length:
                     raise _BadUpload("bad_request")
-                chunks.append(chunk)
+                view[received:received + len(chunk)] = chunk
+                received += len(chunk)
     except TimeoutError:
         raise _BadUpload("upload_timeout") from None
     except ClientDisconnect:
         raise _BadUpload("bad_request") from None
+    finally:
+        view.release()
     if received != length:
         raise _BadUpload("bad_request")
-    return b"".join(chunks)
+    return body
 
 
 def _page(path: Path) -> bytes:
@@ -236,7 +240,6 @@ async def lifespan(app: FastAPI):
     environ = os.environ
     capacity = limits.capacity(environ)
     app.state.slots = Slots(capacity.slots)
-    app.state.uploads = Slots(capacity.slots * limits.UPLOADS_PER_SLOT)
     app.state.timeout = limits.seconds_from(environ, "HEBREW_PDF_TIMEOUT_SECONDS", limits.TIMEOUT_SECONDS, 0.1, 600)
     app.state.upload_timeout = limits.seconds_from(environ, "HEBREW_PDF_UPLOAD_SECONDS", limits.UPLOAD_SECONDS, 0.1, 600)
     app.state.limiter = RateLimiter(limits.RATE_LIMIT, limits.RATE_WINDOW_SECONDS)
@@ -244,9 +247,8 @@ async def lifespan(app: FastAPI):
     app.state.static = {name: (STATIC_DIR / name).read_bytes() for name in STATIC_TYPES}
     conversion.start_worker_server()
     # שורת הקיבולת קוראת את מה שהותקן, ולא מחשבת מחדש (RECURRING-PATTERNS.md, R6)
-    log.info("המרות במקביל: %d (%s); קבצים בדרך: %d; זמן להמרה: %ss; תקרת זיכרון להמרה: %dMB",
-             app.state.slots.size, capacity.source, app.state.uploads.size, app.state.timeout,
-             limits.CONVERSION_MEMORY // limits.MB)
+    log.info("המרות במקביל: %d (%s); זמן להמרה: %ss; תקרת זיכרון להמרה: %dMB",
+             app.state.slots.size, capacity.source, app.state.timeout, limits.CONVERSION_MEMORY // limits.MB)
     yield
 
 
@@ -285,26 +287,24 @@ async def convert(request: Request):
     length = int(declared)
     if length > limits.MAX_BYTES:
         return failure("too_large", close=True)
-    if not state.slots.free() or not state.uploads.take():
+    if not state.slots.take():
         return failure("busy", close=True, retry_after=30)
     try:
-        data = await read_body(request, length, state.upload_timeout)
-    except _BadUpload as bad:
-        return failure(bad.code, close=True)
-    finally:
-        state.uploads.give()
-    if not is_pdf(data):
-        return failure("not_pdf")
-    if not state.slots.take():
-        return failure("busy", retry_after=30)
-    started = time.monotonic()
-    try:
-        result = await conversion.convert(data, max_pages=limits.MAX_PAGES, timeout=state.timeout,
-                                          memory_limit=limits.CONVERSION_MEMORY)
-    except conversion.ConversionFailed as failed:
-        log.info("המרה: %s, %d בתים, %.1f שניות", failed.code, length, time.monotonic() - started)
-        return failure(failed.code)
+        try:
+            data = await read_body(request, length, state.upload_timeout)
+        except _BadUpload as bad:
+            return failure(bad.code, close=True)
+        if not is_pdf(data):
+            return failure("not_pdf")
+        started = time.monotonic()
+        try:
+            result = await conversion.convert(data, max_pages=limits.MAX_PAGES, timeout=state.timeout,
+                                              memory_limit=limits.CONVERSION_MEMORY, max_answer=limits.MAX_ANSWER)
+        except conversion.ConversionFailed as failed:
+            log.info("המרה: %s, %d בתים, %.1f שניות", failed.code, length, time.monotonic() - started)
+            return failure(failed.code)
+        log.info("המרה: ok, %d בתים, %d עמודים, %.1f שניות", length, len(result["pages"]), time.monotonic() - started)
+        # התשובה נבנית כאן, בזמן שהמקום עוד תפוס: הזיכרון שלה בחשבון של המקום (web/limits.py, ANSWER_COST)
+        return JSONResponse(messages.explained(result), headers={"cache-control": "no-store"})
     finally:
         state.slots.give()
-    log.info("המרה: ok, %d בתים, %d עמודים, %.1f שניות", length, len(result["pages"]), time.monotonic() - started)
-    return JSONResponse(messages.explained(result), headers={"cache-control": "no-store"})

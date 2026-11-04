@@ -4,17 +4,22 @@
 import ast
 import re
 import sys
+import tempfile
 import unittest
 from importlib import metadata
 from pathlib import Path
+
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 
 from web import limits
 from web.app import app
 
 ROOT = Path(__file__).resolve().parent.parent
 RENDER = (ROOT / "render.yaml").read_text(encoding="utf-8")
-# הזיכרון של התוכנית שב-render.yaml (https://render.com/docs/compute-plans)
-PLAN_MEMORY = {"0.5c-512mb": 512, "starter": 512, "free": 512, "1c-2g": 2048, "standard": 2048}
+# הזיכרון (MB) והמעבד של התוכנית שב-render.yaml (https://render.com/docs/compute-plans)
+PLANS = {"free": (512, 0.1), "0.5c-512mb": (512, 0.5), "starter": (512, 0.5), "1c-2g": (2048, 1.0),
+         "standard": (2048, 1.0), "2c-4g": (4096, 2.0), "pro": (4096, 2.0)}
 
 
 def render_value(key: str) -> str:
@@ -44,8 +49,14 @@ def imports(path: Path) -> set[str]:
 
 class RenderTest(unittest.TestCase):
     def test_slots_in_render_match_the_formula(self):
-        memory = PLAN_MEMORY[render_field("plan")] * limits.MB
-        self.assertEqual(int(render_value("HEBREW_PDF_SLOTS")), limits.slots_for(memory))
+        memory, cpus = PLANS[render_field("plan")]
+        expected = min(limits.slots_for(memory * limits.MB), limits.cpu_slots(cpus))
+        self.assertEqual(int(render_value("HEBREW_PDF_SLOTS")), expected)
+        # ואותו חשבון כמו של השירות עצמו, כשהמגבלות כתובות ב-cgroup כמו בתוכנית
+        root = Path(tempfile.mkdtemp())
+        (root / "memory.max").write_text(str(memory * limits.MB))
+        (root / "cpu.max").write_text(f"{int(cpus * 100000)} 100000")
+        self.assertEqual(limits.capacity({}, root).slots, expected)
 
     def test_service_settings(self):
         self.assertEqual(render_field("region"), "frankfurt")
@@ -61,11 +72,43 @@ class RenderTest(unittest.TestCase):
                          "הבדיקות רצות על גרסה אחרת מזו שב-Render")
 
 
+# החבילות שהשירות מייבא ישירות (web/*.py). כל השאר ב-web/requirements.txt הוא מה שהן מושכות
+DIRECT = ("pypdfium2", "fastapi", "starlette", "uvicorn")
+
+
+def pins() -> dict[str, str]:
+    """הגרסאות הנעולות ב-web/requirements.txt, לפי שם מנורמל (PEP 503)."""
+    found = {}
+    for line in (ROOT / "web" / "requirements.txt").read_text().splitlines():
+        line = line.split("#")[0].strip()
+        if line and not line.startswith("-r"):
+            name, version = line.split("==")
+            found[canonicalize_name(name)] = version
+    return found
+
+
+def closure(names) -> set[str]:
+    """החבילות הישירות וכל מה שהן מושכות, לפי התלויות שמותקנות בפועל (importlib.metadata), בלי extras, ועם התנאים
+    (python_version וכו') של הסביבה הזו."""
+    found: set[str] = set()
+    todo = [canonicalize_name(name) for name in names]
+    while todo:
+        name = todo.pop()
+        if name in found:
+            continue
+        found.add(name)
+        for raw in metadata.distribution(name).requires or []:
+            requirement = Requirement(raw)
+            if requirement.marker is None or requirement.marker.evaluate({"extra": ""}):
+                todo.append(canonicalize_name(requirement.name))
+    return found
+
+
 class DependenciesTest(unittest.TestCase):
-    def test_the_service_runs_the_tested_versions(self):
-        pins = dict(re.findall(r"^([A-Za-z0-9_.-]+)==(\S+)", (ROOT / "web" / "requirements.txt").read_text(), re.MULTILINE))
-        self.assertEqual(set(pins), {"fastapi", "starlette", "uvicorn"})
-        for name, version in pins.items():
+    def test_the_lock_is_complete_and_installed(self):
+        locked = pins()
+        self.assertEqual(set(locked), closure(DIRECT), "web/requirements.txt לא נועל בדיוק את מה שהשירות מושך")
+        for name, version in locked.items():
             self.assertEqual(metadata.version(name), version, name)
 
     def test_the_reader_stays_clean(self):
@@ -82,10 +125,8 @@ class DependenciesTest(unittest.TestCase):
         for path in sorted((ROOT / "web").glob("*.py")):
             with self.subTest(path=path.name):
                 self.assertLessEqual(imports(path), allowed)
-        # השורות שהן דרישה, בלי ההערות (ההערה בקובץ מזכירה את python-bidi בכוונה)
-        service = [line.split("#")[0].strip().lower() for line in (ROOT / "web" / "requirements.txt").read_text().splitlines()]
-        self.assertEqual([line for line in service if line], ["-r ../requirements.txt", "fastapi==0.162.0",
-                                                              "starlette==1.7.0", "uvicorn==0.54.0"])
+        for dev in ("python-bidi", "cmarkgfm", "weasyprint", "playwright", "packaging"):
+            self.assertNotIn(dev, pins())
 
 
 if __name__ == "__main__":

@@ -14,13 +14,24 @@ set_forkserver_preload), וכל המרה היא fork שלו. כך תהליך ח�
 את לולאת האירועים ואת החוטים של השרת, כמו ש-fork ישיר מהשרת היה יורש. מקור: multiprocessing/forkserver.py
 (ensure_running מפעיל את השרת ומייבא את _preload_modules בתוכו; main מייבא אותם; _serve_one מריץ כל תהליך ב-fork).
 
+התקשורת עם התהליך (exchange): שני pipes, אחד לקובץ ואחד לתשובה. multiprocessing רק מעביר אותם לתהליך; את הכתיבה
+והקריאה עושה לולאת האירועים, בחלקים ובלי לחסום, וכל ההחלפה (שליחת הקובץ, ההמרה וקבלת התשובה) בתוך הזמן להמרה.
+- הקובץ לא עובר בארגומנטים של התהליך: שם multiprocessing כותב אותו ל-pipe ברצף אחד בתוך process.start, כלומר בתוך
+  לולאת האירועים, וכל בקשה אחרת מחכה להעתקה (multiprocessing/popen_forkserver.py, _launch).
+- התשובה נקראת עד תקרה (limits.MAX_ANSWER): קובץ PDF דחוס יכול להפוך להרבה יותר טקסט מהגודל שלו, ומה שהתהליך כותב
+  מגיע לזיכרון של השרת, שאין עליו RLIMIT_AS. מעבר לתקרה הקריאה נעצרת והתהליך נהרג.
+- התשובה היא JSON ולא pickle: התהליך הזה מפענח קובץ עוין, ותהליך שהקובץ השתלט עליו (פגיעות ב-PDFium) היה יכול
+  לשלוח pickle שמריץ קוד בשרת. JSON הוא נתונים בלבד, והמבנה שלו נבדק לפני שמשתמשים בו (_decode, U3).
+
 פרטיות: הקובץ עובר לתהליך בזיכרון (pipe), ולא נכתב לדיסק. בלוג נכתבים רק סוג הכשל ומיקומים בקוד, בלי הודעת
 החריגה, כי הודעה יכולה להכיל טקסט מהקובץ (safe_traceback).
 """
 
 import asyncio
+import json
 import logging
 import multiprocessing
+import os
 import traceback
 from multiprocessing import forkserver
 
@@ -36,9 +47,9 @@ log = logging.getLogger("web.conversion")
 DAMAGED = "damaged"  # PDFium לא הצליח לפתוח או לקרוא את הקובץ
 PROTECTED = "protected"  # הקובץ מוצפן בסיסמה, או בשיטת הגנה ש-PDFium לא תומך בה
 TOO_MANY_PAGES = "too_many_pages"
-TOO_HEAVY = "too_heavy"  # ההמרה עברה את תקרת הזיכרון של התהליך (MemoryError)
+TOO_HEAVY = "too_heavy"  # ההמרה עברה את תקרת הזיכרון של התהליך (MemoryError), או שהתשובה גדולה מהתקרה
 TIMEOUT = "timeout"  # ההמרה לא הסתיימה בזמן, והתהליך נהרג
-CRASHED = "crashed"  # התהליך מת בלי תשובה (למשל PDFium קרס על הקובץ)
+CRASHED = "crashed"  # התהליך מת בלי תשובה תקינה (למשל PDFium קרס על הקובץ)
 INTERNAL = "internal"  # חריגה לא צפויה בקוד שלנו
 FAILURES = (DAMAGED, PROTECTED, TOO_MANY_PAGES, TOO_HEAVY, TIMEOUT, CRASHED, INTERNAL)
 
@@ -46,6 +57,9 @@ FAILURES = (DAMAGED, PROTECTED, TOO_MANY_PAGES, TOO_HEAVY, TIMEOUT, CRASHED, INT
 DECISION_CODES = {score.OK: "ok", score.UNSURE: "unsure", score.REJECTED: "rejected"}
 
 _CONTEXT = multiprocessing.get_context("forkserver")
+# גודל חלק בכתיבה לתהליך ובקריאה ממנו: כגודל ה-pipe בלינוקס (pipe(7)), וכסף בקרת הזרימה של asyncio (64KB,
+# asyncio/transports.py, _FlowControlMixin)
+_CHUNK = 64 * 1024
 
 
 class ConversionFailed(Exception):
@@ -77,11 +91,11 @@ def safe_traceback(error: BaseException) -> str:
 
 def payload(conversion: Conversion) -> dict:
     """התוצאה כמבנה שעובר בין התהליכים ונשלח לדף כ-JSON: ה-Markdown, ולכל עמוד ההחלטה, הסיבות, ההערות, והשורה
-    ב-Markdown שבה נמצא הסמן שלו.
+    ב-Markdown שבה נמצא הסמן שלו. המבנה נבדק בשרת לפני שמשתמשים בו (valid_result).
 
     השורה ולא המקום בתווים: בפייתון אינדקס הוא תו (code point), וב-JavaScript הוא יחידה של UTF-16, ולכן אימוג'י
     אחד מזיז כל מקום שאחריו באחד. מספר שורה (כמה "\\n" לפני הסמן) זהה בשני הצדדים, כי הדף מפצל רק לפי "\\n".
-    ההערות הן רשימה של הערות נפרדות, ולא משפט אחד לעמוד, כדי שהערה שמצביעה על שורה (סבב 7) תיכנס בלי לשנות את המבנה."""
+    ההערות הן רשימה של הערות נפרדות, ולא משפט אחד לעמוד."""
     text = conversion.markdown.text
     pages = []
     for number, (page_score, offset) in enumerate(zip(conversion.scores, conversion.markdown.page_offsets, strict=True), 1):
@@ -118,21 +132,46 @@ def outcome(data: bytes, max_pages: int) -> dict:
     return {"result": payload(conversion)}
 
 
-def child_main(data: bytes, max_pages: int, memory_limit: int | None, sender) -> None:
+def read_input(source) -> bytes:
+    """הקובץ מהשרת, עד סוף ה-pipe (השרת סוגר אותו אחרי הבית האחרון)."""
+    parts = []
+    while chunk := os.read(source.fileno(), _CHUNK):
+        parts.append(chunk)
+    source.close()
+    return b"".join(parts)
+
+
+def encode_answer(result: dict) -> bytes:
+    return json.dumps(result, ensure_ascii=False).encode("utf-8")
+
+
+def write_answer(answer, encoded: bytes) -> None:
+    """התשובה לשרת, ואחריה סוף ה-pipe. השרת שהפסיק לקרוא (התשובה גדולה מהתקרה, או שהזמן נגמר וההרג בדרך) הוא
+    BrokenPipeError כאן: אין למי לענות, והתהליך פשוט נגמר."""
+    view = memoryview(encoded)
+    try:
+        while view:
+            view = view[os.write(answer.fileno(), view):]
+    except BrokenPipeError:
+        pass  # השרת סגר את הקריאה בכוונה (ראו למעלה), ואת הכשל עצמו הוא כבר רשם
+    finally:
+        answer.close()
+
+
+def child_main(source, answer, max_pages: int, memory_limit: int | None) -> None:
     """נקודת הכניסה של התהליך. גבול של תהליך: כל חריגה נתפסת כאן ונשלחת כקוד, כדי שלא תודפס עם ההודעה שלה ל-stderr
     (ברירת המחדל של multiprocessing), ולוג שלה נכתב בלי תוכן. MemoryError הוא תקרת הזיכרון שהוצבה כאן ולא באג,
-    ולכן יש לו קוד משלו."""
+    ולכן יש לו קוד משלו. התקרה מוצבת לפני קריאת הקובץ, כך שגם הקובץ וגם קידוד התשובה בתוכה."""
     try:
         if memory_limit is not None:
             _limit_memory(memory_limit)
-        result = outcome(data, max_pages)
+        encoded = encode_answer(outcome(read_input(source), max_pages))
     except MemoryError:
-        result = {"error": TOO_HEAVY}
+        encoded = encode_answer({"error": TOO_HEAVY})
     except Exception as error:  # גבול התהליך: כל באג הופך לקוד INTERNAL, עם מיקום בלוג ובלי תוכן
         log.error("conversion failed: %s", safe_traceback(error))
-        result = {"error": INTERNAL}
-    sender.send(result)
-    sender.close()
+        encoded = encode_answer({"error": INTERNAL})
+    write_answer(answer, encoded)
 
 
 def _limit_memory(limit: int) -> None:
@@ -145,55 +184,185 @@ def _limit_memory(limit: int) -> None:
 
 # ---------- בתהליך של השרת ----------
 
-async def convert(data: bytes, *, max_pages: int, timeout: float, memory_limit: int | None) -> dict:
-    """ממיר את הקובץ בתהליך חדש ומחזיר את payload. זורקת ConversionFailed (עם קוד מ-FAILURES) בכל כשל; אין ערך
-    החזרה שמסמן כשל.
+async def convert(data, *, max_pages: int, timeout: float, memory_limit: int | None, max_answer: int) -> dict:
+    """ממיר את הקובץ (bytes או bytearray) בתהליך חדש ומחזיר את payload. זורקת ConversionFailed (עם קוד מ-FAILURES)
+    בכל כשל; אין ערך החזרה שמסמן כשל.
 
-    הזמן נמדד על ההמתנה לתשובה. כשהוא נגמר, התהליך נהרג (SIGKILL) לפני שהפונקציה חוזרת, וגם כשהקורא מבוטל: העבודה
-    לא ממשיכה ברקע. ההמתנה היא על ה-pipe ועל ה-sentinel של התהליך דרך לולאת האירועים (add_reader), בלי חוט ובלי
-    לחסום את השרת."""
-    receiver, sender = _CONTEXT.Pipe(duplex=False)
-    process = _CONTEXT.Process(target=child_main, args=(data, max_pages, memory_limit, sender), daemon=True)
+    הזמן חל על כל ההחלפה: שליחת הקובץ, ההמרה וקבלת התשובה. כשהוא נגמר, או כשהתשובה עוברת את max_answer, התהליך
+    נהרג (SIGKILL) לפני שהפונקציה חוזרת, וגם כשהקורא מבוטל: העבודה לא ממשיכה ברקע."""
+    raw = await exchange(child_main, data, (max_pages, memory_limit), timeout=timeout, max_answer=max_answer)
+    return _decode(raw)
+
+
+async def exchange(target, data, args: tuple, *, timeout: float, max_answer: int) -> bytes:
+    """מריץ את target(source, answer, *args) בתהליך חדש, שולח לו את data, ומחזיר את מה שהוא כתב, עד max_answer בתים.
+    משמש גם את המדידה (web/measure.py), כדי שתמדוד את אותו מסלול."""
+    child_reads, to_child = _CONTEXT.Pipe(duplex=False)
+    from_child, child_writes = _CONTEXT.Pipe(duplex=False)
+    process = _CONTEXT.Process(target=target, args=(child_reads, child_writes, *args), daemon=True)
     try:
-        # start כותב את הקובץ לתהליך החדש ב-pipe, בתוך לולאת האירועים (multiprocessing/popen_forkserver.py, _launch).
-        # התהליך קורא אותו מיד, ולכן זה נמשך כמו העתקה בזיכרון של עד MAX_BYTES
         process.start()
     except BaseException:
-        receiver.close()
+        to_child.close()
+        from_child.close()
         raise
     finally:
-        # לתהליך יש עותק משלו של הקצה הכותב. בלי לסגור את שלנו, תהליך שמת בלי לכתוב לא היה נראה כסוף הקובץ (EOF)
-        sender.close()
+        # לתהליך יש עותקים משלו. בלי לסגור את שלנו, הוא לא היה רואה את סוף הקובץ, ותהליך שמת לא היה נראה כסוף התשובה
+        child_reads.close()
+        child_writes.close()
+    loop = asyncio.get_running_loop()
+    writing, sender = await loop.connect_write_pipe(lambda: _Sender(loop), _own(to_child, "wb"))
+    reading, receiver = await loop.connect_read_pipe(lambda: _Receiver(loop, max_answer), _own(from_child, "rb"))
     try:
-        try:
-            async with asyncio.timeout(timeout):
-                await _readable(receiver.fileno())
-        except TimeoutError:
-            raise ConversionFailed(TIMEOUT) from None
-        try:
-            # התהליך כותב את כל התשובה ברצף אחד, ולכן הקריאה מסתיימת מיד. התשובה הגדולה בסט כ-160KB (web/measure.py)
-            result = receiver.recv()
-        except EOFError:
-            raise ConversionFailed(CRASHED) from None
+        async with asyncio.timeout(timeout):
+            await _send(writing, sender, data)
+            raw = await receiver.done
+    except TimeoutError:
+        raise ConversionFailed(TIMEOUT) from None
     finally:
-        receiver.close()
+        # כל תעבורה סוגרת את הקובץ שלה, ורק אם היא עוד לא נסגרת: קריאה שנייה הייתה מגיעה ל-pipe שכבר נסגר
+        # (asyncio/unix_events.py, _call_connection_lost). בכתיבה abort, שזורק את מה שעוד בתור; לקריאה יש רק close
+        if not writing.is_closing():
+            writing.abort()
+        if not reading.is_closing():
+            reading.close()
         await _stop(process)
-    return _answer(result)
+    if raw is None:
+        log.warning("התשובה של תהליך ההמרה גדולה מ-%d בתים", max_answer)
+        raise ConversionFailed(TOO_HEAVY)
+    return raw
 
 
-def _answer(result: dict) -> dict:
-    if "error" in result:
-        raise ConversionFailed(result["error"])
-    return result["result"]
+def _own(connection, mode: str):
+    """הקצה של ה-pipe כקובץ שלנו, ללולאת האירועים: עותק של ה-fd, והחיבור של multiprocessing נסגר."""
+    fd = os.dup(connection.fileno())
+    connection.close()
+    return os.fdopen(fd, mode, buffering=0)
+
+
+class _Sender(asyncio.Protocol):
+    """בקרת הזרימה של הכתיבה לתהליך: התעבורה קוראת ל-pause_writing כשיש בתור יותר מ-64KB, ול-resume_writing כשהוא
+    מתרוקן (asyncio/transports.py, _FlowControlMixin). כך בתור יש חלק אחד או שניים, ולא עותק של הקובץ כולו."""
+
+    def __init__(self, loop):
+        self._loop = loop
+        self._resumed: asyncio.Future | None = None
+        self.lost = False
+        self.closed = loop.create_future()
+
+    def pause_writing(self):
+        self._resumed = self._loop.create_future()
+
+    def resume_writing(self):
+        self._wake()
+
+    def connection_lost(self, exc):
+        # התהליך סגר את הצד שלו או מת. זה לא כשל של השליחה: מה שקרה לו נראה בתשובה (_Receiver, _decode)
+        self.lost = True
+        self._wake()
+        if not self.closed.done():
+            self.closed.set_result(None)
+
+    def _wake(self):
+        if self._resumed is not None and not self._resumed.done():
+            self._resumed.set_result(None)
+        self._resumed = None
+
+    async def writable(self) -> bool:
+        if self._resumed is not None:
+            await self._resumed
+        return not self.lost
+
+
+async def _send(transport, sender: _Sender, data) -> None:
+    view = memoryview(data)
+    for start in range(0, len(view), _CHUNK):
+        if not await sender.writable():
+            break
+        transport.write(view[start:start + _CHUNK])
+    transport.close()  # נסגר אחרי שהתור נשלח, והתהליך רואה את סוף הקובץ
+    await sender.closed
+
+
+class _Receiver(asyncio.Protocol):
+    """אוסף את התשובה עד התקרה. מעבר לה מפסיק לקבל וסוגר, והתוצאה None."""
+
+    def __init__(self, loop, limit: int):
+        self.limit = limit
+        self.size = 0
+        self.parts: list[bytes] = []
+        self.done = loop.create_future()
+
+    def connection_made(self, transport):
+        self.transport = transport
+
+    def data_received(self, data):
+        self.size += len(data)
+        if self.size > self.limit:
+            self.parts.clear()
+            if not self.done.done():
+                self.done.set_result(None)
+            self.transport.close()
+            return
+        self.parts.append(data)
+
+    def connection_lost(self, exc):
+        # סוף ה-pipe: התהליך סיים לכתוב, או מת באמצע. תשובה חלקית תיכשל בפענוח (_decode)
+        if not self.done.done():
+            self.done.set_result(b"".join(self.parts))
+
+
+def _decode(raw: bytes) -> dict:
+    """התשובה של התהליך, אחרי בדיקה של המבנה. תהליך שמת בלי לכתוב (תשובה ריקה), או באמצע (JSON חלקי), או תשובה
+    שהמבנה שלה לא תקין, הם CRASHED. הפענוח רץ בלולאת האירועים, והוא חסום בגודל: עד limits.MAX_ANSWER."""
+    if not raw:
+        raise ConversionFailed(CRASHED)
+    try:
+        answer = json.loads(raw)
+    except ValueError:  # כולל UnicodeDecodeError: תשובה שנקטעה באמצע תו
+        raise ConversionFailed(CRASHED) from None
+    if not isinstance(answer, dict):
+        raise ConversionFailed(CRASHED)
+    if "error" in answer:
+        code = answer["error"]
+        raise ConversionFailed(code if isinstance(code, str) and code in FAILURES else CRASHED)
+    result = answer.get("result")
+    if not valid_result(result):
+        log.warning("תשובה לא תקינה מתהליך ההמרה")
+        raise ConversionFailed(CRASHED)
+    return result
+
+
+def valid_result(result) -> bool:
+    """המבנה של payload, שדה שדה: מה שהשרת ניגש אליו (web/messages.py, explained) ומה שהדף מציג."""
+    if not isinstance(result, dict) or not isinstance(result.get("markdown"), str):
+        return False
+    pages = result.get("pages")
+    if not isinstance(pages, list):
+        return False
+    codes = set(DECISION_CODES.values())
+    for number, page in enumerate(pages, 1):
+        if not (isinstance(page, dict) and page.get("number") == number and isinstance(page.get("line"), int)
+                and isinstance(page.get("decision"), str) and page["decision"] in codes
+                and isinstance(page.get("decision_text"), str)
+                and _entries(page.get("reasons"), score.REASON_KINDS) and _entries(page.get("notes"), score.NOTE_KINDS)):
+            return False
+    return True
+
+
+def _entries(entries, kinds: dict) -> bool:
+    return isinstance(entries, list) and all(
+        isinstance(entry, dict) and isinstance(entry.get("kind"), str) and entry["kind"] in kinds
+        and isinstance(entry.get("text"), str) for entry in entries)
 
 
 async def _stop(process) -> int | None:
     """הורג את התהליך אם הוא עדיין חי, מחכה שייגמר בלי לחסום את הלולאה, ומחזיר את קוד היציאה שלו. process.sentinel
     נהיה קריא כששרת התהליכים כותב את קוד היציאה (multiprocessing/popen_forkserver.py, poll), ואז join חוזר מיד.
 
-    תהליך שמת בלי תשובה (CRASHED) נרשם בלוג עם קוד היציאה, כי אותו קוד מכסה שני מקרים שונים: תחת תקרת הזיכרון
-    PDFium מפיל את התהליך ב-SIGABRT ולא זורק MemoryError (נמדד: הדוח הכספי עם תקרה של 90MB יוצא ב-6-), וקובץ
-    שמפיל את PDFium מסיבה אחרת. ההודעה למשתמש מכסה את שניהם (web/messages.py), והקוד בלוג מבדיל."""
+    תהליך שמת מעצמו בקוד שאינו 0 נרשם בלוג עם הקוד, כי CRASHED מכסה שני מקרים שונים: תחת תקרת הזיכרון PDFium מפיל
+    את התהליך ב-SIGABRT ולא זורק MemoryError (נמדד: הדוח הכספי עם תקרה של 90MB יוצא ב-6-), וקובץ שמפיל את PDFium
+    מסיבה אחרת. ההודעה למשתמש מכסה את שניהם (web/messages.py), והקוד בלוג מבדיל."""
     killed = process.is_alive()
     if killed:
         process.kill()

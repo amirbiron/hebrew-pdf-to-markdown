@@ -1,5 +1,7 @@
 /* PDF עברי ל-Markdown. כל הכיוונים במאפיינים לוגיים (inline-start/end), כך שהם נכונים מימין לשמאל. */
 
+/* כל טקסט על הרקע שלו לפחות 4.5:1 (WCAG AA), בשתי הערכות; בדיקה מחשבת את זה מהערכים כאן (tests/test_web_units.py).
+   הצירוף הנמוך: "לא בטוח" על הרקע של התגית בערכה הבהירה, 4.77:1 */
 :root {
   color-scheme: light dark;
   --bg: #f7f6f2;
@@ -9,7 +11,7 @@
   --line: #d9d6cc;
   --accent: #2b5ea7;
   --accent-text: #ffffff;
-  --ok: #2e7d4f;
+  --ok: #2a744a;
   --ok-bg: #e4f2e9;
   --unsure: #9a5b00;
   --unsure-bg: #fbefd9;
@@ -102,7 +104,7 @@ h3 { margin: 0 0 8px; font-size: 1.05rem; }
 .pages ol { list-style: none; margin: 0; padding: 0; max-height: 75vh; overflow: auto; }
 .page { border-inline-start: 4px solid var(--tone); padding-block: 6px; padding-inline: 10px 4px; margin-block-end: 6px; background: var(--bg); border-radius: 4px; }
 .page-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.goto, .goto-line { background: transparent; color: var(--accent); border-color: transparent; padding: 2px 4px; text-decoration: underline; }
+.goto { background: transparent; color: var(--accent); border-color: transparent; padding: 2px 4px; text-decoration: underline; }
 .badge { border-radius: 999px; padding: 0 10px; font-size: 0.9rem; font-weight: 600; }
 .entries-title { margin: 4px 0 0; font-weight: 600; font-size: 0.9rem; }
 .reasons ul, .notes ul { margin: 0; padding-inline-start: 18px; }

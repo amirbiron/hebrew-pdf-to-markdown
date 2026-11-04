@@ -6,8 +6,13 @@
 - זיכרון: הדוח הכספי (66 עמודים) הגיע לשיא של 110.3MB פיזי ו-138.8MB וירטואלי, והמצגת (24 עמודים, 2.97MB) ל-109.4MB
   ו-136.3MB. הפער בין וירטואלי לפיזי קבוע, כ-28MB, בכל הקבצים. תהליך המרה שעוד לא התחיל מחזיק כ-22MB, רובם משותפים
   עם שרת התהליכים.
-- זמן: קובץ הטבלאות (26 עמודים) הוא האיטי, 24.75 שניות, ולא הדוח הכספי (9.15). 90% מהזמן שלו ב-hebrew_pdf/layout.py,
-  _distinct (נמדד ב-cProfile). כל שאר הקבצים מתחת ל-1.1 שניות.
+- זמן: קובץ הטבלאות (26 עמודים) הוא האיטי, 23.6 שניות של מעבד (24.75 בזמן שעבר במדידה הראשונה), ולא הדוח הכספי
+  (כ-10). 90% מהזמן שלו ב-hebrew_pdf/layout.py, _distinct (נמדד ב-cProfile). כל שאר הקבצים מתחת ל-1.5 שניות.
+
+כמה המרות במקביל (capacity): מה שנכנס בזיכרון, וגם מה שהמעבד מספיק לסיים בזמן, הקטן מהשניים. הזיכרון לבדו לא מספיק:
+הזמן להמרה נמדד בשעון, והמרות במקביל חולקות את המעבד. בחצי מעבד שתי המרות של קובץ הטבלאות צריכות כ-95 שניות כל
+אחת, כלומר שתיהן היו נעצרות ב-90 שניות, והעבודה של שתיהן הייתה הולכת לאיבוד. המכסה נקראת מ-cgroup, ולא ממספר
+המעבדים של המארח (bugbot-rules/host-metric-in-container.md).
 
 המספרים של Render: התוכנית 0.5c-512mb (בעבר starter) היא 0.5 מעבד ו-512MB, ו-free היא 0.1 מעבד ו-512MB
 (https://render.com/docs/compute-plans). מול Cloudflare, שעומד לפני כל שירות ב-Render, בקשה שלא נענתה תוך 125 שניות
@@ -30,11 +35,18 @@ MB = 1024 * 1024
 MAX_BYTES = 10 * MB
 # הקובץ הארוך בסט הוא 66 עמודים (הדוח הכספי). פי 1.5
 MAX_PAGES = 100
-# הזמן להמרה אחת, מהרגע שהקובץ נקרא. ההמרה האיטית בסט: 24.75 שניות כאן. ב-Render, עם חצי מעבד, היא צפויה לכ-50
-# שניות לבד, ויותר כשעוד המרה רצה במקביל (הן חולקות את המעבד). המקסימום הוא מתחת ל-100 שניות, הגבול של Cloudflare
-# בגרסה הישנה של הדף, כדי שהמשתמש יקבל את ההודעה שלנו ולא שגיאה של Cloudflare. זה ערך זמני: הערך הסופי נקבע
-# מהזמנים ש-Render רושם בלוג לכל המרה (web/app.py)
+# התשובה של המרה, מהתהליך לשרת (JSON). הגדולה בסט 171KB (הדוח הכספי, 66 עמודים), והעמוד הצפוף ביותר בסט 6.3KB
+# (נמדד מהתשובות של כל 15 הקבצים). MAX_PAGES עמודים צפופים כאלה הם כ-630KB; פי 6, ומעוגל, 4MB. מעבר לזה התהליך נהרג
+# והמשתמש מקבל "מורכב מדי" (web/conversion.py, exchange): קובץ PDF דחוס יכול להפוך להרבה יותר טקסט מהגודל שלו
+MAX_ANSWER = 4 * MB
+# הזמן להמרה אחת, מהרגע שהקובץ נקרא. ההמרה האיטית בסט: 23.6 שניות מעבד כאן. ב-Render, עם חצי מעבד, היא צפויה לכ-50
+# שניות לבד (בהנחה שליבה שם מהירה כמו כאן; לא נמדד). המקסימום הוא מתחת ל-100 שניות, הגבול של Cloudflare בגרסה
+# הישנה של הדף, כדי שהמשתמש יקבל את ההודעה שלנו ולא שגיאה של Cloudflare. זה ערך זמני: הערך הסופי נקבע מהזמנים
+# ש-Render רושם בלוג לכל המרה (web/app.py)
 TIMEOUT_SECONDS = 90.0
+# זמן המעבד של ההמרה האיטית בסט (קובץ הטבלאות), web/measure.py, 2026-11-04. מולו נגזר כמה המרות המעבד מספיק לסיים
+# בזמן (cpu_slots)
+SLOWEST_CPU_SECONDS = 23.6
 # הזמן לקבל את הקובץ מהדפדפן. ל-uvicorn אין מגבלה כזו על גוף הבקשה (bugbot-rules/wait-without-own-deadline.md):
 # בלעדיה לקוח שמטפטף בתים מחזיק את השרת כמה שירצה. 10MB ב-60 שניות הם כ-1.4Mbps
 UPLOAD_SECONDS = 60.0
@@ -48,10 +60,14 @@ CONVERSION_PHYSICAL = CONVERSION_MEMORY - 28 * MB
 # התהליכים (28.0MB) ו-resource_tracker (14.6MB), שיא פיזי (VmHWM) של כל אחד. 98.8MB, מעוגל ל-100. נמדד על השרת האמיתי
 # (python -m web), 2026-11-04
 BASELINE = 100 * MB
-# שוליים מעל הכול, לגוף הבקשות שבדרך ולתשובות (כל קובץ עד MAX_BYTES, ותשובה עד כ-160KB בסט)
+# מה שהשרת מחזיק כדי לטפל בתשובה אחת: פענוח ה-JSON, הוספת ההסברים ובניית התשובה ל-HTTP. נמדד ב-tracemalloc על
+# התשובה של הדוח הכספי: פי 4.9 מגודל התשובה. פי 5 מהתשובה הגדולה שמותרת
+ANSWER_COST = 5 * MAX_ANSWER
+# מה שמקום אחד להמרה עולה בזיכרון: התהליך של ההמרה, הקובץ אצל השרת (נקרא ישר לחוצץ בגודל המוצהר, ונשאר עד סוף
+# ההמרה; web/app.py, read_body), והטיפול בתשובה. המקום נתפס לפני קריאת הקובץ, כך שאין קבצים בדרך מעבר למקומות
+SLOT_MEMORY = CONVERSION_PHYSICAL + MAX_BYTES + ANSWER_COST
+# שוליים מעל הכול: מה שלא נספר לכל מקום (חיבורים פתוחים, הלוג, והפיצול של הזיכרון בפייתון)
 MARGIN = 64 * MB
-# כמה קבצים נקראים במקביל מהדפדפנים, לכל המרה שיכולה לרוץ: כל אחד עד MAX_BYTES בזיכרון של השרת
-UPLOADS_PER_SLOT = 2
 # רצפה ותקרה לכמה המרות במקביל. התקרה: מעבר לה המעבד הוא הצוואר, וזה כבר החלטה ולא חשבון
 MIN_SLOTS = 1
 MAX_SLOTS = 8
@@ -87,9 +103,38 @@ def container_memory(root: Path = Path("/sys/fs/cgroup")) -> int | None:
 
 
 def slots_for(memory: int) -> int:
-    """כמה המרות נכנסות במקביל בזיכרון של השירות: (המגבלה - הבסיס - שוליים) / מה שהמרה אחת תופסת, בין הרצפה לתקרה."""
-    fit = (memory - BASELINE - MARGIN) // CONVERSION_PHYSICAL
+    """כמה המרות נכנסות במקביל בזיכרון של השירות: (המגבלה - הבסיס - שוליים) / מה שמקום אחד עולה, בין הרצפה לתקרה."""
+    fit = (memory - BASELINE - MARGIN) // SLOT_MEMORY
     return max(MIN_SLOTS, min(MAX_SLOTS, fit))
+
+
+def cpu_slots(cpus: float) -> int:
+    """כמה המרות יכולות לחלוק cpus מעבדים, כך שגם ההמרה האיטית בסט מקבלת מספיק מעבד להסתיים בזמן להמרה, בין הרצפה
+    לתקרה."""
+    fit = math.floor(cpus * TIMEOUT_SECONDS / SLOWEST_CPU_SECONDS)
+    return max(MIN_SLOTS, min(MAX_SLOTS, fit))
+
+
+def container_cpus(root: Path = Path("/sys/fs/cgroup")) -> float | None:
+    """מכסת המעבד של הקונטיינר, במעבדים, מ-cgroup: cpu.max ב-v2 ("max" הוא בלי מכסה), ו-cpu/cpu.cfs_quota_us חלקי
+    cpu/cpu.cfs_period_us ב-v1 (1- הוא בלי מכסה). None כשאין מכסה או שאי אפשר לקרוא אותה."""
+    try:
+        quota, period = (root / "cpu.max").read_text().split()
+    except OSError:
+        try:
+            quota = (root / "cpu" / "cpu.cfs_quota_us").read_text().strip()
+            period = (root / "cpu" / "cpu.cfs_period_us").read_text().strip()
+        except OSError:
+            return None  # אין cgroup של מעבד שאפשר לקרוא: אין מכסה ידועה
+    except ValueError:
+        log.warning("ערך לא מוכר במכסת המעבד של cgroup")
+        return None
+    if quota in ("max", "-1"):
+        return None
+    if not (_DIGITS.fullmatch(quota) and _DIGITS.fullmatch(period)) or int(period) == 0:
+        log.warning("ערך לא מוכר במכסת המעבד של cgroup")
+        return None
+    return int(quota) / int(period)
 
 
 @dataclass(frozen=True)
@@ -99,18 +144,24 @@ class Capacity:
 
 
 def capacity(environ=os.environ, root: Path = Path("/sys/fs/cgroup")) -> Capacity:
-    """כמה המרות במקביל. HEBREW_PDF_SLOTS קובע ידנית (מספר שלם בין MIN_SLOTS ל-MAX_SLOTS); אחרת מהזיכרון של
-    הקונטיינר; וכשהוא לא ידוע, הרצפה: מאגר צר מדי הוא איטיות שרואים, ורחב מדי הוא OOM של כל השירות."""
+    """כמה המרות במקביל. HEBREW_PDF_SLOTS קובע ידנית (מספר שלם בין MIN_SLOTS ל-MAX_SLOTS); אחרת הקטן מבין מה
+    שנכנס בזיכרון של הקונטיינר ומה שמכסת המעבד שלו מספיקה (בלי מכסה: הזיכרון לבד); וכשהזיכרון לא ידוע, הרצפה:
+    מאגר צר מדי הוא איטיות שרואים, ורחב מדי הוא OOM של כל השירות."""
     override = environ.get("HEBREW_PDF_SLOTS")
     if override is not None:
         value = override.strip()
         if _DIGITS.fullmatch(value) and MIN_SLOTS <= int(value) <= MAX_SLOTS:
             return Capacity(int(value), "HEBREW_PDF_SLOTS")
-        log.error("HEBREW_PDF_SLOTS לא תקין (צריך מספר שלם בין %d ל-%d); המספר נגזר מהזיכרון", MIN_SLOTS, MAX_SLOTS)
+        log.error("HEBREW_PDF_SLOTS לא תקין (צריך מספר שלם בין %d ל-%d); המספר נגזר מהקונטיינר", MIN_SLOTS, MAX_SLOTS)
     memory = container_memory(root)
     if memory is None:
         return Capacity(MIN_SLOTS, "מגבלת הזיכרון של הקונטיינר לא ידועה, ולכן הרצפה")
-    return Capacity(slots_for(memory), f"מגבלת זיכרון {memory // MB}MB מ-cgroup")
+    by_memory = slots_for(memory)
+    cpus = container_cpus(root)
+    if cpus is None:
+        return Capacity(by_memory, f"זיכרון {memory // MB}MB מ-cgroup ({by_memory}); בלי מכסת מעבד")
+    by_cpu = cpu_slots(cpus)
+    return Capacity(min(by_memory, by_cpu), f"זיכרון {memory // MB}MB ({by_memory}) ומעבד {cpus:g} ({by_cpu}) מ-cgroup")
 
 
 def seconds_from(environ, name: str, default: float, low: float, high: float) -> float:

@@ -31,9 +31,15 @@ def _port(raw: str | None) -> int:
     return int(raw)
 
 
+def host(environ) -> str:
+    """HOST, או 127.0.0.1 כשהוא חסר או ריק. ריק לא עובר הלאה: uvicorn מעביר את הכתובת ל-loop.create_server
+    (uvicorn/server.py), ושם "" הוא כל הכתובות (asyncio/base_events.py, create_server: host == '' הופך ל-None)."""
+    return environ.get("HOST", "").strip() or "127.0.0.1"
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    uvicorn.run("web.app:app", host=os.environ.get("HOST", "127.0.0.1"), port=_port(os.environ.get("PORT")),
+    uvicorn.run("web.app:app", host=host(os.environ), port=_port(os.environ.get("PORT")),
                 workers=1, proxy_headers=False, server_header=False, http="h11", loop="asyncio")
 
 

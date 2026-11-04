@@ -113,6 +113,18 @@ class MainPathTest(unittest.TestCase):
             with open(download.path(), "rb") as saved:
                 self.assertEqual(saved.read(), markdown.encode("utf-8"))
 
+            # בחירת קובץ אחר מורידה את התוצאה הקודמת, כדי שהעתקה והורדה לא יפעלו על קובץ שכבר לא בשדה
+            small = (PDFS / "doc-2p_weasyprint.pdf").read_bytes()
+            for name, expected in (("CON.txt.pdf", "_CON.txt.md"), ("NUL.tar.gz.pdf", "_NUL.tar.gz.md"),
+                                   ("COM\u00b9.pdf", "_COM\u00b9.md"), ("console.pdf", "console.md"), ("COM0.pdf", "COM0.md")):
+                with self.subTest(name=name):
+                    page.set_input_files("#file", files=[{"name": name, "mimeType": "application/pdf", "buffer": small}])
+                    expect(page.locator("#result")).to_be_hidden()
+                    page.click("#convert")
+                    expect(page.locator("#result")).to_be_visible(timeout=60000)
+                    # שם שמור ב-Windows מקבל קידומת גם עם סיומת; COM0 ו-console אינם שמורים (Microsoft, Naming Conventions)
+                    expect(page.locator("#download-name")).to_have_text(expected)
+
             # אפס הפרות CSP ואפס שגיאות בקונסול
             self.assertEqual(page.evaluate("window.__csp"), [])
             self.assertEqual([entry for entry in console if entry[0] in ("error", "pageerror", "warning")], [])
