@@ -249,7 +249,11 @@ class RateLimitTest(unittest.TestCase):
         for thread in threads:
             thread.join(30)
         self.assertEqual(statuses.count(429), extra)
-        self.assertEqual(statuses.count(415), limits.RATE_LIMIT)
+        # מה שעבר את הגבלת הקצב ממשיך לשלבים הבאים: 415 (הגוף אינו PDF), או 503 כשכמה בקשות כאלה קוראות גוף באותו
+        # רגע ומגבלת הקבצים שבדרך מלאה (web/limits.py, UPLOADS_PER_SLOT). כמה מכל אחד תלוי בתזמון (נמדד בעומס: 18 ו-12,
+        # 22 ו-8, 25 ו-5), ומה שנבדק כאן הוא שבדיוק RATE_LIMIT עברו את המגבלה
+        self.assertEqual(statuses.count(415) + statuses.count(503), limits.RATE_LIMIT, statuses)
+        self.assertLessEqual(set(statuses), {415, 503, 429})
         limited = self.server.convert(b"x", ip="203.0.113.7")
         self.assertEqual(limited[0], 429)
         self.assertGreater(int(limited[1]["retry-after"]), 0)
