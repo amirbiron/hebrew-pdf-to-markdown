@@ -112,14 +112,17 @@ class CalibrationTest(unittest.TestCase):
         # כשהקורא משתנה והכיול זז, הטסט הזה נופל, ולא הדוח לבדו
         self.assertAlmostEqual(score.MIN_PLAUSIBLE, self.cal.plausible_choice.middle, delta=0.0005)
         self.assertAlmostEqual(score.MAX_EFFORT, self.cal.effort_choice.middle, delta=0.0005)
-        self.assertGreaterEqual(self.cal.plausible_choice.low, self.cal.required_plausible)
+        # הערך מעל הדרישה (calibration.chosen_range): הסימנים לבדם תופסים 95% מהעמודים ההפוכים
+        self.assertGreater(score.MIN_PLAUSIBLE, self.cal.required_plausible)
 
     def test_every_form_is_caught(self):
         rows = {(form, intensity): (count, hits) for form, intensity, count, hits in calibration.catch_table(self.cal)}
         for (form, intensity), (count, hits) in rows.items():
+            if form in calibration.BLIND:
+                continue
             with self.subTest(form=form, intensity=intensity):
                 self.assertGreater(count, 0)
-                self.assertEqual(hits["כלשהו"], count)
+                self.assertEqual(hits["היום"], count)
         for form in ("reverse_line", "reverse_ltr", "reverse_letters", "reverse_words", "punct_to_start", "glue"):
             for intensity in ("one", "all"):
                 count, hits = rows[(form, intensity)]
@@ -129,6 +132,51 @@ class CalibrationTest(unittest.TestCase):
         for form in calibration.SIGNAL_TARGETS:
             count, hits = rows[(form, "all")]
             self.assertGreaterEqual(hits["סימנים"], calibration.CATCH_SHARE * count, form)
+
+    def test_the_blind_forms_are_blind(self):
+        # הצורות של סבב 6ב נמדדות (יש עמודים שהן חלות עליהם), ובדיקת התצוגה והשלמות לא רואות אף אחת מהן: זה מה
+        # שהן אמורות למדוד. מה שהציון כן תופס מהן (סימנים, תאים מספריים) מופיע בדוח
+        rows = {(form, intensity): (count, hits) for form, intensity, count, hits in calibration.catch_table(self.cal)}
+        for form in calibration.BLIND:
+            for intensity in ("one", "all"):
+                count, hits = rows[(form, intensity)]
+                with self.subTest(form=form, intensity=intensity):
+                    self.assertGreater(count, 0)
+                    self.assertEqual((hits["תצוגה"], hits["שלמות"], hits["נפסל"]), (0, 0, 0))
+
+    def test_near_decisions_do_not_see_a_corruption(self):
+        # החלטה קרובה לסף היא תכונה של העמוד, לא של הפלט: השחתה לא משנה אותה, ולכן היא מסמנת עמוד מושחת בדיוק כשהיא
+        # מסמנת אותו לפני ההשחתה. זו הסיבה שהיא לא נכנסה להחלטה
+        for c in self.cal.corrupted:
+            self.assertEqual(c.outcome.near, c.baseline.near, (c.form, c.intensity))
+
+    def test_the_new_evidence_marks_no_page_known_to_be_correct(self):
+        for rule in calibration.NEW:
+            self.assertEqual(self.cal.known_good_flagged[rule], 0, rule)
+
+    def test_crowded_cells_in_the_financial_report(self):
+        # כל אחד מ-11 התאים נבדק בגיאומטריה: שני מספרים מרכיבים נפרדים באותה שורה בעמוד, או משתי שורות שונות
+        pages = self.ev.scores["financial-report-q2-2025_aspose.pdf"]
+        flagged = [i for i, s in enumerate(pages, 1) if "crowded_cells" in kinds(s)]
+        self.assertEqual(flagged, [13, 39, 40, 41, 46, 47, 63])
+        self.assertEqual(sum(s.plausibility.crowded_cells for s in pages if s.plausibility), 11)
+        others = {name: [i for i, s in enumerate(scores, 1) if {"crowded_cells", "digit_groups"} & set(kinds(s))]
+                  for name, scores in self.ev.scores.items() if name != "financial-report-q2-2025_aspose.pdf"}
+        self.assertEqual({name: found for name, found in others.items() if found}, {})
+
+    def test_short_pages_are_ok_with_a_note(self):
+        # עד סבב 6ב: 11 עמודים "לא בטוח" רק כי הם קצרים, ועוד אחד (ספר GPS, עמוד 16) בגלל שורה דו-משמעית אחת ב-10 מילים
+        short = sorted((name, i) for name, scores in self.ev.scores.items() for i, s in enumerate(scores, 1)
+                       if "short" in [note.kind for note in s.notes])
+        self.assertEqual(short, [("doc-4p_weasyprint.pdf", 4)] +
+                         [("financial-report-q2-2025_aspose.pdf", i) for i in (1, 3, 28, 52, 64)] +
+                         [("gps-book_indesign.pdf", i) for i in (7, 11, 14, 15, 16)] + [("presentation_canva.pdf", 1)])
+        for name, i in short:
+            self.assertEqual(self.ev.scores[name][i - 1].decision, score.OK, (name, i))
+
+    def test_the_effort_is_a_note(self):
+        page = self.ev.scores["presentation_canva.pdf"][6]
+        self.assertEqual((page.decision, [note.kind for note in page.notes]), (score.OK, ["effort"]))
 
     def test_complete_everywhere(self):
         # עד סבב 6ב: כל ששת העמודים של doc-6p_gdocs.pdf, בגלל האימוג'י שהקורא דילג עליהם

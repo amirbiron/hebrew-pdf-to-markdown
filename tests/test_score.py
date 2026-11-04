@@ -13,7 +13,7 @@ import pypdfium2.raw as pdfium_raw
 
 from hebrew_pdf import score
 from hebrew_pdf.chars import characters, is_rotated, unmapped_char
-from hebrew_pdf.lines import Component, Line, PageText, read_document
+from hebrew_pdf.lines import Component, Line, PageText, RowSource, read_document
 from hebrew_pdf.logical_order import drawn
 from hebrew_pdf.spacing import SpaceCounts
 
@@ -118,6 +118,12 @@ class PageScoreTest(unittest.TestCase):
             score.PageScore(score.REJECTED, (reason,))  # סיבה שאינה סיבה לפסילה
         with self.assertRaises(ValueError):
             score.Reason("no_such_kind", "")
+        # סיבה והערה הם שני דברים: הסוגים של זה אינם של זה
+        with self.assertRaises(ValueError):
+            score.Reason("short", "")
+        with self.assertRaises(ValueError):
+            score.Note("display", "")
+        self.assertFalse(set(score.REASON_KINDS) & set(score.NOTE_KINDS))
 
     def test_a_clean_long_page_is_ok(self):
         result = score.score_page(page(part(LONG), part(LONG)))
@@ -165,19 +171,42 @@ class PlausibilityTest(unittest.TestCase):
         self.assertEqual([r.kind for r in result.reasons], ["display"])
         self.assertEqual(result.reasons[0].text, "שורה אחת שלא מוצגת כמו העמוד")
 
-    def test_a_short_page_is_not_a_safe_page(self):
+    def test_a_short_page_is_ok_with_a_note(self):
+        # סבב 6ב: עמוד קצר לא מקבל "לא בטוח" בגלל האורך. הסימנים לא מכריעים בו, והוא מקבל הערה
         result = score.score_page(page(part("כותרת קצרה")))
-        self.assertEqual(result.decision, score.UNSURE)
-        self.assertEqual([r.kind for r in result.reasons], ["short"])
-        self.assertIn("2 מילים", result.reasons[0].text)
+        self.assertEqual((result.decision, result.reasons), (score.OK, ()))
+        self.assertEqual([n.kind for n in result.notes], ["short"])
+        self.assertIn("2 מילים", result.notes[0].text)
+        self.assertIn(f"פחות מ-{score.min_words(score.MIN_PLAUSIBLE)}", result.notes[0].text)
 
-    def test_the_same_signal_on_a_short_and_a_long_page(self):
+    def test_how_short_is_short(self):
+        # הגבול נגזר מהסף ולא נקבע בנפרד: גם בלי אף סימן, 12 מילים נותנות 0.757, מתחת ל-0.763, ו-13 נותנות 0.772
+        self.assertEqual(score.min_words(score.MIN_PLAUSIBLE), 13)
+        self.assertFalse(score.Signals(12).decides(score.MIN_PLAUSIBLE))
+        self.assertTrue(score.Signals(13).decides(score.MIN_PLAUSIBLE))
+        self.assertEqual(score.min_words(0.774), 14)
+
+    def test_the_same_signal_on_a_short_a_medium_and_a_long_page(self):
         signal = part("1 Onboarding", ambiguous=True)
-        short = score.score_page(page(signal, part("כמה מילים בעברית כאן")))
+        short = score.score_page(page(signal, part("כמה מילים בעברית כאן")))  # 6 מילים
+        medium = score.score_page(page(signal, *[part("כמה מילים בעברית כאן")] * 3))  # 14 מילים
         long = score.score_page(page(signal, *[part(LONG)] * 20))
-        self.assertEqual([r.kind for r in short.reasons], ["ambiguous"])
-        self.assertIn("בעמוד של 6 מילים", short.reasons[0].text)
-        self.assertEqual(long.decision, score.OK)
+        # בעמוד הקצר הסימן לא מכריע: הוא בהערה ולא בסיבות
+        self.assertEqual(short.decision, score.OK)
+        self.assertEqual([n.kind for n in short.notes], ["short"])
+        self.assertIn("שורה אחת ששני סדרים שלה נראים זהה", short.notes[0].text)
+        self.assertEqual([r.kind for r in medium.reasons], ["ambiguous"])
+        self.assertIn("בעמוד של 14 מילים", medium.reasons[0].text)
+        self.assertEqual((long.decision, long.notes), (score.OK, ()))
+
+    def test_certain_checks_still_count_on_a_short_page(self):
+        # בדיקת התצוגה והשלמות הן עובדות ולא סטטיסטיקה: הן עובדות גם על שורה אחת
+        good = part("כותרת קצרה")
+        reversed_line = score.score_page(page(Component(good.text[::-1], good.visual, True), reference=good.text))
+        self.assertEqual([r.kind for r in reversed_line.reasons], ["display"])
+        self.assertEqual([n.kind for n in reversed_line.notes], ["short"])
+        missing = score.score_page(page(good, reference=good.text + "א"))
+        self.assertEqual((missing.decision, [r.kind for r in missing.reasons]), (score.UNSURE, ["missing"]))
 
     def test_what_was_dropped_from_the_markdown_is_not_checked(self):
         # כמו שורת התחתית של המצגת: דו-משמעית, וחוזרת בכל שקופית, ולכן יורדת מה-Markdown
@@ -188,6 +217,43 @@ class PlausibilityTest(unittest.TestCase):
         dropped = score.score_page(page(footer, *body), dropped={(0, 0)}, min_plausible=0.7)
         self.assertIn("ambiguous", [r.kind for r in kept.reasons])
         self.assertEqual(dropped.decision, score.OK)
+
+
+class NumbersTest(unittest.TestCase):
+    """הראיות של סבב 6ב מהפלט: הצורה של מספר, ותא של מספרים (ההתייעצות על ארכיטקטורה, סעיף 2.6)."""
+
+    def test_digit_groups(self):
+        # שני מספרים שנדבקו (סבב 5, הדוח הכספי), קבוצה קצרה, ושתי נקודות עשרוניות במספר עם מפריד אלפים
+        for text in ("146,137449,413", "3,000,00", "1,234.56.7"):
+            with self.subTest(text=text):
+                self.assertEqual(score.bad_digit_groups(text), 1)
+        # מספר תקין, גרסה, תאריך, כתובת, רשימה, ומספר שנראה הפוך (נספר ב-reversed_numbers, לא כאן)
+        for text in ("1,234.56", "12,345", "3.12.1", "11.05.2026", "127.0.0.1", "1,2,3", "65.432,1", "543,21",
+                     "ב-1,234 ו-5,678"):
+            with self.subTest(text=text):
+                self.assertEqual(score.bad_digit_groups(text), 0)
+
+    def test_crowded_cells_only_in_a_column_of_numbers(self):
+        rows = [("הכנסות", "1,234", "(5)"), ("עלות", "23,479 69", "7"), ("רווח", "8", "9 10"), ("שנה", "2025", "2024")]
+        self.assertEqual(score.crowded_cells(rows), 2)
+        # בעמודה של טקסט, שני מספרים בתא הם טקסט רגיל
+        self.assertEqual(score.crowded_cells([("גרסה 3 4", "א"), ("ב", "ג"), ("1 2", "ד")]), 0)
+        # עמודה עם מספר אחד בלבד אינה עמודה של מספרים
+        self.assertEqual(score.crowded_cells([("א", "1 2"), ("ב", "3")]), 0)
+
+    def test_they_are_reasons(self):
+        long = [part(LONG)] * 20
+        glued = score.score_page(page(*long, part("סך הכול 146,137449,413 שקל")))
+        self.assertEqual((glued.decision, [r.kind for r in glued.reasons]), (score.UNSURE, ["digit_groups"]))
+        rows = [("א", "1,234"), ("ב", "23,479 69"), ("ג", "8")]
+        lines = [Line(" ".join(r), " ".join(r), True, components=(part(r[0]), part(r[1])), columns=r) for r in rows]
+        table = PageText([*page(*long).lines, *lines], 0, table_rows=[*[(LONG,)] * 20, *rows],
+                         row_sources=[*[RowSource((i,), None) for i in range(20)],
+                                      *[RowSource((20 + k,), 20) for k in range(3)]],
+                         reference=LONG * 20 + "".join("".join(r) for r in rows))
+        crowded = score.score_page(table)
+        self.assertEqual([r.kind for r in crowded.reasons], ["crowded_cells"])
+        self.assertIn("תא אחד עם כמה מספרים", crowded.reasons[0].text)
 
 
 class CompletenessTest(unittest.TestCase):
@@ -228,11 +294,14 @@ class CompletenessTest(unittest.TestCase):
 
 
 class EffortTest(unittest.TestCase):
-    def test_many_corrections(self):
+    def test_many_corrections_are_a_note(self):
+        # סבב 6ב: מאמץ התיקון הוא מידע ולא סיבה, עד שתהיה ראיה שהוא מנבא שגיאות
         heavy = SpaceCounts(in_file=100, dropped=20, added=10)
         result = score.score_page(_with_spacing(heavy))
-        self.assertEqual([r.kind for r in result.reasons], ["effort"])
-        self.assertIn("30 מתוך 110", result.reasons[0].text)
+        self.assertEqual((result.decision, result.reasons), (score.OK, ()))
+        self.assertEqual([n.kind for n in result.notes], ["effort"])
+        self.assertIn("30 מתוך 110", result.notes[0].text)
+        self.assertFalse(result.effort.ok(score.MAX_EFFORT))
 
     def test_a_short_page_without_corrections_is_not_heavy(self):
         result = score.score_page(_with_spacing(SpaceCounts(in_file=3)))

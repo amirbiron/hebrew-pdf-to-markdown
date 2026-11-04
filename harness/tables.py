@@ -231,3 +231,38 @@ def _assign(truth: Sequence[tuple[str, ...]], output: Sequence[tuple[str, ...]])
 def _same_cells(row: Sequence[str], truth: Sequence[str]) -> list[bool]:
     """לכל תא בדף התשובות: האם התא באותו מקום בשורה של הפלט זהה לו. תא שאין בפלט אינו זהה."""
     return [i < len(row) and row[i] == cell for i, cell in enumerate(truth)]
+
+
+def pages_matching_truth(tables: Sequence[TruthTable], blocks: Sequence[HtmlBlock], pages: Sequence,
+                         built_blocks: Sequence) -> list[bool]:
+    """לכל עמוד של קובץ עם דף תשובות: האם הפלט שלו זהה לדף התשובות, כלומר באמת ידוע כנכון (סבב 6ב).
+
+    עד סבב 6ב כל העמודים של קובץ כזה נחשבו ידועים כנכונים לכיול, אבל ברבים מהם יש טקסט שגוי שעובר את בדיקת
+    התצוגה: סדר אחד מתוך שניים שנראים זהה ("Onboarding 1", "(UAX #9) Unicode"), ותאים שהתאחדו. עמוד זהה: כל
+    בלוק (כותרת, פסקה, פריט) של הבונה שמתחיל בו (pages: PageText, built_blocks: markdown.Markdown.blocks) זהה
+    בטקסט לבלוק מאותו סוג בדף התשובות (אחרי textdiff.normalize), וכל שורה של טבלה בו (RowSource.table) מותאמת
+    לשורה בדף התשובות (_assign) וזהה לה, או שהיא שורת כותרת של אחת הטבלאות. מחמיר: בלוק שהבונה חילק אחרת
+    מדף התשובות, גם עם טקסט נכון, מוציא את העמוד."""
+    texts = {kind: {normalize(block.text) for block in blocks if block.kind == kind}
+             for kind in ("heading", "paragraph", "item")}
+    good = [True] * len(pages)
+    for block in built_blocks:
+        if block.kind in texts and normalize(block.text) not in texts[block.kind] and 1 <= block.page <= len(pages):
+            good[block.page - 1] = False
+    headers = {tuple(normalize(cell) for cell in table.header) for table in tables}
+    output: list[tuple[str, ...]] = []
+    page_of: list[int] = []
+    for index, page in enumerate(pages):
+        for cells, source in zip(page.rows, page.sources):
+            if source.table is not None:
+                output.append(tuple(normalize(cell) for cell in cells))
+                page_of.append(index)
+    truth_rows = [tuple(normalize(cell) for cell in row) for table in tables for row in table.rows]
+    identical = set()
+    for truth, best in zip(truth_rows, _assign(truth_rows, output)):
+        if best is not None and best == truth:
+            identical.add(id(best))
+    for index, row in zip(page_of, output):
+        if id(row) not in identical and row not in headers:
+            good[index] = False
+    return good

@@ -82,6 +82,17 @@ class ComponentTest(unittest.TestCase):
         self.assertEqual(lines[1].cells[-1], "xy")
         self.assertEqual(len(lines[1].components), 2)
 
+    def test_a_boundary_near_its_threshold_is_counted(self):
+        # סבב 6ב: פער שההחלטה עליו מתהפכת כש-COMPONENT_GAP זז בתוך COMPONENT_GAP_RANGE (7.4 עד 13.25) הוא החלטה קרובה
+        # לסף. פי 9: גבול, וקרוב לסף. פי 20: גבול, ורחוק ממנו. פי 7: לא גבול, ורחוק ממנו
+        for words, cells, near in ((9, 1, 1), (20, 2, 0), (7, 1, 0)):
+            with self.subTest(words=words):
+                spaced = space_by_gaps(chars([(0, "ab"), (10 + gap(words), "cd")], 0.0))
+                line = page_line(spaced.chars)
+                layout = page_layout([line], USUAL)
+                self.assertEqual(layout.near, [near])
+                self.assertEqual(len(layout.boundaries[0]), int(words >= COMPONENT_GAP))
+
     def test_a_line_that_crosses_the_column_ends_it(self):
         lines, _ = build([[(0, "ab"), (100, "cd")],
                           [(0, "a long line of words that crosses")],

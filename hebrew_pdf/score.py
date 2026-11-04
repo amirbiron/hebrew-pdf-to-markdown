@@ -8,28 +8,39 @@
 Unicode בקובץ ונראה כתו רגיל (chars.page_reference: האימוג'י שיוצא "5" במצגת). תו אחד מספיק: הוא תוכן שנמצא
 בעמוד ולא בפלט, ובמקומו בפלט תו אחר.
 
-שלושה צירים, ועמוד "לא בטוח" כשאחד מהם נכשל:
+שלושה צירים. שניים מהם, סבירות ושלמות, מחליטים: עמוד "לא בטוח" כשאחד מהם נכשל. השלישי, מאמץ התיקון, הוא הערה
+(מסבב 6ב): מידע שמוצג למשתמש ולא משנה את ההחלטה. סיבה והערה הם שני שדות נפרדים במבנה (PageScore.reasons,
+PageScore.notes):
 
 1. סבירות (_plausibility): האם הטקסט נראה כמו עברית ועברית-אנגלית תקינה. רק מה שמגיע ל-Markdown נבדק:
    שורה שירדה ככותרת עליונה או תחתונה לא מוצגת למשתמש, ואזהרה עליה הייתה מפנה לשורה שאינה בפלט (במצגת
    כל השורות הדו-משמעיות הן שורת התחתית שחוזרת ב-23 שקופיות).
    - בדיקת התצוגה (shows_as_page): רכיב שלא מוצג כמו העמוד. זו עובדה ולא סימן: הפלט שלו בוודאות לא ייראה כמו
      העמוד, ולכן רכיב אחד מספיק.
+   - מסבב 6ב, גם כן אחד מספיק: מספר שכתוב במפרידי אלפים ולא בצורה תקינה שלהם (bad_digit_groups), ותא עם כמה
+     מספרים בעמודה של מספרים (crowded_cells). אלה כשלים שבהם כל שורה עדיין מוצגת כמו העמוד (מספרים שנדבקו,
+     שורות או עמודות של טבלה שהתאחדו), ולכן בדיקת התצוגה לא רואה אותם. נכנסו להחלטה כי לא סימנו אף עמוד ידוע
+     כנכון (harness/calibration.py).
    - סימנים, כשיעור של מילים: אותיות סופיות במקום לא נכון (final_letter_anomaly), מספרים בצורה של מספר הפוך
      (reversed_numbers), שורה שמתחילה בסימן פיסוק (indirect_checks.punct_at_start), סוגר בלי זוג בעמוד
      (unpaired_brackets), ושורה דו-משמעית (lines.Line.ambiguous). כל סימן הוא מילה אחת לא סבירה. הציון הוא הגבול
      התחתון של רווח בר-סמך Wilson לשיעור המילים הסבירות (wilson_lower), ולא השיעור עצמו: 9 מתוך 9 נותן 0.70,
      ו-200 מתוך 200 נותן 0.98, כך שעמוד קצר לא מקבל ביטחון שלא הרוויח. הציר נכשל מתחת ל-MIN_PLAUSIBLE.
+     עמוד קצר (מסבב 6ב, Signals.decides): עמוד שגם בלי אף סימן הציון שלו מתחת לסף, כלומר הסימנים לא יכולים
+     להכריע בו לכאן או לכאן (פחות מ-14 מילים בסף של היום). בעמוד כזה הסימנים לא משתתפים בהחלטה, והעמוד
+     מקבל הערה "עמוד קצר" עם מה שנמצא. עד סבב 6ב עמוד קצר היה "לא בטוח" רק בגלל האורך (11 עמודים בסט, בלי
+     שום בעיה שנמצאה). בדיקת התצוגה, השלמות והפסילה הן עובדות ולא סטטיסטיקה, ועובדות גם על שורה אחת.
 2. שלמות (_completeness): התווים של כל הפלט של העמוד, בלי סדר ובלי רווחים, מול כל התווים של העמוד לפי PDFium
    (lines.PageText.reference). תו שנשר או שהוכפל הוא כשל. סוגר נחשב בלי הכיוון שלו (הקורא קובע אותו מהציור), וכך
    גם מירכאות (הקורא מבטל את השיקוף של PDFium). כאן נבדק כל הפלט של הקורא, גם מה שירד מה-Markdown: זה ציר של
    הקורא, ואת הירידה עצמה בודק מערך הבדיקה (harness/markdown_check.py).
-3. מאמץ תיקון (_effort): כמה מההחלטות של הקורא שינו את מה שבקובץ: רווחים שהורדו ונוספו (spacing.SpaceCounts),
-   סוגריים שהציור הכריע בהם נגד התו שבקובץ (lines.Component.brackets_changed), סוגריים שהצורה שלהם לא נקבעה,
-   ואותיות שדולגו כי אין להן מיקום. עמוד שתוקן הרבה הוא עמוד שהקובץ עצמו בעייתי בו, וזה צריך להיראות גם
-   כשהסבירות מושלמת. הציון הוא הגבול התחתון של Wilson לשיעור התיקונים, והציר נכשל מעל MAX_EFFORT. כאן הגבול
-   התחתון של שיעור התיקונים ולא של מה שלא תוקן: השאלה היא אם יש ראיה שהקובץ דרש הרבה תיקונים, ועמוד קצר בלי
-   תיקונים אינו ראיה כזו (את הקוצר עצמו מסמנת הסבירות).
+3. מאמץ תיקון (_effort), הערה ולא סיבה: כמה מההחלטות של הקורא שינו את מה שבקובץ: רווחים שהורדו ונוספו
+   (spacing.SpaceCounts), סוגריים שהציור הכריע בהם נגד התו שבקובץ (lines.Component.brackets_changed), סוגריים
+   שהצורה שלהם לא נקבעה, ואותיות שדולגו כי אין להן מיקום. הציון הוא הגבול התחתון של Wilson לשיעור התיקונים,
+   והעמוד מקבל הערה מעל MAX_EFFORT. למה הערה (סבב 6ב): הסף מכוון למדגם (הטווח היציב 0.106 עד 0.107), והעמוד
+   היחיד בסט מעליו הוא שקופית 7 במצגת, ש-18 הסוגריים בה נקבעו מהציור, כלומר הקורא עשה עבודה נכונה. ואין עדיין
+   ראיה שהמאמץ מנבא שגיאות: השחתה של הפלט לא משנה אותו, ולכן אף שגיאה מכוונת לא נמדדת בו. כשתהיה ראיה כזו, הוא
+   יחזור להחלטה.
 
 הספים נקבעו בכיול ולא לפי מה שנותן מספרים יפים על הסט (harness/calibration.py): שגיאות מכוונות ברמת הפלט,
 השארת תוכנה אחת בחוץ, ורגישות. הנימוקים והמספרים ליד כל סף.
@@ -58,24 +69,28 @@ DECISIONS = (OK, UNSURE, REJECTED)
 
 # רווח בר-סמך של 95% (z של התפלגות נורמלית). מסמך האפיון: "9 מתוך 9 מילים תקינות נותן בערך 0.70"
 Z = 1.96
-# הסף של הסבירות: הגבול התחתון לשיעור המילים הסבירות. כיול (סבב 6, harness/calibration.py; הדוח, "כיול"):
-# - שגיאות מכוונות: על 46 העמודים הידועים כנכונים בלי כשל ודאי, כשכל השורות בעמוד הפוכות (היפוך שורה שלמה,
-#   היפוך אותיות בתוך מילה), האחוזון ה-95 של הציון הוא 0.755. מעל זה הסימנים לבדם תופסים 95% מהעמודים האלה.
-#   בשאר הצורות, ובשורה הפוכה אחת בעמוד, הסימנים כמעט לא תופסים, ואת אלה תופסת בדיקת התצוגה (100% בכל צורה):
-#   הסימנים הם גיבוי שלא נשען על המיקומים, ולא הבדיקה העיקרית.
-# - רגישות: ההחלטות והסיבות בכל הסט זהות לכל ערך מעל 0.757 ועד 0.790 (העמודים בקצוות: שקופית 1 במצגת, 12
-#   מילים, ועמוד 9 במסמך האפיון בשתי התוכנות). הערך באמצע. מתחת לסף כמעט רק עמודים קצרים: 0.774 הוא עמוד של
-#   לפחות 14 מילים בלי שום סימן (n / (n + z²)).
-# - השארת תוכנה בחוץ: הדרישה מהעמודים של שאר התוכנות בין 0.747 ל-0.787, והסימנים תפסו בה 89 מתוך 92 עמודים
-#   הפוכים של התוכנה שבחוץ. רוב העמודים הידועים כנכונים הם של WeasyPrint ו-Chrome (42 מתוך 46), ולשאר התוכנות
-#   יש עמוד אחד כזה או אף לא אחד, כך שהבדיקה על תוכנה אחרת דקה
-MIN_PLAUSIBLE = 0.774
-# הסף של מאמץ התיקון: הגבול התחתון לשיעור ההחלטות של הקורא ששינו את הקובץ. השחתה של הפלט לא משנה אותו (הוא נמדד
-# מול הקובץ), ולכן אין לו שגיאות מכוונות. הכלל: המאמץ הגבוה ביותר בעמוד שהפלט שלו ידוע כנכון, כי עד שם יש ראיה
+# הסף של הסבירות: הגבול התחתון לשיעור המילים הסבירות. כיול (harness/calibration.py; הדוח, "כיול"), מסבב 6ב:
+# - שגיאות מכוונות: על 28 העמודים הידועים כנכונים בלי כשל ודאי (מסבב 6ב: רק עמודים שהפלט שלהם זהה לדף התשובות,
+#   harness/tables.pages_matching_truth, ולא כל העמודים של קובץ עם דף תשובות), כשכל השורות בעמוד הפוכות (היפוך
+#   שורה שלמה, היפוך אותיות בתוך מילה), האחוזון ה-95 של הציון הוא 0.747. מעל זה הסימנים לבדם תופסים 95% מהעמודים
+#   האלה. בשאר הצורות, ובשורה הפוכה אחת בעמוד, הסימנים כמעט לא תופסים, ואת אלה תופסת בדיקת התצוגה (100% בכל
+#   צורה): הסימנים הם גיבוי שלא נשען על המיקומים, ולא הבדיקה העיקרית.
+# - רגישות: ההחלטות והסיבות בכל הסט זהות לכל ערך מעל 0.736 ועד 0.790 (העמודים בקצוות: עמוד 25 בקובץ הטבלאות, 3
+#   שורות דו-משמעיות ב-29 מילים, ועמוד 9 במסמך האפיון בשתי התוכנות). הדרישה בתוך הטווח, והאמצע שלו מעליה, ולכן
+#   הערך הוא האמצע (calibration.chosen_range). עד סבב 6ב הערך היה 0.774, באמצע של 0.757 עד 0.790: עמוד קצר בלי
+#   סימן (שקופית 1 במצגת, 12 מילים) היה מסומן, וקבע את הקצה 0.757. בשני הערכים אותן החלטות ואותן סיבות בכל הסט.
+# - עמוד קצר: פחות מ-13 מילים, שבהן גם בלי שום סימן הציון מתחת לסף (n / (n + z²); Signals.decides). בעמוד כזה
+#   הסימנים לא מכריעים, והוא מקבל הערה.
+# - השארת תוכנה בחוץ: הדרישה מהעמודים של שאר התוכנות בין 0.729 ל-0.787, והסימנים תפסו בה 55 מתוך 56 עמודים
+#   הפוכים של התוכנה שבחוץ. רוב העמודים הידועים כנכונים הם של WeasyPrint ו-Chrome (23 מתוך 28), ולשאר התוכנות
+#   יש עמוד אחד או שניים כאלה או אף לא אחד, כך שהבדיקה על תוכנה אחרת דקה
+MIN_PLAUSIBLE = 0.763
+# הסף של הערת מאמץ התיקון (מסבב 6ב הערה, ולא סיבה: ראו בראש הקובץ, ציר 3): הגבול התחתון לשיעור ההחלטות של הקורא
+# ששינו את הקובץ. השחתה של הפלט לא משנה אותו (הוא נמדד מול הקובץ), ולכן אין לו שגיאות מכוונות. הכלל: המאמץ הגבוה ביותר בעמוד שהפלט שלו ידוע כנכון, כי עד שם יש ראיה
 # שהתיקונים של הקורא עובדים. בסט זה 0.106 (הצעת המחיר, עמוד 1: כותרת עם ריווח אותיות, שתויגה), והערך באמצע הטווח
 # היציב שמכיל אותו.
 # זה דגל ולא ערך: ההתפלגות של המאמץ רציפה (אין בה פער גדול מ-0.01 בין 0.02 ל-0.12), הטווח היציב הוא 0.106 עד
-# 0.107 בלבד, והמעטפת נקבעת לפי עמוד אחד: כשמשאירים את WeasyPrint בחוץ היא 0.093. מעליו בסט: שקופית 7 במצגת,
+# 0.107 בלבד, והמעטפת נקבעת לפי עמוד אחד: כשמשאירים את WeasyPrint בחוץ היא 0.092. מעליו בסט: שקופית 7 במצגת,
 # שכל 18 הסוגריים בה הפוכים לתו שבקובץ (Canva שומר את הצורה המצוירת). עמודים מתויגים מקבצים שתוקנו הרבה (Google
 # Docs, Canva) היו מרחיבים את המעטפת על סמך ראיה
 MAX_EFFORT = 0.1066
@@ -151,6 +166,70 @@ def reversed_numbers(text: str) -> int:
     return count
 
 
+# ---------- מספרים ותאים של מספרים (סבב 6ב) ----------
+
+# מספר עם מפרידים: ספרות, ונקודות או פסיקים ביניהן
+_FORMATTED = re.compile(r"[0-9]+(?:[.,][0-9]+)+")
+# מספר במפרידי אלפים תקין: עד שלוש ספרות, קבוצות של שלוש אחרי כל פסיק, ולכל היותר נקודה עשרונית אחת בסוף
+_THOUSANDS = re.compile(r"[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]+)?")
+
+
+def bad_digit_groups(text: str) -> int:
+    """כמה מספרים בטקסט כתובים במפרידי אלפים (פסיק שאחריו בדיוק שלוש ספרות) ולא בצורה תקינה שלהם (_THOUSANDS):
+    קבוצה של יותר או פחות משלוש ספרות אחרי פסיק, או יותר מנקודה עשרונית אחת. ההתייעצות על ארכיטקטורה, סעיף
+    2.6: "בדיקת קבוצות ספרות (מפריד אלפים במקום הנכון, נקודה עשרונית אחת)". כך יוצאים שני מספרים שנדבקו
+    ("146,137449,413" בדוח הכספי בסבב 5). רק מספר שיש בו מפריד אלפים: מספר עם נקודות בלבד הוא גם גרסה, תאריך
+    או כתובת IP ("3.12.1", "11.05.2026", "127.0.0.1"), ופסיקים בין ספרות בודדות הם רשימה ("1,2,3"). מספר שנראה
+    הפוך ("65.432,1", "543,21") אין בו קבוצה של שלוש אחרי פסיק, ולכן הוא לא נספר כאן פעם שנייה (reversed_numbers).
+    בסט: 0 בכל העמודים (נמדד בסבב 6ב)."""
+    count = 0
+    for found in _FORMATTED.finditer(text):
+        number = found.group(0)
+        groups = re.split(r"[.,]", number)
+        separators = re.findall(r"[.,]", number)
+        thousands = any(sep == "," and len(groups[k + 1]) == 3 for k, sep in enumerate(separators))
+        if thousands and not _THOUSANDS.fullmatch(number):
+            count += 1
+    return count
+
+
+# תא של מספר אחד: מספר עם סימן לפניו או אחריו (מינוס, סוגריים של מספר שלילי, מטבע, אחוז, כוכבית של הערה)
+_CELL_NUMBER = re.compile(r"[(\-−+]?[₪$€£]*[0-9]+(?:[.,][0-9]+)*[%*)]*")
+
+
+def _one_number(cell: str) -> bool:
+    return bool(_CELL_NUMBER.fullmatch(cell.strip(" ")))
+
+
+def _several_numbers(cell: str) -> bool:
+    parts = cell.split()
+    return len(parts) >= 2 and all(_CELL_NUMBER.fullmatch(part) for part in parts)
+
+
+def crowded_cells(rows: Sequence[tuple[str, ...]]) -> int:
+    """כמה תאים בטבלה (rows: השורות שלה, כתאים) מכילים כמה מספרים ורק מספרים, בעמודה של מספרים: עמודה שרוב
+    התאים הלא ריקים בה הם מספר אחד (_one_number), ולפחות שניים. ההתייעצות על ארכיטקטורה, סעיף 2.6: בטבלה אין
+    "סדר טקסט", יש גריד, והבדיקה של תא מספרי היא הצורה של המספר. תא כזה הוא שתי שורות שהתאחדו ("23,479 69" בדוח
+    הכספי) או שני תאים שנכנסו לאותה עמודה ("178,881 145,921"). בעמודה של טקסט שני מספרים בתא הם טקסט רגיל."""
+    crowded = 0
+    width = max((len(row) for row in rows), default=0)
+    for column in range(width):
+        cells = [row[column] for row in rows if column < len(row) and row[column].strip(" ")]
+        singles = sum(_one_number(cell) for cell in cells)
+        if singles >= 2 and 2 * singles > len(cells):
+            crowded += sum(_several_numbers(cell) for cell in cells)
+    return crowded
+
+
+def _page_crowded_cells(page: PageText) -> int:
+    """crowded_cells לכל טבלה בעמוד, לפי השורות שלה כמו שהן נקראות (PageText.rows, אחרי איחוד השורות)."""
+    tables: dict[int, list[tuple[str, ...]]] = {}
+    for cells, source in zip(page.rows, page.sources):
+        if source.table is not None:
+            tables.setdefault(source.table, []).append(tuple(cells))
+    return sum(crowded_cells(rows) for rows in tables.values())
+
+
 _CLOSERS = {closer: opener for opener, closer in _BRACKET_PAIRS.items()}
 
 
@@ -218,14 +297,35 @@ class Signals:
     def score(self) -> float:
         return wilson_lower(self.words - self.suspicious, self.words)
 
+    def decides(self, min_plausible: float) -> bool:
+        """האם בעמוד יש מספיק מילים כדי שהסימנים יכריעו: גם בלי אף סימן, הציון שלו (n / (n + z²)) מגיע לסף.
+        אחרת הוא מתחת לסף בכל מקרה, כלומר התוצאה לא תלויה בסימנים, ואין בהם ראיה לכאן או לכאן (עמוד קצר).
+        הגבול נגזר מהסף ולא נקבע בנפרד: 14 מילים בסף של היום (min_words)."""
+        return wilson_lower(self.words, self.words) >= min_plausible
+
+
+def min_words(min_plausible: float) -> int:
+    """מספר המילים הקטן ביותר שבו הסימנים יכולים להכריע (Signals.decides)."""
+    words = 0
+    while wilson_lower(words, words) < min_plausible:
+        words += 1
+    return words
+
 
 @dataclass(frozen=True)
 class Plausibility:
     display_failures: int  # רכיבים שלא מוצגים כמו העמוד (shows_as_page)
     signals: Signals
+    # מסבב 6ב, כמו בדיקת התצוגה, אחד מספיק: מספרים עם קבוצות ספרות לא תקינות (bad_digit_groups), ותאים עם כמה
+    # מספרים בעמודה של מספרים (crowded_cells). שתיהן לא סימנו אף עמוד ידוע כנכון (harness/calibration.py)
+    bad_numbers: int = 0
+    crowded_cells: int = 0
 
     def ok(self, min_plausible: float) -> bool:
-        return not self.display_failures and self.signals.score >= min_plausible
+        """אין כשל ודאי (שורה שלא מוצגת כמו העמוד, מספר או תא מספרי לא תקינים), והסימנים עוברים את הסף, או
+        שהעמוד קצר מכדי שיכריעו."""
+        return (not self.display_failures and not self.bad_numbers and not self.crowded_cells
+                and (not self.signals.decides(min_plausible) or self.signals.score >= min_plausible))
 
 
 @dataclass(frozen=True)
@@ -274,12 +374,17 @@ REASON_KINDS = {
     "brackets": "סוגריים בלי זוג",
     "punctuation": "פיסוק בתחילת שורה",
     "ambiguous": "שורות דו-משמעיות",
-    "short": "עמוד קצר",
     "missing": "תווים שחסרים בפלט",
     "extra": "תווים שנוספו לפלט",
-    "effort": "הרבה תיקונים",
+    "digit_groups": "מספרים עם קבוצות ספרות לא תקינות",
+    "crowded_cells": "תאים עם כמה מספרים בעמודה של מספרים",
 }
 REJECTING = frozenset({"no_text", "rotated", "unmapped"})
+# הסוג של כל הערה: מידע שמוצג למשתמש ולא משנה את ההחלטה (סבב 6ב)
+NOTE_KINDS = {
+    "short": "עמוד קצר",
+    "effort": "הרבה תיקונים",
+}
 
 
 @dataclass(frozen=True)
@@ -293,15 +398,28 @@ class Reason:
 
 
 @dataclass(frozen=True)
+class Note:
+    """הערה: מידע על העמוד שמוצג למשתמש ולא משנה את ההחלטה."""
+    kind: str  # מפתח ב-NOTE_KINDS
+    text: str  # המשפט לאדם, בעברית, עם המספרים
+
+    def __post_init__(self):
+        if self.kind not in NOTE_KINDS:
+            raise ValueError(f"סוג הערה לא מוכר: {self.kind}")
+
+
+@dataclass(frozen=True)
 class PageScore:
     """הציון של עמוד. decision אחד מ-DECISIONS, ו-reasons הן הסיבות, לפי הסדר. בעמוד שנפסל אין צירים (None):
     פסילה היא בלי ציון. החלטה שאינה "תקין" בלי סיבה, או "תקין" עם סיבה, לא נוצרת (ValueError), וגם לא "נפסל"
-    בלי סיבה של פסילה (REJECTING) או "לא בטוח" עם סיבה כזו."""
+    בלי סיבה של פסילה (REJECTING) או "לא בטוח" עם סיבה כזו. notes: הערות, בכל החלטה, נפרדות מהסיבות: הן לא
+    נספרות בהחלטה."""
     decision: str
     reasons: tuple[Reason, ...]
     plausibility: Plausibility | None = None
     completeness: Completeness | None = None
     effort: Effort | None = None
+    notes: tuple[Note, ...] = ()
 
     def __post_init__(self):
         if self.decision not in DECISIONS:
@@ -320,8 +438,9 @@ def _many(count: int, one: str, many: str) -> str:
     return one if count == 1 else f"{count} {many}"
 
 
-def _signal_reasons(signals: Signals) -> list[Reason]:
-    reasons = []
+def _signal_phrases(signals: Signals) -> list[tuple[str, str]]:
+    """(סוג, משפט) לכל סימן שנמצא בעמוד, לפי הסדר."""
+    phrases = []
     for kind, count, one, many in (
             ("final_letters", signals.final_letters, "מילה אחת עם אות סופית במקום לא נכון",
              "מילים עם אות סופית במקום לא נכון"),
@@ -330,13 +449,24 @@ def _signal_reasons(signals: Signals) -> list[Reason]:
             ("punctuation", signals.punctuation, "שורה אחת שמתחילה בסימן פיסוק", "שורות שמתחילות בסימן פיסוק"),
             ("ambiguous", signals.ambiguous, "שורה אחת ששני סדרים שלה נראים זהה", "שורות ששני סדרים שלהן נראים זהה")):
         if count:
-            # האורך של העמוד הוא חלק מהסיבה: אותו סימן אחד מפיל עמוד קצר ולא עמוד ארוך (wilson_lower)
-            reasons.append(Reason(kind, _many(count, one, many) + ", בעמוד של " +
-                                  _many(signals.words, "מילה אחת", "מילים")))
-    if not reasons:
-        reasons.append(Reason("short", "עמוד קצר: " + _many(signals.words, "מילה אחת בלבד", "מילים בלבד") +
-                              ", מעט מדי כדי לסמוך עליו"))
-    return reasons
+            phrases.append((kind, _many(count, one, many)))
+    return phrases
+
+
+def _signal_reasons(signals: Signals) -> list[Reason]:
+    """הסיבות של עמוד שהסימנים הכריעו בו (Signals.decides) ושהציון שלו מתחת לסף: יש בו לפחות סימן אחד."""
+    # האורך של העמוד הוא חלק מהסיבה: אותו סימן אחד מפיל עמוד של 20 מילים ולא עמוד של 200 (wilson_lower)
+    return [Reason(kind, phrase + ", בעמוד של " + _many(signals.words, "מילה אחת", "מילים"))
+            for kind, phrase in _signal_phrases(signals)]
+
+
+def _short_note(signals: Signals, min_plausible: float) -> Note:
+    found = _signal_phrases(signals)
+    text = (f"עמוד קצר: {_many(signals.words, 'מילה אחת', 'מילים')} (פחות מ-{min_words(min_plausible)}), מעט מדי כדי "
+            "שהסימנים של הסבירות יכריעו לכאן או לכאן")
+    if found:
+        text += ". נמצא: " + ", ".join(phrase for _, phrase in found)
+    return Note("short", text)
 
 
 # ---------- הציון ----------
@@ -381,7 +511,7 @@ def _plausibility(page: PageText, dropped: frozenset) -> Plausibility:
         punctuation=sum(punct_at_start(text) for text in texts),
         brackets=unpaired_brackets(texts),
     )
-    return Plausibility(failures, signals)
+    return Plausibility(failures, signals, sum(bad_digit_groups(text) for text in texts), _page_crowded_cells(page))
 
 
 def _completeness(page: PageText) -> Completeness:
@@ -425,10 +555,21 @@ def score_page(page: PageText, dropped: Iterable[tuple[int, int]] = (), *,
     completeness = _completeness(page)
     effort = _effort(page)
     reasons: list[Reason] = []
+    notes: list[Note] = []
     if plausibility.display_failures:
         reasons.append(Reason("display", _many(plausibility.display_failures, "שורה אחת שלא מוצגת כמו העמוד",
                                                "שורות שלא מוצגות כמו העמוד")))
-    if plausibility.signals.score < min_plausible:
+    if plausibility.bad_numbers:
+        reasons.append(Reason("digit_groups", _many(plausibility.bad_numbers, "מספר אחד שקבוצות הספרות שלו לא תקינות",
+                                                    "מספרים שקבוצות הספרות שלהם לא תקינות") +
+                              ": כנראה שני מספרים שנדבקו"))
+    if plausibility.crowded_cells:
+        reasons.append(Reason("crowded_cells", _many(plausibility.crowded_cells, "תא אחד עם כמה מספרים",
+                                                     "תאים עם כמה מספרים") +
+                              " בעמודה של מספרים: כנראה שורות או עמודות של הטבלה שהתאחדו"))
+    if not plausibility.signals.decides(min_plausible):
+        notes.append(_short_note(plausibility.signals, min_plausible))
+    elif plausibility.signals.score < min_plausible:
         reasons.extend(_signal_reasons(plausibility.signals))
     missing, extra = sum(completeness.missing.values()), sum(completeness.extra.values())
     if missing:
@@ -437,10 +578,11 @@ def score_page(page: PageText, dropped: Iterable[tuple[int, int]] = (), *,
     if extra:
         reasons.append(Reason("extra", _many(extra, "תו אחד בפלט שאינו בעמוד", "תווים בפלט שאינם בעמוד")))
     if not effort.ok(max_effort):
-        reasons.append(Reason("effort", f"הקורא תיקן הרבה: {effort.corrections} מתוך {effort.decisions} החלטות "
-                                        f"({effort.spaces_changed} רווחים, "
-                                        f"{effort.brackets_changed + effort.unknown_brackets} סוגריים)"))
-    return PageScore(UNSURE if reasons else OK, tuple(reasons), plausibility, completeness, effort)
+        notes.append(Note("effort", f"הקורא תיקן הרבה: {effort.corrections} מתוך {effort.decisions} החלטות "
+                                    f"({effort.spaces_changed} רווחים, "
+                                    f"{effort.brackets_changed + effort.unknown_brackets} סוגריים), יותר מבכל עמוד "
+                                    "שנבדק כנכון. מידע בלבד: אין עדיין ראיה שזה מנבא שגיאות"))
+    return PageScore(UNSURE if reasons else OK, tuple(reasons), plausibility, completeness, effort, tuple(notes))
 
 
 def score_document(pages: Sequence[PageText], dropped: Iterable[tuple[int, int, int]] = (), **thresholds) -> list[PageScore]:

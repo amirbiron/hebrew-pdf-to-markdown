@@ -21,7 +21,9 @@ from harness.reader import read_pages
 from harness.labels import COLUMNS
 from harness.run import DEFAULT_PDFS, DEFAULT_TRUTH, evaluate, main
 from harness.html_structure import HtmlBlock
-from harness.tables import TruthFileError, TruthTable, load_blocks, load_truth, pdf_names, score_tables
+from harness.tables import (TruthFileError, TruthTable, load_blocks, load_truth, pages_matching_truth, pdf_names,
+                            score_tables)
+from hebrew_pdf.markdown import build_markdown
 from prototype import hebrew_pdf_prototype as prototype
 from tests.test_harness_can_fail import reversed_ltr_reader
 
@@ -233,6 +235,18 @@ class FirstMeasurementTest(unittest.TestCase):
         real = score_tables("x.pdf", self.tables, rows(read_pages))
         broken = score_tables("x.pdf", self.tables, rows(reversed_ltr_reader))
         self.assertLess(broken.whole, real.whole * 3 // 4)
+
+
+class PagesMatchingTruthTest(unittest.TestCase):
+    """tables.pages_matching_truth: אילו עמודים של קובץ עם דף תשובות באמת זהים לו (סבב 6ב). עד אז כל העמודים של
+    קובץ כזה נחשבו ידועים כנכונים לכיול, גם עמודים שיש בהם טקסט שגוי שעובר את בדיקת התצוגה."""
+
+    def test_the_spec_file(self):
+        truth_path = DEFAULT_TRUTH / "spec.truth.json"
+        pages = read_pages(DEFAULT_PDFS / "spec_chrome.pdf")
+        good = pages_matching_truth(load_truth(truth_path), load_blocks(truth_path), pages, build_markdown(pages).blocks)
+        # בעמודים 2, 3 ו-5 פסקה שאחד משני הסדרים שנראים זהה בה שגוי ("Onboarding 1", "(UAX #9) Unicode")
+        self.assertEqual([i for i, same in enumerate(good, 1) if not same], [2, 3, 5])
 
 
 if __name__ == "__main__":
