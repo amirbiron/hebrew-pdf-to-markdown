@@ -1,4 +1,4 @@
-"""בדיקות של ה-Markdown שהחבילה בונה (hebrew_pdf/markdown.py), דרך מפרסר GFM אמיתי.
+"""בדיקות של ה-Markdown שהחבילה בונה (hebrew_pdf/markdown.py), דרך מפרסר GFM אמיתי. 
 
 המפרסר הוא cmark-gfm, הספרייה ש-GitHub עצמו מציג בה Markdown, דרך cmarkgfm (תלות פיתוח בלבד,
 requirements-dev.txt, רישיון MIT). github_flavored_markdown_to_html מפעיל את ההרחבות table,
