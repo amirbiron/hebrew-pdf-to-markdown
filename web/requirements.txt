@@ -1,0 +1,29 @@
+# התלויות של השירות (web/), כולן נעולות: גם הישירות וגם כל מה שהן מושכות, בגרסאות שהבדיקות רצו עליהן. כך כל build
+# ב-Render מתקין בדיוק מה שנבדק (למשל h11, שקובע מה קורה ל-Content-Length לא תקין; tests/test_web_protections.py).
+# בדיקה גוזרת את הרשימה מהתלויות של החבילות הישירות ומוודאת שהיא שלמה ושווה למה שמותקן (tests/test_web_deploy.py).
+# החבילה עצמה צריכה רק את requirements.txt שבשורש; python-bidi ו-cmarkgfm הן תלויות פיתוח (requirements-dev.txt)
+# ולא נכנסות לשירות.
+-r ../requirements.txt
+
+# ישירות
+# הקורא. ב-requirements.txt של החבילה ">=5.13"; כאן הגרסה שהסט נמדד עליה, כי PDFium קובע את כל מה שיוצא
+pypdfium2==5.13.0
+fastapi==0.162.0
+# הקוד נשען על הגרסה הזו (starlette/formparsers.py, starlette/requests.py ClientDisconnect)
+starlette==1.7.0
+# בלי [standard]: השירות רץ על h11 ועל לולאת asyncio הרגילה (web/__main__.py), התצורה שנבדקה
+uvicorn==0.54.0
+# python-multipart לא נדרש: הקובץ נשלח כגוף הבקשה ולא כטופס (web/app.py, בראש הקובץ)
+
+# מה שהן מושכות
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+click==8.5.0
+h11==0.16.0
+idna==3.20
+opentelemetry-api==1.45.0
+pydantic==2.13.5
+pydantic-core==2.46.5
+typing-extensions==4.16.0
+typing-inspection==0.4.4

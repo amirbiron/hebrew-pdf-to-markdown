@@ -1,0 +1,26 @@
+# השירות "PDF עברי ל-Markdown" (web/). המקור לשדות: https://render.com/docs/blueprint-spec, והדוגמאות הרשמיות
+# github.com/render-examples/fastapi ו-render-examples/django (envVars עם key ו-value).
+services:
+  - type: web
+    name: hebrew-pdf-to-markdown
+    runtime: python
+    region: frankfurt
+    # 0.5 מעבד ו-512MB (בעבר starter; https://render.com/docs/compute-plans). ב-free יש 0.1 מעבד: ההמרה של קובץ
+    # הטבלאות בסט (25 שניות כאן) תעבור שם את מגבלת הזמן, וכך גם הדוח הכספי (web/limits.py)
+    plan: 0.5c-512mb
+    buildCommand: pip install -r web/requirements.txt
+    # עובד אחד, בכוונה: ההמרות רצות בתהליכים נפרדים, והמגבלות נספרות בזיכרון של התהליך (web/__main__.py)
+    startCommand: python -m web
+    healthCheckPath: /healthz
+    # המרה יכולה לקחת עד 90 שניות (web/limits.py, TIMEOUT_SECONDS). בפריסה חדשה uvicorn מחכה לבקשות שבדרך, ו-Render
+    # מחכה עד כאן לפני שהוא הורג את התהליך (ברירת המחדל 30, הטווח 1 עד 300)
+    maxShutdownDelaySeconds: 120
+    envVars:
+      # ב-Render השירות חייב להאזין לכל הכתובות (https://render.com/docs/web-services). מקומית ברירת המחדל 127.0.0.1
+      - key: HOST
+        value: 0.0.0.0
+      # כמה המרות במקביל (web/limits.py, capacity): הקטן מבין הזיכרון, (512 - 100 - 64) / 194 = 1 (slots_for), והמעבד,
+      # 0.5 * 90 / 23.6 = 1 (cpu_slots: כמה המרות חצי מעבד מספיק לסיים בזמן, גם את האיטית בסט). כתוב כאן במפורש כי
+      # לא ידוע אם Render חושף את המגבלות ב-cgroup. בדיקה מוודאת שהמספר הזה שווה לחישוב (tests/test_web_deploy.py)
+      - key: HEBREW_PDF_SLOTS
+        value: 1

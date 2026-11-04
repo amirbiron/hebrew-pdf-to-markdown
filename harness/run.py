@@ -29,7 +29,8 @@ from harness.tables import (TRUTH_SUFFIX, TableScore, TruthFileError, load_block
                             pdf_names, score_tables)
 from harness.textdiff import CELL_BOUNDARY, closest_line, join_cells, normalize, split_lines, visible
 from hebrew_pdf.lines import PageText
-from hebrew_pdf.markdown import build_markdown, escape_text
+from hebrew_pdf.convert import convert_pages
+from hebrew_pdf.markdown import escape_text
 from hebrew_pdf import score as score_mod
 from hebrew_pdf.spacing import SpaceCounts
 from hebrew_pdf.indirect_checks import score_final_letters, score_punct_at_start
@@ -195,10 +196,12 @@ def evaluate(pdf_dir: Path, labels_path: Path, reader: Reader = read_pages,
     for path in pdf_paths:
         read = reader(path)
         read_files[path.name] = read
-        built = build_markdown(read)
+        # אותה פונקציה שהשירות קורא לה (web/conversion.py): מה שהדוח מודד הוא מה שהמשתמש מקבל
+        result = convert_pages(read)
+        built = result.markdown
         dropped[path.name] = frozenset(built.dropped)
         built_blocks[path.name] = built.blocks
-        scores[path.name] = score_mod.score_document(read, built.dropped)
+        scores[path.name] = list(result.scores)
         parsed = markdown_check.parse(markdown_check.to_html(built.text))
         parsed_files[path.name] = parsed
         kinds = [block.kind for block in built.blocks]

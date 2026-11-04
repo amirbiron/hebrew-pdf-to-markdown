@@ -1,0 +1,145 @@
+/* PDF עברי ל-Markdown. כל הכיוונים במאפיינים לוגיים (inline-start/end), כך שהם נכונים מימין לשמאל. */
+
+/* כל טקסט על הרקע שלו לפחות 4.5:1 (WCAG AA), בשתי הערכות; בדיקה מחשבת את זה מהערכים כאן (tests/test_web_units.py).
+   הצירוף הנמוך: "לא בטוח" על הרקע של התגית בערכה הבהירה, 4.77:1 */
+:root {
+  color-scheme: light dark;
+  --bg: #f7f6f2;
+  --surface: #ffffff;
+  --text: #1d1d1b;
+  --muted: #5d5b55;
+  --line: #d9d6cc;
+  --accent: #2b5ea7;
+  --accent-text: #ffffff;
+  --ok: #2a744a;
+  --ok-bg: #e4f2e9;
+  --unsure: #9a5b00;
+  --unsure-bg: #fbefd9;
+  --rejected: #b3261e;
+  --rejected-bg: #f9e1df;
+  --current: #fff4b8;
+  --mono: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", "Courier New", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161614;
+    --surface: #1f1f1c;
+    --text: #ecebe6;
+    --muted: #aaa79e;
+    --line: #3a3934;
+    --accent: #7fa8e6;
+    --accent-text: #10151d;
+    --ok: #7fcf9c;
+    --ok-bg: #1c3226;
+    --unsure: #f0b85a;
+    --unsure-bg: #3a2c12;
+    --rejected: #f09088;
+    --rejected-bg: #3d1d1a;
+    --current: #4a4320;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, "Segoe UI", Arial, sans-serif;
+  line-height: 1.6;
+}
+
+.top, main { max-width: 1400px; margin-inline: auto; padding-inline: 16px; }
+.top { padding-block: 24px 8px; }
+h1 { margin: 0 0 4px; font-size: 1.7rem; }
+.lead { margin: 0; color: var(--muted); }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+section { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-block: 16px; }
+
+.upload-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.file-label { font-weight: 600; }
+input[type="file"] { max-width: 100%; }
+
+button {
+  font: inherit;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+  padding: 8px 16px;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.5; cursor: default; }
+button:focus-visible, .segment:focus-visible, pre:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.limits, .privacy { margin-block: 8px 0; color: var(--muted); }
+.status { margin-block: 8px 0; min-height: 1.6em; }
+.status.error { color: var(--rejected); font-weight: 600; }
+
+.summary { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.counts { list-style: none; display: flex; gap: 12px; padding: 0; margin: 0; }
+.count { display: flex; flex-direction: column; align-items: center; padding: 8px 16px; border-radius: 8px; min-width: 6rem; }
+.count-number { font-size: 1.8rem; font-weight: 700; line-height: 1.2; }
+.legend { margin: 0; flex: 1 1 24rem; display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; }
+.legend dt { font-weight: 700; }
+.legend dd { margin: 0; color: var(--muted); }
+
+.decision-ok { --tone: var(--ok); --tone-bg: var(--ok-bg); }
+.decision-unsure { --tone: var(--unsure); --tone-bg: var(--unsure-bg); }
+.decision-rejected { --tone: var(--rejected); --tone-bg: var(--rejected-bg); }
+.count, .badge { background: var(--tone-bg); color: var(--tone); }
+.legend dt { color: var(--tone); }
+
+.actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-block: 16px; }
+
+.panes { display: grid; grid-template-columns: minmax(16rem, 24rem) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .panes { grid-template-columns: minmax(0, 1fr); } }
+h3 { margin: 0 0 8px; font-size: 1.05rem; }
+
+.pages ol { list-style: none; margin: 0; padding: 0; max-height: 75vh; overflow: auto; }
+.page { border-inline-start: 4px solid var(--tone); padding-block: 6px; padding-inline: 10px 4px; margin-block-end: 6px; background: var(--bg); border-radius: 4px; }
+.page-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.goto { background: transparent; color: var(--accent); border-color: transparent; padding: 2px 4px; text-decoration: underline; }
+.badge { border-radius: 999px; padding: 0 10px; font-size: 0.9rem; font-weight: 600; }
+.entries-title { margin: 4px 0 0; font-weight: 600; font-size: 0.9rem; }
+.reasons ul, .notes ul { margin: 0; padding-inline-start: 18px; }
+.entry-text { display: block; }
+.entry-help { display: block; color: var(--muted); font-size: 0.9rem; }
+
+/* הפלט: הכיוון קבוע מימין לשמאל על כל האזור, וכל שורה פסקה בכיוון הזה. בכוונה בלי unicode-bidi: plaintext, שהיה
+   קובע כיוון לכל שורה לפי האות הראשונה בה: בדיקת התצוגה של הקורא מאשרת פסקה עברית, ותצוגה בכיוון אחר מציגה
+   למשתמש משהו שלא נבדק (מסמך האפיון, "Markdown בלי תווי כיוון") */
+#output {
+  direction: rtl;
+  text-align: start;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0;
+  max-height: 75vh;
+  overflow: auto;
+}
+.segment { display: block; border-inline-start: 3px solid var(--tone); padding-inline-start: 8px; }
+.segment.current, .line.current { background: var(--current); }
+.banner {
+  display: block;
+  user-select: none;
+  font-family: system-ui, "Segoe UI", Arial, sans-serif;
+  background: var(--rejected-bg);
+  color: var(--rejected);
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin-block: 4px;
+}

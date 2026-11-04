@@ -1,5 +1,12 @@
 # תלויות של מערך הבדיקה והטסטים בלבד, לא של הקורא.
 -r requirements.txt
+# השירות (web/), שהטסטים שלו מריצים אותו כמו בייצור (tests/test_web_*.py)
+-r web/requirements.txt
+# הבדיקה בדפדפן אמיתי (tests/test_web_browser.py). צריך גם את Chromium שלו: python -m playwright install chromium.
+# רישיון: Apache-2.0
+playwright==1.63.0
+# קריאת התלויות של חבילה, לבדיקה שהנעילה של השירות שלמה (tests/test_web_deploy.py). רישיון: Apache-2.0 או BSD-2-Clause
+packaging==26.3
 # אלגוריתם התצוגה של Unicode לבדיקת התצוגה (harness/display_check.py): מימוש עצמאי
 # שלא חולק קוד עם hebrew_pdf. רישיון: LGPL-3.0 (עוטף את unicode-bidi, MIT או Apache-2.0).
 python-bidi==0.6.12
