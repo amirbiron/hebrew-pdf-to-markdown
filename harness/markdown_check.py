@@ -102,14 +102,19 @@ def match_blocks(kind: str, truth: Sequence[HtmlBlock], output: Sequence[HtmlBlo
 
 def _lcs(a, b, same) -> set[int]:
     """האינדקסים ב-a של התת-סדרה המשותפת הארוכה ביותר עם b."""
+    return {i for i, _ in lcs_pairs(a, b, same)}
+
+
+def lcs_pairs(a, b, same) -> list[tuple[int, int]]:
+    """הזוגות (אינדקס ב-a, אינדקס ב-b) של התת-סדרה המשותפת הארוכה ביותר, לפי הסדר."""
     table = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
     for i in range(len(a) - 1, -1, -1):
         for j in range(len(b) - 1, -1, -1):
             table[i][j] = table[i + 1][j + 1] + 1 if same(a[i], b[j]) else max(table[i + 1][j], table[i][j + 1])
-    out, i, j = set(), 0, 0
+    out, i, j = [], 0, 0
     while i < len(a) and j < len(b):
         if same(a[i], b[j]):
-            out.add(i)
+            out.append((i, j))
             i, j = i + 1, j + 1
         elif table[i + 1][j] >= table[i][j + 1]:
             i += 1
