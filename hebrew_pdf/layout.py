@@ -49,7 +49,7 @@ import bisect
 import math
 import statistics
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from hebrew_pdf.chars import Char, same_size, size_of
 
@@ -57,9 +57,6 @@ from hebrew_pdf.chars import Char, same_size, size_of
 # 40 תיוגים, אותם תאים בקובץ הטבלאות, אותה בדיקת תצוגה). שני הקצוות הם שני פערים מדודים: ב-7.3
 # הפער של פי 7.3 בשורה 13 נהיה גבול, ומ-13.5 הגבול של שורה 31 בפלאייר (פי 13.43) נעלם. 10 באמצע.
 COMPONENT_GAP = 10.0
-# הטווחים שבהם התוצאה על הסט זהה, מבדיקות הרגישות כאן. פער שההחלטה עליו (גבול או לא) מתהפכת כשהקבוע זז בתוך
-# הטווח שלו הוא החלטה קרובה לסף (PageLayout.near). מידע לציון ולכיול בלבד, שלא משנה את הגבולות (סבב 6ב)
-COMPONENT_GAP_RANGE = (7.4, 13.25)
 # בדיקת רגישות (סבב 5ב, כל הסט כולל קובץ הטבלאות החדש ומסמך האפיון, אחרי שכלל הרוחב ירד): לכל ערך
 # של COLUMN_GAP בין 1.5 ל-2.9 התוצאה זהה (התיוגים, התאים בשלושת הקבצים עם דף תשובות, הטבלאות, הכותרות
 # והפסקאות). ב-1.4 פסקה אחת משתנה, ומ-3.0 הריפוד בין תאים במסמך האפיון מ-Chrome כבר לא נחשב גבול (2
@@ -67,7 +64,6 @@ COMPONENT_GAP_RANGE = (7.4, 13.25)
 # בסבב 5ג הוא גם הפער המינימלי שבו קו מסגרת אנכי הוא גבול (סעיף 2), ונמדד שוב: אותו טווח, 1.5 עד 2.9,
 # זהה בכל המדדים; ב-1.3 וב-1.4 פסקה אחת בדוח הכספי, ב-3.0 שני תאים באפיון מ-Chrome, ב-3.6 עשרים ואחד
 COLUMN_GAP = 2.2
-COLUMN_GAP_RANGE = (1.5, 2.9)
 # שני פערים "שווים" כשהיחס ביניהם עד 1.25: כך מתקבצים הרווחים של גופן אחד (ב-WeasyPrint הם
 # זהים, וביישור לשני הצדדים של Google Docs הם משתנים בעד כ-20%)
 _SAME_GAP = 1.25
@@ -136,8 +132,6 @@ class PageLayout:
     # על שורות הנתונים שמתחתיה
     columns: list[tuple[tuple[float, float], ...] | None]
     tables: list[int | None]  # לכל שורה: מספר הטבלה (שורות רצופות עם עמודות), או None
-    # לכל שורה: כמה פערים בה הם החלטה קרובה לסף (COMPONENT_GAP_RANGE, COLUMN_GAP_RANGE; _near). ריק: לא נמדד
-    near: list[int] = field(default_factory=list)
 
 
 def page_layout(lines: Sequence[PageLine], word_gap: float | None,
@@ -149,7 +143,7 @@ def page_layout(lines: Sequence[PageLine], word_gap: float | None,
     boundaries: list[set[int]] = [set() for _ in lines]
     columns: list[tuple[tuple[float, float], ...] | None] = [None] * len(lines)
     if not word_gap:
-        return PageLayout(boundaries, columns, [None] * len(lines), [0] * len(lines))
+        return PageLayout(boundaries, columns, [None] * len(lines))
     spans: list[tuple[int, int, tuple[float, float], set[int]]] = []
     found = []  # (שורת הזרע, הבלוק, המסדרונות, התמיכה) לכל פער גדול
     for i, line in enumerate(lines):
@@ -187,23 +181,7 @@ def page_layout(lines: Sequence[PageLine], word_gap: float | None,
             tables.append(None)
         else:
             tables.append(tables[-1] if tables and tables[-1] is not None else i)
-    return PageLayout(boundaries, columns, tables, [_near(line, line_columns, word_gap, verticals)
-                                                    for line, line_columns in zip(lines, columns)])
-
-
-def _near(line: PageLine, columns, word_gap: float, verticals) -> int:
-    """כמה פערים בשורה הם החלטה קרובה לסף: ההחלטה עליהם מתהפכת כש-COMPONENT_GAP זז בתוך COMPONENT_GAP_RANGE
-    (פער גדול מאוד, סעיף 2), או כש-COLUMN_GAP זז בתוך COLUMN_GAP_RANGE, בפער שעובר בו קו אנכי (סעיף 2) או
-    שמכיל מסדרון של עמודה בשורה (סעיף 3)."""
-    count = 0
-    for gap in line.gaps:
-        ratio = gap.ratio / word_gap
-        if COMPONENT_GAP_RANGE[0] <= ratio < COMPONENT_GAP_RANGE[1]:
-            count += 1
-        elif COLUMN_GAP_RANGE[0] <= ratio < COLUMN_GAP_RANGE[1] and (
-                _border_in(gap, line, verticals) or any(gap.left <= a and b <= gap.right for a, b in columns or ())):
-            count += 1
-    return count
+    return PageLayout(boundaries, columns, tables)
 
 
 def _border_in(gap: Gap, line: PageLine, verticals: Sequence[tuple[float, float, float]]) -> bool:

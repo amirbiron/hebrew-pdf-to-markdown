@@ -328,12 +328,14 @@ def corrupt(page: PageText, dropped: frozenset, form: Form, intensity: str, rng:
 
 # ---------- ההחלטה, כפונקציה של הספים ----------
 
-# הכללים שמחליטים, לפי הסדר: עד סבב 6 (TODAY), והראיות החדשות של סבב 6ב (NEW). ועוד ראיה אחת שנמדדת ולא מחליטה
-# (EVIDENCE_ONLY): החלטות של הקורא שקרובות לסף שלהן (lines.PageText.near_decisions)
+# הכללים שמחליטים, לפי הסדר: עד סבב 6 (TODAY), והראיות החדשות של סבב 6ב (NEW). ראיה שלישית שנבדקה בסבב 6ב,
+# החלטות של הקורא שקרובות לסף שלהן (פער שההחלטה עליו מתהפכת כשהקבוע זז בתוך הטווח היציב שלו), ירדה: אחרי שנספרו
+# רק החלטות שהסף באמת הכריע (בלי פערים שקו מסגרת או מסדרון כבר הכריעו), היא סימנה 4 מתוך 34 עמודים שגויים בקבצים
+# עם דף תשובות ו-5 מתוך 10 נכונים, ובהשחתות היא לא משתנה בכלל (היא תכונה של העמוד ולא של הפלט). מידע שלא משמש
+# לשום דבר לא נשאר בקורא
 TODAY = ("נפסל", "תצוגה", "סימנים", "שלמות")
 NEW = ("קבוצות ספרות", "תאים מספריים")
 RULES = TODAY + NEW
-EVIDENCE_ONLY = ("קרוב לסף",)
 
 
 @dataclass(frozen=True)
@@ -348,22 +350,21 @@ class Outcome:
     problems: int = 0  # Signals.problems: סימנים לבעיה, שמסמנים גם עמוד קצר
     bad_numbers: int = 0  # Plausibility.bad_numbers
     crowded: int = 0  # Plausibility.crowded_cells
-    near: int = 0  # PageText.near_decisions: ראיה שנמדדת ולא מחליטה
 
 
 def outcome(page: PageText, dropped: frozenset) -> Outcome:
     scored = score_mod.score_page(page, dropped)
     if scored.decision == score_mod.REJECTED:
-        return Outcome(True, near=page.near_decisions)
+        return Outcome(True)
     plausibility = scored.plausibility
     return Outcome(False, plausibility.display_failures, plausibility.signals.score, scored.completeness.ok,
                    scored.effort.score, plausibility.signals.words, plausibility.signals.problems,
                    plausibility.bad_numbers,
-                   plausibility.crowded_cells, page.near_decisions)
+                   plausibility.crowded_cells)
 
 
 def decide(out: Outcome, min_plausible: float) -> dict[str, bool]:
-    """לכל כלל ב-RULES וב-EVIDENCE_ONLY: האם הוא מסמן את העמוד בסף הזה. "היום": אחד מכללי TODAY; "עם הראיות":
+    """לכל כלל ב-RULES: האם הוא מסמן את העמוד בסף הזה. "היום": אחד מכללי TODAY; "עם הראיות":
     אחד מכללי RULES, כלומר ההחלטה של הציון. מאמץ התיקון אינו כאן: מסבב 6ב הוא הערה ולא כלל."""
     if out.rejected:
         hits = {name: name == "נפסל" for name in RULES}
@@ -371,7 +372,6 @@ def decide(out: Outcome, min_plausible: float) -> dict[str, bool]:
         hits = {"נפסל": False, "תצוגה": out.display_failures > 0,
                 "סימנים": _signals_flag(out, min_plausible),
                 "שלמות": not out.complete, "קבוצות ספרות": out.bad_numbers > 0, "תאים מספריים": out.crowded > 0}
-    hits["קרוב לסף"] = out.near > 0
     hits["היום"] = any(hits[name] for name in TODAY)
     hits["עם הראיות"] = any(hits[name] for name in RULES)
     return hits

@@ -86,10 +86,6 @@ class Line:
     # לפני השורה מצויר תבליט: צורה ולא תו בטקסט, ולכן הוא לא חלק מ-text (drawn_marker). רק בשורה של רכיב
     # אחד מחוץ לטבלה
     drawn_marker: bool = False
-    # החלטות של הקורא בשורה שקרובות לסף שלהן: פערים שההחלטה עליהם מתהפכת בתוך הטווח היציב של הקבוע
-    # (spacing.SpacedRow.near: רווח או לא; layout.PageLayout.near: גבול בין רכיבים או לא). מידע לכיול, סבב 6ב
-    near_spaces: int = 0
-    near_boundaries: int = 0
 
     @property
     def parts(self) -> tuple[Component, ...]:
@@ -135,11 +131,6 @@ class PageText:
     rotated_chars: int = 0  # תווים בשורה שאינה אופקית משמאל לימין (chars.is_rotated)
     # כל התווים של העמוד לפי הרשימה של PDFium (chars.page_reference): מולם נמדדת השלמות. None: לא ידוע
     reference: str | None = None
-
-    @property
-    def near_decisions(self) -> int:
-        """החלטות קרובות לסף בכל העמוד (Line.near_spaces, Line.near_boundaries)."""
-        return sum(line.near_spaces + line.near_boundaries for line in self.lines)
 
     @property
     def brackets_changed(self) -> int:
@@ -196,18 +187,17 @@ def build_line(row: list[Char], rtl_document: bool) -> Line:
     rtl_document: כיוון הפסקה של המסמך (logical_order.document_rtl).
     """
     spaced = space_by_gaps(sorted(row, key=lambda c: c.x))
-    return _line(page_line(spaced.chars), set(), None, rtl_document, spaced.counts, near=(spaced.near, 0))
+    return _line(page_line(spaced.chars), set(), None, rtl_document, spaced.counts)
 
 
 def _line(line: PageLine, boundaries: set[int], columns, rtl_document: bool, counts: SpaceCounts,
-          marks: list[tuple[float, float, float, float]] = (), near: tuple[int, int] = (0, 0)) -> Line:
+          marks: list[tuple[float, float, float, float]] = ()) -> Line:
     """השורה מהרכיבים שלה, ובטבלה גם הטקסט של כל תא בשורה (Line.columns), לפי סדר הקריאה.
 
     הרכיבים בסדר הקריאה: מימין לשמאל במסמך עברי, אחרת משמאל לימין.
     columns: גבולות העמודות כשהשורה בטבלה (layout.PageLayout.columns), אחרת None.
     הרווחים בקצוות של כל רכיב יורדים: רווח נכנס רק בפער בין מילים, ופער של גבול הוא לא חלק מאף רכיב.
     marks: הצורות שמצוירות בעמוד (page_marks), לתבליט מצויר (drawn_marker).
-    near: ההחלטות הקרובות לסף בשורה (רווחים, גבולות), לכיול בלבד (Line.near_spaces, Line.near_boundaries).
     """
     parts = split_components(line, boundaries)
     built = [_component(part, rtl_document) for part in parts]
@@ -227,7 +217,7 @@ def _line(line: PageLine, boundaries: set[int], columns, rtl_document: bool, cou
     geometry = geometry_of(line.chars)
     marker = len(components) == 1 and columns is None and drawn_marker(geometry, marks, rtl_document)
     return Line(" ".join(c.text for c in components), "".join(c.text for c in line.chars), rtl,
-                any(c.ambiguous for c in components), counts, components, cells, geometry, marker, *near)
+                any(c.ambiguous for c in components), counts, components, cells, geometry, marker)
 
 
 def drawn_marker(geometry: Geometry, marks: list[tuple[float, float, float, float]], rtl_document: bool) -> bool:
@@ -278,8 +268,7 @@ def read_document(pdf) -> list[PageText]:
         rules, verticals = page_rules(pdf_page)
         layout = page_layout(lines, word_gap, rules, verticals)
         marks = page_marks(pdf_page)
-        page_lines = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts, marks,
-                            (s.near, layout.near[i]))
+        page_lines = [_line(line, layout.boundaries[i], layout.columns[i], rtl, s.counts, marks)
                       for i, (line, s) in enumerate(zip(lines, spaced))]
         merged = _merged_rows(page_lines, layout.tables, lines, rules, verticals)
         width, height = pdf_page.get_size()

@@ -10,7 +10,7 @@ import unittest
 
 from harness.textdiff import _SPACE_RUN
 from hebrew_pdf.chars import Char
-from hebrew_pdf.spacing import HALF_SPACE, HALF_SPACE_RANGE, SpaceCounts, is_space, space_by_gaps
+from hebrew_pdf.spacing import HALF_SPACE, SpaceCounts, is_space, space_by_gaps
 
 H = 10.0  # גובה התיבה של כל אות: חצי רווח הוא HALF_SPACE * H, כלומר 1
 WIDTH = 2.0
@@ -83,24 +83,6 @@ class UsualGapTest(unittest.TestCase):
         half = HALF_SPACE * H
         self.assertEqual(shown("ab|cd", word_gap=half * 0.9)[0], "abcd")
         self.assertEqual(shown("ab|cd", word_gap=half * 1.1)[0], "ab cd")
-
-
-class NearTheThresholdTest(unittest.TestCase):
-    """החלטות קרובות לסף (SpacedRow.near, סבב 6ב): פער שההחלטה עליו מתהפכת כש-HALF_SPACE זז בתוך הטווח שבו
-    התוצאה על הסט זהה (HALF_SPACE_RANGE). מידע בלבד: הרווחים עצמם לא משתנים."""
-
-    def test_a_gap_inside_the_stable_range_is_near(self):
-        low, high = (bound * H for bound in HALF_SPACE_RANGE)
-        for word_gap, near in ((low * 0.9, 0), ((low + high) / 2, 1), (high * 1.1, 0)):
-            with self.subTest(word_gap=word_gap):
-                spaced = space_by_gaps(page_row("ab|cd", word_gap=word_gap))
-                self.assertEqual(spaced.near, near)
-        # משני הצדדים של הסף, בתוך הטווח: שתי ההחלטות קרובות לסף, ומה שיוצא הוא ההחלטה של HALF_SPACE עצמו
-        half = HALF_SPACE * H
-        self.assertEqual((shown("ab|cd", word_gap=half * 0.9)[0], space_by_gaps(page_row("ab|cd", word_gap=half * 0.9)).near),
-                         ("abcd", 1))
-        self.assertEqual((shown("ab|cd", word_gap=half * 1.1)[0], space_by_gaps(page_row("ab|cd", word_gap=half * 1.1)).near),
-                         ("ab cd", 1))
 
 
 class GeometryTest(unittest.TestCase):

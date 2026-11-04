@@ -50,10 +50,6 @@ from hebrew_pdf.chars import Char
 # נעלמים. ולמה לא רוחב תווי הרווח שמצוירים בשורה: ב-Google Docs וב-Chrome הם ברוחב אפס,
 # ובשאר הסט זה משנה רק שתי שורות, ובשתיהן לרעה ("4.1.לאור").
 HALF_SPACE = 0.1
-# הטווח שבו התוצאה על כל הסט זהה (בדיקת הרגישות שלמעלה). פער שההחלטה עליו מתהפכת בתוך הטווח הזה הוא החלטה קרובה
-# לסף (SpacedRow.near): היא תלויה בבחירה של הערך בתוך הטווח, ולא במה שנמדד. מידע לציון ולכיול בלבד, שלא משנה
-# את הטקסט (סבב 6ב, harness/calibration.py)
-HALF_SPACE_RANGE = (0.06, 0.125)
 
 
 def is_space(text: str) -> bool:
@@ -85,8 +81,6 @@ class SpaceCounts:
 class SpacedRow:
     chars: list[Char]  # בסדר שבעמוד, משמאל לימין: בלי תווי הרווח שבקובץ, ועם רווח בכל פער בין מילים
     counts: SpaceCounts
-    # פערים שההחלטה עליהם (רווח או לא) מתהפכת כש-HALF_SPACE זז בתוך HALF_SPACE_RANGE: החלטות קרובות לסף
-    near: int = 0
 
 
 def space_by_gaps(visual: Sequence[Char]) -> SpacedRow:
@@ -124,10 +118,8 @@ def space_by_gaps(visual: Sequence[Char]) -> SpacedRow:
         right = max(right, c.right)
     letter_gaps = [gap for gap, a, b in zip(gaps, glyphs, glyphs[1:]) if _is_letter(a.text) and _is_letter(b.text)]
     usual = statistics.median_low(letter_gaps) if letter_gaps else 0.0
-    height = statistics.median(heights)
-    threshold = usual + HALF_SPACE * height  # רווח: פער גדול מזה
-    low, high = (usual + bound * height for bound in HALF_SPACE_RANGE)
-    near = sum(1 for gap in gaps if low < gap <= high)
+    threshold = usual + HALF_SPACE * statistics.median(heights)
+
     out = [glyphs[0]]
     in_file = dropped = added = 0
     for k in range(1, len(glyphs)):
@@ -138,7 +130,7 @@ def space_by_gaps(visual: Sequence[Char]) -> SpacedRow:
         dropped += space_before[k] and not word_gap
         added += word_gap and not space_before[k]
         out.append(glyphs[k])
-    return SpacedRow(out, SpaceCounts(in_file, dropped, added), near)
+    return SpacedRow(out, SpaceCounts(in_file, dropped, added))
 
 
 def _space_between(left_edge: float, after: Char) -> Char:

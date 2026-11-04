@@ -196,6 +196,20 @@ class PlausibilityTest(unittest.TestCase):
         self.assertEqual((result.decision, result.reasons), (score.OK, ()))
         self.assertIn("שורה אחת ששני סדרים שלה נראים זהה", result.notes[0].text)
 
+    def test_a_threshold_of_one_is_refused(self):
+        # הגבול התחתון של Wilson לא מגיע ל-1, ובלי הבדיקה min_words לא הייתה נגמרת
+        for bad in (1.0, 1.5, float("inf"), float("nan")):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    score.min_words(bad)
+        with self.assertRaises(ValueError):
+            score.score_page(page(part("כותרת קצרה")), min_plausible=1.0)
+        self.assertEqual(score.min_words(0.0), 0)
+
+    def test_the_docstring_states_the_limit_of_today(self):
+        # ההסבר של decides נוקב במספר המילים בסף של היום: הוא צריך להיות מה ש-min_words מחזיר
+        self.assertIn(f"{score.min_words(score.MIN_PLAUSIBLE)} מילים בסף של היום", score.Signals.decides.__doc__)
+
     def test_how_short_is_short(self):
         # הגבול נגזר מהסף ולא נקבע בנפרד: גם בלי אף סימן, 12 מילים נותנות 0.757, מתחת ל-0.763, ו-13 נותנות 0.772
         self.assertEqual(score.min_words(score.MIN_PLAUSIBLE), 13)

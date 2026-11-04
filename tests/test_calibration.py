@@ -99,11 +99,6 @@ class DecideTest(unittest.TestCase):
         self.assertTrue(calibration.decide(calibration.Outcome(False, plausible=0.5, words=40),
                                            score.MIN_PLAUSIBLE)["סימנים"])
 
-    def test_near_decisions_are_evidence_and_not_a_rule(self):
-        hits = calibration.decide(calibration.Outcome(False, words=40, near=5), score.MIN_PLAUSIBLE)
-        self.assertTrue(hits["קרוב לסף"])
-        self.assertFalse(hits["עם הראיות"])
-
     def test_the_new_evidence_decides(self):
         for field in ("bad_numbers", "crowded"):
             out = calibration.Outcome(False, words=40, **{field: 1})

@@ -322,7 +322,12 @@ class Signals:
 
 
 def min_words(min_plausible: float) -> int:
-    """מספר המילים הקטן ביותר שבו הסימנים יכולים להכריע (Signals.decides)."""
+    """מספר המילים הקטן ביותר שבו הסימנים יכולים להכריע (Signals.decides). זורקת ValueError על סף של 1 ומעלה
+    (או שאינו מספר סופי): הגבול התחתון של Wilson קטן מ-1 בכל מספר סופי של מילים, ובלי הבדיקה הלולאה לא נגמרת. הסף
+    מגיע מהכיול (harness/calibration.py), ולא רק מהקבוע, ולכן זו לא שאלה תיאורטית."""
+    if not math.isfinite(min_plausible) or min_plausible >= 1:
+        raise ValueError(f"סף לא תקין לסבירות: {min_plausible}. הגבול התחתון של Wilson תמיד קטן מ-1, ולכן הסף "
+                         "צריך להיות קטן מ-1")
     words = 0
     while wilson_lower(words, words) < min_plausible:
         words += 1

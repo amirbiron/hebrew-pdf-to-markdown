@@ -622,14 +622,14 @@ def _calibration_section(cal: calibration_mod.Calibration, add) -> None:
     add("")
     add("#### שגיאות מכוונות: כמה נתפסו")
     add("")
-    add("\"נתפסו היום\": העמוד לא יצא תקין בכללים של סבב 6 (נפסל, תצוגה, סימנים, שלמות). \"נתפסו עם הראיות\": גם בשתי הראיות החדשות של סבב 6ב, שנכנסו להחלטה (קבוצות ספרות, תאים מספריים). בעמודות שאחריהן: לפי איזה כלל (עמוד יכול להיתפס ביותר מאחד). \"קרוב לסף\": בעמוד יש החלטה של הקורא שקרובה לסף שלה; ראיה שנמדדה ולא נכנסה להחלטה (למטה). הצורות שמסומנות ב-◐ הן הנקודה העיוורת של סבב 6ב: כל שורה בהן עדיין מוצגת כמו העמוד.")
+    add("\"נתפסו היום\": העמוד לא יצא תקין בכללים של סבב 6 (נפסל, תצוגה, סימנים, שלמות). \"נתפסו עם הראיות\": גם בשתי הראיות החדשות של סבב 6ב, שנכנסו להחלטה (קבוצות ספרות, תאים מספריים). בעמודות שאחריהן: לפי איזה כלל (עמוד יכול להיתפס ביותר מאחד). הצורות שמסומנות ב-◐ הן הנקודה העיוורת של סבב 6ב: כל שורה בהן עדיין מוצגת כמו העמוד.")
     add("")
-    add("| צורה | עוצמה | עמודים | נתפסו היום | נתפסו עם הראיות | נפסל | תצוגה | סימנים | שלמות | קבוצות ספרות | תאים מספריים | קרוב לסף |")
-    add("|---|---|---|---|---|---|---|---|---|---|---|---|")
+    add("| צורה | עוצמה | עמודים | נתפסו היום | נתפסו עם הראיות | נפסל | תצוגה | סימנים | שלמות | קבוצות ספרות | תאים מספריים |")
+    add("|---|---|---|---|---|---|---|---|---|---|---|")
     for form, intensity, count, hits in calibration_mod.catch_table(cal):
         mark = " ◐" if form in calibration_mod.BLIND else ""
         cells = " | ".join(_share(hits[name], count) for name in
-                           ("היום", "עם הראיות") + calibration_mod.RULES + calibration_mod.EVIDENCE_ONLY)
+                           ("היום", "עם הראיות") + calibration_mod.RULES)
         add(f"| {calibration_mod.form_name(form)}{mark} | {calibration_mod.intensity_name(intensity)} | {count} | {cells} |")
     add("")
     good, clean, everything = cal.known_good_flagged, cal.clean_flagged, cal.all_flagged
@@ -639,7 +639,7 @@ def _calibration_section(cal: calibration_mod.Calibration, add) -> None:
     add("")
     add(f"| כלל | ידועים כנכונים ({cal.known_good}) | מהם בלי כשל ודאי ({cal.clean}) | כל הסט, בלי עמודים שנפסלו ({cal.pages}) |")
     add("|---|---|---|---|")
-    for name in calibration_mod.RULES[1:] + calibration_mod.EVIDENCE_ONLY:
+    for name in calibration_mod.RULES[1:]:
         add(f"| {name} | {good[name]} | {clean[name]} | {everything[name]} |")
     add("")
     add("#### הספים")

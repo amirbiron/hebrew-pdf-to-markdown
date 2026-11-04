@@ -144,11 +144,11 @@ class CalibrationTest(unittest.TestCase):
                     self.assertGreater(count, 0)
                     self.assertEqual((hits["תצוגה"], hits["שלמות"], hits["נפסל"]), (0, 0, 0))
 
-    def test_near_decisions_do_not_see_a_corruption(self):
-        # החלטה קרובה לסף היא תכונה של העמוד, לא של הפלט: השחתה לא משנה אותה, ולכן היא מסמנת עמוד מושחת בדיוק כשהיא
-        # מסמנת אותו לפני ההשחתה. זו הסיבה שהיא לא נכנסה להחלטה
-        for c in self.cal.corrupted:
-            self.assertEqual(c.outcome.near, c.baseline.near, (c.form, c.intensity))
+    def test_the_reader_has_no_near_threshold_count(self):
+        # סבב 6ב: הספירה של החלטות קרובות לסף נמדדה, לא הבדילה בין עמודים שגויים לנכונים, וירדה מהקורא
+        page = read_pages(DEFAULT_PDFS / "optimization_chrome.pdf")[0]
+        self.assertFalse(hasattr(page, "near_decisions"))
+        self.assertFalse(hasattr(page.lines[0], "near_spaces"))
 
     def test_the_new_evidence_marks_no_page_known_to_be_correct(self):
         for rule in calibration.NEW:
