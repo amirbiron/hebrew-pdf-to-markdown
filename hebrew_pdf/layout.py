@@ -33,7 +33,7 @@
 
 5. איפה טבלה נגמרת (_rows_of_the_table): שורה קצרה, כמו כותרת בצד ימין, לא חוצה את העמודות
    שמשמאלה, ולכן המסדרון ממשיך לתוכה. מה שמבדיל אותה הוא גודל האות: שורה במסדרון שאין בה פער
-   של ממש (לא שורה של הטבלה עצמה), ושהגודל שלה (החציון של Char.size) לא שווה (chars.SAME_SIZE)
+   של ממש (לא שורה של הטבלה עצמה), ושהגודל שלה (chars.size_of) לא שווה (chars.SAME_SIZE)
    לאף גודל של אות בשורות שתומכות במסדרון, מסיימת אותו. "אף גודל" ולא "הגודל של השורות": בשורה של
    טבלה יש כמה גדלים (בקובץ הטבלאות טקסט ב-6 נקודות וקוד ב-5.5).
    ובטבלה שיש בה קווי מסגרת (קו בין שורה שלה לשורה שמעליה), גודל אחר לבדו לא מספיק: צריך גם קו בין
@@ -51,7 +51,7 @@ import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from hebrew_pdf.chars import Char, same_size
+from hebrew_pdf.chars import Char, same_size, size_of
 
 # בדיקת רגישות (סבב 5, כל הסט): לכל ערך של COMPONENT_GAP בין 7.4 ל-13.25 התוצאה זהה (35 מתוך
 # 40 תיוגים, אותם תאים בקובץ הטבלאות, אותה בדיקת תצוגה). שני הקצוות הם שני פערים מדודים: ב-7.3
@@ -101,9 +101,8 @@ class PageLine:
 
     @property
     def size(self) -> float:
-        """החציון של גודל האות (Char.size) בתווים שיש להם גודל; 0 כשאין כאלה."""
-        sizes = [c.size for c in self.chars if c.size > 0]
-        return statistics.median(sizes) if sizes else 0.0
+        """גודל האות של השורה (chars.size_of)."""
+        return size_of(self.chars)
 
 
 def page_line(chars: list[Char]) -> PageLine:

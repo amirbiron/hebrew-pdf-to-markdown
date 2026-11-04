@@ -2,11 +2,12 @@
 
 - מה שאמור לצאת על הסט, כבדיקת שפיות (המשימה של סבב 6): הכריכה ועמוד 3 של ספר GPS נפסלים, וכך הפלאייר ושקופית
   23 במצגת; עמודים עם קטעי קוד מבודדים בקובץ הטבלאות לא בטוחים, עם הסיבה; ועוד שתי מציאות שנבדקו בעין: האימוג'י
-  שיוצאים "5" ו-"¹" בשקופיות 13 ו-15, והאימוג'י שנעלמים ב-doc-6p_gdocs.pdf.
+  שיוצאים "5" ו-"¹" בשקופיות 13 ו-15, והאימוג'י ב-doc-6p_gdocs.pdf (שנעלמו עד סבב 6ב).
 - בדיקת התצוגה של החבילה (score.shows_as_page) מסכימה עם זו של מערך הבדיקה (python-bidi, מימוש שלא חולק קוד).
 - הכיול: הקבועים ב-hebrew_pdf/score.py הם מה שהכיול בוחר היום, וכל צורת השחתה נתפסת.
 """
 
+import dataclasses
 import unittest
 from collections import Counter
 
@@ -47,11 +48,12 @@ class ExpectedOutcomesTest(unittest.TestCase):
         # שקופית 13: האימוג'י יוצא "5", תו רגיל לגמרי, ורק PDFium יודע שאין לו ערך Unicode
         self.assertEqual((pages[12].marked_unmapped, pages[14].marked_unmapped, pages[22].marked_unmapped), (1, 1, 0))
 
-    def test_emoji_the_text_api_drops(self):
+    def test_emoji_that_pdfium_keeps_as_two_halves(self):
+        # עד סבב 6ב הקורא דילג על שני החצאים של כל אימוג'י (chars.characters), וכל ששת העמודים יצאו "לא בטוח" כי
+        # 26 אימוג'י חסרו בפלט. עכשיו הם בפלט, ונשאר רק עמוד 4, עם השורה שלא מוצגת כמו העמוד
         _, scores = scores_of("doc-6p_gdocs.pdf")
-        missing = [next(r.text for r in s.reasons if r.kind == "missing") for s in scores]
-        self.assertTrue(all(text.endswith("(אימוג'י)") for text in missing))
-        self.assertEqual(sum(int(text.split(" ")[0]) if text[0].isdigit() else 1 for text in missing), 26)
+        self.assertEqual([s.decision for s in scores], [score.OK] * 3 + [score.UNSURE] + [score.OK] * 2)
+        self.assertEqual(kinds(scores[3]), ["display"])
 
     def test_isolated_code_in_the_table_file(self):
         _, scores = scores_of("env-vars_weasyprint.pdf")
@@ -85,6 +87,21 @@ class DisplayCheckAgreesTest(unittest.TestCase):
                 self.assertIn(False, package)  # יש שורות שנכשלות, כך שההסכמה אינה רק על "עובר"
 
 
+    def test_emoji_in_a_hebrew_line(self):
+        # כל רכיב עם אימוג'י ב-doc-6p_gdocs.pdf מוצג כמו העמוד בשתי הבדיקות, ואימוג'י שזז לקצה השני של הרכיב
+        # נתפס בשתיהן: הבדיקה מסוגלת להיכשל על אימוג'י, ולא רק לעבור
+        parts = [(line, part) for page in read_pages(DEFAULT_PDFS / "doc-6p_gdocs.pdf") for line in page.lines
+                 for part in line.parts if any(ord(char) > 0xFFFF for char in part.text)]
+        self.assertEqual(len(parts), 26)
+        for line, part in parts:
+            self.assertTrue(score.shows_as_page(part))
+            self.assertTrue(displays_like_page(dataclasses.replace(line, components=(part,))))
+            emoji = next(char for char in part.text if ord(char) > 0xFFFF)
+            moved = dataclasses.replace(part, text=part.text.replace(emoji, "", 1).strip(" ") + " " + emoji)
+            self.assertFalse(score.shows_as_page(moved))
+            self.assertFalse(displays_like_page(dataclasses.replace(line, components=(moved,))))
+
+
 class CalibrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -113,11 +130,11 @@ class CalibrationTest(unittest.TestCase):
             count, hits = rows[(form, "all")]
             self.assertGreaterEqual(hits["סימנים"], calibration.CATCH_SHARE * count, form)
 
-    def test_complete_everywhere_but_the_lost_emoji(self):
+    def test_complete_everywhere(self):
+        # עד סבב 6ב: כל ששת העמודים של doc-6p_gdocs.pdf, בגלל האימוג'י שהקורא דילג עליהם
         incomplete = {name: [i for i, s in enumerate(scores, 1) if {"missing", "extra"} & set(kinds(s))]
                       for name, scores in self.ev.scores.items()}
-        self.assertEqual({name: pages for name, pages in incomplete.items() if pages},
-                         {"doc-6p_gdocs.pdf": [1, 2, 3, 4, 5, 6]})
+        self.assertEqual({name: pages for name, pages in incomplete.items() if pages}, {})
 
     def test_most_pages_are_ok(self):
         decisions = Counter(s.decision for scores in self.ev.scores.values() for s in scores)

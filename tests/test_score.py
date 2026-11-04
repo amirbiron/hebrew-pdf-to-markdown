@@ -12,7 +12,7 @@ import pypdfium2 as pdfium
 import pypdfium2.raw as pdfium_raw
 
 from hebrew_pdf import score
-from hebrew_pdf.chars import _from_codes, is_rotated, unmapped_char
+from hebrew_pdf.chars import characters, is_rotated, unmapped_char
 from hebrew_pdf.lines import Component, Line, PageText, read_document
 from hebrew_pdf.logical_order import drawn
 from hebrew_pdf.spacing import SpaceCounts
@@ -246,16 +246,29 @@ def _with_spacing(counts: SpaceCounts) -> PageText:
     return PageText(lines, 0, reference="".join(p.text for p in parts))
 
 
+def _text(codes: list[int]) -> str:
+    return "".join(char for _, char in characters(codes))
+
+
 class ReferenceTest(unittest.TestCase):
+    """chars.characters: אותה המרה מקודים לתווים לקורא ולרשימת התווים שמולה נמדדת השלמות."""
+
     def test_an_emoji_is_one_char_in_either_order(self):
         # PDFium הופך את הסדר של שני החצאים כשהוא הופך רצף מימין לשמאל (נמדד ב-doc-6p_gdocs.pdf)
-        self.assertEqual(_from_codes([0xD83D, 0xDCCC]), "\U0001F4CC")
-        self.assertEqual(_from_codes([0xDCCC, 0xD83D]), "\U0001F4CC")
-        self.assertEqual(_from_codes([0x5D0, 0xDCCC, 0xD83D, 0x5D1]), "א\U0001F4CCב")
+        self.assertEqual(_text([0xD83D, 0xDCCC]), "\U0001F4CC")
+        self.assertEqual(_text([0xDCCC, 0xD83D]), "\U0001F4CC")
+        self.assertEqual(_text([0x5D0, 0xDCCC, 0xD83D, 0x5D1]), "א\U0001F4CCב")
+        # המקומות של כל תו ברשימת הקודים: שני החצאים הם תו אחד
+        self.assertEqual([positions for positions, _ in characters([0x5D0, 0xDCCC, 0xD83D, 0x5D1])],
+                         [(0,), (1, 2), (3,)])
 
     def test_a_lone_half_and_an_impossible_code(self):
-        self.assertEqual(_from_codes([0xD83D]), "\ud83d")
-        self.assertEqual(_from_codes([0x110000]), "�")
+        # חצי בלי זוג אינו תו: U+FFFD, תו לא ממופה, ולא חצי שאי אפשר לכתוב ב-UTF-8 ולא תו שנעלם
+        self.assertEqual(_text([0xD83D]), "\ufffd")
+        self.assertEqual(_text([0xDCCC, 0x5D0]), "\ufffdא")
+        self.assertEqual(_text([0xD83D, 0xD83D]), "\ufffd\ufffd")
+        self.assertEqual(_text([0x110000, -1]), "\ufffd\ufffd")
+        self.assertTrue(unmapped_char("\ufffd"))
 
 
 class RotationTest(unittest.TestCase):

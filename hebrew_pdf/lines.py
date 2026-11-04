@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import pypdfium2.raw as pdfium_raw
 from pypdfium2 import PdfiumError
 
-from hebrew_pdf.chars import Char, page_chars
+from hebrew_pdf.chars import Char, page_chars, size_of
 from hebrew_pdf.layout import (MIN_PAGE_GAPS, PageLine, column_of, page_layout, page_line, rule_between,
                                split_components, usual_word_gap)
 from hebrew_pdf.logical_order import document_rtl, to_logical
@@ -34,7 +34,7 @@ class Geometry:
     baseline: float = 0.0  # קו הבסיס (y, ב-PDF ציר y עולה כלפי מעלה)
     left: float = 0.0  # הקצה השמאלי של האות השמאלית
     right: float = 0.0  # הקצה הימני של האות הימנית
-    size: float = 0.0  # החציון של גודל האות (Char.size) באותיות שיש להן גודל
+    size: float = 0.0  # גודל האות (chars.size_of)
     glyph: float = 0.0  # רוחב אופייני של אות: החציון של רוחב ההתקדמות (Char.right - Char.left)
     font: str = ""  # הגופן של רוב האותיות (Char.font); "": לא ידוע
 
@@ -48,10 +48,9 @@ def geometry_of(chars: list[Char]) -> Geometry:
     glyphs = [c for c in chars if c.text != " "]
     if not glyphs:
         return Geometry()
-    sizes = [c.size for c in glyphs if c.size > 0]
     fonts = Counter(c.font for c in glyphs)
     return Geometry(glyphs[0].baseline, min(c.left for c in glyphs), max(c.right for c in glyphs),
-                    statistics.median(sizes) if sizes else 0.0, statistics.median(c.right - c.left for c in glyphs),
+                    size_of(glyphs), statistics.median(c.right - c.left for c in glyphs),
                     max(fonts, key=lambda f: (fonts[f], f)))
 
 
